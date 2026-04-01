@@ -1,3 +1,5 @@
+import Image from 'next/image'
+
 const steps = [
   {
     number: "01",
@@ -17,7 +19,7 @@ const steps = [
     description:
       "Post-visit, your rating is attached to the server's profile permanently — not the restaurant's Yelp page.",
   },
-];
+]
 
 const serverPerks = [
   {
@@ -35,17 +37,17 @@ const serverPerks = [
     description:
       "Top-rated servers earn tokens automatically. No application. No approval.",
   },
-];
+]
 
 export default function Home() {
   return (
     <div
       className="min-h-screen text-white"
-      style={{ backgroundColor: "#000000", fontFamily: "var(--font-geist-sans)" }}
+      style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}
     >
 
       {/* ── Navbar ─────────────────────────────────────────────────── */}
-      <header className="flex h-16 items-center justify-between px-8 lg:px-16">
+      <header className="absolute top-0 left-0 right-0 z-20 flex h-16 items-center justify-between px-8 lg:px-16">
         <a
           href="/"
           className="text-sm font-semibold uppercase tracking-[0.2em] text-white"
@@ -71,28 +73,40 @@ export default function Home() {
       <main>
 
         {/* ── Hero ───────────────────────────────────────────────────── */}
-        <section className="px-8 pb-32 pt-24 lg:px-16 lg:pb-40 lg:pt-36">
-          <div className="mx-auto max-w-5xl">
-            <h1
-              className="text-[clamp(3rem,8vw,7rem)] font-bold leading-[1.0] tracking-tight text-white"
-            >
-              Your table.
-              <br />
-              Your server.
-              <br />
-              Your experience.
-            </h1>
+        <section className="relative flex min-h-screen items-end overflow-hidden">
+          {/* Background photo */}
+          <Image
+            src="https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=1920&q=80"
+            alt="Moody upscale bar"
+            fill
+            priority
+            className="object-cover"
+          />
+          {/* Dark overlay — 60% black so text stays fully legible */}
+          <div className="absolute inset-0 bg-black/60" />
 
-            <p className="mt-10 max-w-md text-base leading-relaxed" style={{ color: "#A0A0A0" }}>
-              Slate lets you book a table and request the server who makes it worth coming back to — and rate them directly after.
-            </p>
+          {/* Content — sits above the overlay */}
+          <div className="relative z-10 w-full px-8 pb-24 lg:px-16 lg:pb-32">
+            <div className="mx-auto max-w-5xl">
+              <h1 className="text-[clamp(3rem,8vw,7rem)] font-bold leading-[1.0] tracking-tight text-white">
+                Your table.
+                <br />
+                Your server.
+                <br />
+                Your experience.
+              </h1>
 
-            <a
-              href="/reserve"
-              className="mt-10 inline-block rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
-            >
-              Make a reservation
-            </a>
+              <p className="mt-10 max-w-md text-base leading-relaxed" style={{ color: '#A0A0A0' }}>
+                Slate lets you book a table and request the server who makes it worth coming back to — and rate them directly after.
+              </p>
+
+              <a
+                href="/reserve"
+                className="mt-10 inline-block rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+              >
+                Make a reservation
+              </a>
+            </div>
           </div>
         </section>
 
@@ -102,29 +116,44 @@ export default function Home() {
         {/* ── How it works ───────────────────────────────────────────── */}
         <section className="px-8 py-24 lg:px-16 lg:py-32">
           <div className="mx-auto max-w-5xl">
-            <p className="mb-16 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#A0A0A0" }}>
-              For guests
-            </p>
+            <div className="grid grid-cols-1 gap-16 lg:grid-cols-2 lg:gap-24">
 
-            <div>
-              {steps.map(({ number, title, description }, i) => (
-                <div key={number}>
-                  <div className="flex flex-col gap-3 py-10 sm:flex-row sm:items-start sm:gap-16">
-                    <span className="w-12 shrink-0 text-xs font-medium" style={{ color: "#A0A0A0" }}>
-                      {number}
-                    </span>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-16">
-                      <h3 className="w-52 shrink-0 text-base font-semibold text-white">
-                        {title}
-                      </h3>
-                      <p className="max-w-md text-sm leading-relaxed" style={{ color: "#A0A0A0" }}>
-                        {description}
-                      </p>
+              {/* Steps — left column */}
+              <div>
+                <p className="mb-12 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#A0A0A0' }}>
+                  For guests
+                </p>
+
+                <div>
+                  {steps.map(({ number, title, description }, i) => (
+                    <div key={number}>
+                      <div className="flex flex-col gap-3 py-8">
+                        <span className="text-xs font-medium" style={{ color: '#A0A0A0' }}>
+                          {number}
+                        </span>
+                        <div>
+                          <h3 className="text-base font-semibold text-white">{title}</h3>
+                          <p className="mt-1.5 text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
+                            {description}
+                          </p>
+                        </div>
+                      </div>
+                      {i < steps.length - 1 && <div className="border-t border-white/10" />}
                     </div>
-                  </div>
-                  {i < steps.length - 1 && <div className="border-t border-white/10" />}
+                  ))}
                 </div>
-              ))}
+              </div>
+
+              {/* Image — right column */}
+              <div className="relative hidden overflow-hidden lg:block" style={{ aspectRatio: '3/4' }}>
+                <Image
+                  src="https://images.unsplash.com/photo-1551218808-94e220e084d2?w=800&q=80"
+                  alt="Bartender crafting a cocktail"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+
             </div>
           </div>
         </section>
@@ -133,11 +162,22 @@ export default function Home() {
         <div className="border-t border-white/10" />
 
         {/* ── For Servers ────────────────────────────────────────────── */}
-        <section id="for-servers" className="px-8 py-24 lg:px-16 lg:py-32" style={{ backgroundColor: "#0a0a0a" }}>
-          <div className="mx-auto max-w-5xl">
+        <section id="for-servers" className="relative overflow-hidden px-8 py-24 lg:px-16 lg:py-32">
+          {/* Background photo */}
+          <Image
+            src="https://images.unsplash.com/photo-1559329007-40df8a9345d8?w=1920&q=80"
+            alt="Elegant restaurant interior"
+            fill
+            className="object-cover"
+          />
+          {/* Heavy overlay so white text on white interior stays readable */}
+          <div className="absolute inset-0 bg-black/80" />
+
+          {/* Content */}
+          <div className="relative z-10 mx-auto max-w-5xl">
             <div className="mb-16 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#A0A0A0" }}>
+                <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#A0A0A0' }}>
                   For servers
                 </p>
                 <h2 className="text-3xl font-bold tracking-tight text-white sm:text-5xl">
@@ -158,10 +198,8 @@ export default function Home() {
               {serverPerks.map(({ title, description }, i) => (
                 <div key={title}>
                   <div className="flex flex-col gap-2 py-10 sm:flex-row sm:items-start sm:gap-16">
-                    <h3 className="w-52 shrink-0 text-base font-semibold text-white">
-                      {title}
-                    </h3>
-                    <p className="max-w-md text-sm leading-relaxed" style={{ color: "#A0A0A0" }}>
+                    <h3 className="w-52 shrink-0 text-base font-semibold text-white">{title}</h3>
+                    <p className="max-w-md text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
                       {description}
                     </p>
                   </div>
@@ -182,11 +220,11 @@ export default function Home() {
         <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">
           Slate
         </span>
-        <p className="text-xs" style={{ color: "#A0A0A0" }}>
+        <p className="text-xs" style={{ color: '#A0A0A0' }}>
           © {new Date().getFullYear()} Slate
         </p>
       </footer>
 
     </div>
-  );
+  )
 }
