@@ -1,3 +1,5 @@
+import Navbar from '@/app/components/Navbar'
+
 // Demo data — in production this would be fetched by `id` from the chain.
 const profile = {
   id: "marcus-johnson",
@@ -85,29 +87,7 @@ export default async function ServerProfilePage({
       style={{ backgroundColor: "#000000", fontFamily: "var(--font-geist-sans)" }}
     >
 
-      {/* ── Navbar ─────────────────────────────────────────────────── */}
-      <header className="flex h-16 items-center justify-between px-8 lg:px-16">
-        <a
-          href="/"
-          className="text-sm font-semibold uppercase tracking-[0.2em] text-white"
-        >
-          Slate
-        </a>
-        <nav className="flex items-center gap-3">
-          <a
-            href="/login"
-            className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
-          >
-            Log in
-          </a>
-          <a
-            href="/signup"
-            className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
-          >
-            Sign up
-          </a>
-        </nav>
-      </header>
+      <Navbar />
 
       <main>
 
@@ -160,7 +140,7 @@ export default async function ServerProfilePage({
                 {/* Actions */}
                 <div className="mt-2 flex flex-wrap gap-3">
                   <a
-                    href={`/reserve?server=${profile.id}`}
+                    href="/book"
                     className="rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
                   >
                     Reserve with Marcus

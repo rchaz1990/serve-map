@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import Navbar from '@/app/components/Navbar'
 
 const steps = [
   {
@@ -46,29 +47,7 @@ export default function Home() {
       style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}
     >
 
-      {/* ── Navbar ─────────────────────────────────────────────────── */}
-      <header className="absolute top-0 left-0 right-0 z-20 flex h-16 items-center justify-between px-8 lg:px-16">
-        <a
-          href="/"
-          className="text-sm font-semibold uppercase tracking-[0.2em] text-white"
-        >
-          Slate
-        </a>
-        <nav className="flex items-center gap-3">
-          <a
-            href="/login"
-            className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
-          >
-            Log in
-          </a>
-          <a
-            href="/signup"
-            className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
-          >
-            Sign up
-          </a>
-        </nav>
-      </header>
+      <Navbar overlay />
 
       <main>
 
@@ -101,7 +80,7 @@ export default function Home() {
               </p>
 
               <a
-                href="/reserve"
+                href="/book"
                 className="mt-10 inline-block rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
               >
                 Make a reservation

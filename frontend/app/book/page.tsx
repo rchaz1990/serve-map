@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Navbar from '@/app/components/Navbar'
 
 // ── Static data ─────────────────────────────────────────────────────────────
 
@@ -199,9 +200,7 @@ export default function BookPage() {
   if (confirmed) {
     return (
       <div className="flex min-h-screen flex-col" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
-        <header className="flex h-16 items-center justify-between px-8 lg:px-16">
-          <a href="/" className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Slate</a>
-        </header>
+        <Navbar />
         <main className="flex flex-1 flex-col items-center justify-center px-8 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/20 text-white mb-8">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-7 w-7">
@@ -218,9 +217,14 @@ export default function BookPage() {
           <p className="mt-8 max-w-sm text-xs" style={{ color: '#A0A0A0' }}>
             A confirmation has been sent to {guestEmail}. Your rating after dining helps {selectedServerData?.name.split(' ')[0]} earn $SERVE rewards.
           </p>
-          <a href="/" className="mt-10 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80">
-            Back to home
-          </a>
+          <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <a href="/rate" className="inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80">
+              Rate your server
+            </a>
+            <a href="/" className="inline-block rounded-full border border-white/30 px-8 py-3 text-sm font-medium text-white transition-colors hover:border-white">
+              Back to home
+            </a>
+          </div>
         </main>
       </div>
     )
@@ -231,18 +235,7 @@ export default function BookPage() {
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
 
-      {/* Navbar */}
-      <header className="flex h-16 items-center justify-between px-8 lg:px-16">
-        <a href="/" className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Slate</a>
-        <nav className="flex items-center gap-3">
-          <a href="/login" className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white">
-            Log in
-          </a>
-          <a href="/signup" className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80">
-            Sign up
-          </a>
-        </nav>
-      </header>
+      <Navbar />
 
       <div className="border-t border-white/10" />
 

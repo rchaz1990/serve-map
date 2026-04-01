@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Navbar from '@/app/components/Navbar'
 
 const tags = [
   'Attentive',
@@ -82,11 +83,7 @@ export default function RatePage() {
         className="flex min-h-screen flex-col"
         style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}
       >
-        <header className="flex h-16 items-center px-8 lg:px-16">
-          <a href="/" className="text-sm font-semibold uppercase tracking-[0.2em] text-white">
-            Slate
-          </a>
-        </header>
+        <Navbar />
         <main className="flex flex-1 flex-col items-center justify-center px-8 text-center">
           {/* Check circle */}
           <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-full border border-white/20">
@@ -130,12 +127,7 @@ export default function RatePage() {
       className="min-h-screen text-white"
       style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}
     >
-      {/* Navbar */}
-      <header className="flex h-16 items-center justify-between px-8 lg:px-16">
-        <a href="/" className="text-sm font-semibold uppercase tracking-[0.2em] text-white">
-          Slate
-        </a>
-      </header>
+      <Navbar />
 
       <div className="border-t border-white/10" />
 
