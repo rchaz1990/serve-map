@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Navbar from '@/app/components/Navbar'
 
 // Demo data — in production this would be fetched by `id` from the chain.
@@ -14,9 +15,10 @@ const profile = {
   totalBookings: 312,
   yearsExperience: 7,
   repeatGuestPct: 78,
-  serveTokens: "2,450",
+  serveTokens: 847,
+  serveTokensGoal: 1000,
   bio: "Seven years behind the bar and at the table. Known for remembering names, preferences, and making every reservation feel like a regular's.",
-};
+}
 
 const reviews = [
   {
@@ -40,7 +42,7 @@ const reviews = [
     comment:
       "Attentive without hovering. Knew when to engage and when to give us space. The cocktail recommendations were exactly right.",
   },
-];
+]
 
 const career = [
   {
@@ -64,248 +66,333 @@ const career = [
     period: "Mar 2018 – Jul 2020",
     current: false,
   },
-];
+]
 
 const stats = [
   { label: "Avg. rating", value: `${profile.rating}` },
   { label: "Total bookings", value: profile.totalBookings.toLocaleString() },
   { label: "Years experience", value: `${profile.yearsExperience}` },
   { label: "Repeat guests", value: `${profile.repeatGuestPct}%` },
-];
+]
+
+// Placeholder follower initials
+const followerAvatars = ["SK", "DL", "RM"]
 
 export default async function ServerProfilePage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string }>
 }) {
-  // `id` available for future data fetching
-  const { id: _id } = await params;
+  const { id: _id } = await params
+
+  const serveProgress = Math.round((profile.serveTokens / profile.serveTokensGoal) * 100)
 
   return (
     <div
       className="min-h-screen text-white"
       style={{ backgroundColor: "#000000", fontFamily: "var(--font-geist-sans)" }}
     >
+      {/* Navbar overlaid on banner */}
+      <div className="relative z-20">
+        <Navbar overlay />
+      </div>
 
-      <Navbar />
+      {/* ── Banner ──────────────────────────────────────────────────────── */}
+      <div className="relative h-72 w-full overflow-hidden sm:h-80 lg:h-96">
+        <Image
+          src="https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=1920&q=80"
+          alt="Bar background"
+          fill
+          priority
+          className="object-cover"
+        />
+        {/* Gradient overlay — heavier at bottom so avatar pops */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black" />
+      </div>
 
-      <main>
+      {/* ── Profile Header ──────────────────────────────────────────────── */}
+      <div className="mx-auto max-w-5xl px-8 lg:px-16">
 
-        {/* ── Profile Header ─────────────────────────────────────────── */}
-        <section className="px-8 pb-16 pt-16 lg:px-16 lg:pt-20">
-          <div className="mx-auto max-w-5xl">
+        {/* Avatar row — pulled up over the banner */}
+        <div className="relative -mt-16 mb-6 flex flex-col gap-6 sm:-mt-20 sm:flex-row sm:items-end sm:justify-between">
 
-            {/* Avatar + name block */}
-            <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:gap-12">
+          {/* Avatar */}
+          <div
+            className="flex h-32 w-32 shrink-0 items-center justify-center rounded-full border-4 border-black bg-white text-3xl font-bold text-black sm:h-36 sm:w-36"
+            aria-label={`${profile.name} avatar`}
+          >
+            {profile.initials}
+          </div>
 
-              {/* Avatar */}
+          {/* Reserve CTA — aligned to bottom-right on desktop */}
+          <div className="flex flex-wrap gap-3 sm:pb-2">
+            <a
+              href="/book"
+              className="rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+            >
+              Reserve with Marcus
+            </a>
+            <a
+              href={`/follow?server=${profile.id}`}
+              className="rounded-full border border-white/30 px-6 py-3 text-sm font-medium text-white transition-colors hover:border-white"
+            >
+              + Follow
+            </a>
+          </div>
+        </div>
+
+        {/* Name + verified + meta */}
+        <div className="mb-4 flex flex-col gap-1.5">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              {profile.name}
+            </h1>
+            {/* Verified badge */}
+            <span title="Verified on-chain profile" className="flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6">
+                <circle cx="12" cy="12" r="12" fill="white" />
+                <path
+                  d="M7 12.5l3.5 3.5 6.5-7"
+                  stroke="black"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+          </div>
+          <p className="text-sm" style={{ color: "#A0A0A0" }}>
+            {profile.role} · {profile.restaurant} · {profile.location}
+          </p>
+          <div className="mt-1 flex items-center gap-3">
+            <span className="text-lg font-bold text-white">
+              {profile.rating} ★
+            </span>
+            <span className="text-sm" style={{ color: "#A0A0A0" }}>
+              {profile.totalRatings} verified ratings
+            </span>
+            <span style={{ color: "#404040" }}>·</span>
+            <span className="text-sm" style={{ color: "#A0A0A0" }}>
+              {profile.totalBookings} bookings
+            </span>
+          </div>
+        </div>
+
+        {/* Bio */}
+        <p className="mb-0 max-w-2xl text-sm leading-relaxed" style={{ color: "#A0A0A0" }}>
+          {profile.bio}
+        </p>
+
+      </div>
+
+      {/* ── Divider ─────────────────────────────────────────────────────── */}
+      <div className="mt-10 border-t border-white/10" />
+
+      {/* ── Stats Row ───────────────────────────────────────────────────── */}
+      <section className="px-8 py-12 lg:px-16">
+        <div className="mx-auto max-w-5xl">
+          <div className="grid grid-cols-2 gap-px bg-white/10 sm:grid-cols-4">
+            {stats.map(({ label, value }) => (
               <div
-                className="flex h-28 w-28 shrink-0 items-center justify-center rounded-full bg-white text-2xl font-bold text-black"
-                aria-label={`${profile.name} avatar`}
+                key={label}
+                className="flex flex-col gap-1 px-6 py-8 first:pl-0"
+                style={{ backgroundColor: "#000000" }}
               >
-                {profile.initials}
+                <span className="text-3xl font-bold text-white">{value}</span>
+                <span className="text-xs uppercase tracking-widest" style={{ color: "#A0A0A0" }}>
+                  {label}
+                </span>
               </div>
-
-              {/* Identity */}
-              <div className="flex flex-col gap-3">
-                <div>
-                  <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-                    {profile.name}
-                  </h1>
-                  <p className="mt-1 text-sm" style={{ color: "#A0A0A0" }}>
-                    {profile.role} · {profile.restaurant} · {profile.location}
-                  </p>
-                </div>
-
-                {/* Rating */}
-                <div className="flex items-baseline gap-3">
-                  <span className="text-5xl font-bold text-white">
-                    {profile.rating} ★
-                  </span>
-                  <span className="text-sm" style={{ color: "#A0A0A0" }}>
-                    {profile.totalRatings} ratings
-                  </span>
-                  <span
-                    className="text-sm"
-                    style={{ color: "#A0A0A0" }}
-                    aria-hidden
-                  >
-                    ·
-                  </span>
-                  <span className="text-sm" style={{ color: "#A0A0A0" }}>
-                    {profile.followers} followers
-                  </span>
-                </div>
-
-                {/* Actions */}
-                <div className="mt-2 flex flex-wrap gap-3">
-                  <a
-                    href="/book"
-                    className="rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
-                  >
-                    Reserve with Marcus
-                  </a>
-                  <a
-                    href={`/follow?server=${profile.id}`}
-                    className="rounded-full border border-white/30 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:border-white"
-                  >
-                    Follow
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {/* Bio */}
-            <p className="mt-10 max-w-2xl text-sm leading-relaxed" style={{ color: "#A0A0A0" }}>
-              {profile.bio}
-            </p>
+            ))}
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* ── Divider ────────────────────────────────────────────────── */}
-        <div className="border-t border-white/10" />
+      {/* ── Divider ─────────────────────────────────────────────────────── */}
+      <div className="border-t border-white/10" />
 
-        {/* ── Stats Row ──────────────────────────────────────────────── */}
-        <section className="px-8 py-12 lg:px-16">
-          <div className="mx-auto max-w-5xl">
-            <div className="grid grid-cols-2 gap-px bg-white/10 sm:grid-cols-4">
-              {stats.map(({ label, value }) => (
-                <div
-                  key={label}
-                  className="flex flex-col gap-1 px-6 py-8 first:pl-0"
-                  style={{ backgroundColor: "#000000" }}
-                >
-                  <span className="text-3xl font-bold text-white">{value}</span>
-                  <span className="text-xs uppercase tracking-widest" style={{ color: "#A0A0A0" }}>
-                    {label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+      {/* ── $SERVE Rewards + Following — two-col on desktop ─────────────── */}
+      <section className="px-8 py-12 lg:px-16">
+        <div className="mx-auto max-w-5xl">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
 
-        {/* ── Divider ────────────────────────────────────────────────── */}
-        <div className="border-t border-white/10" />
-
-        {/* ── $SERVE Rewards ─────────────────────────────────────────── */}
-        <section className="px-8 py-12 lg:px-16" style={{ backgroundColor: "#0a0a0a" }}>
-          <div className="mx-auto max-w-5xl">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4">
-                {/* Badge icon */}
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20 text-white">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-white">Top Rated Server — $SERVE Rewards Active</p>
-                  <p className="text-xs" style={{ color: "#A0A0A0" }}>
-                    Marcus is in the top 5% of servers on Slate and earns automatic token rewards.
-                  </p>
-                </div>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-2xl font-bold text-white">{profile.serveTokens}</p>
-                <p className="text-xs uppercase tracking-widest" style={{ color: "#A0A0A0" }}>$SERVE earned</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Divider ────────────────────────────────────────────────── */}
-        <div className="border-t border-white/10" />
-
-        {/* ── Recent Reviews ─────────────────────────────────────────── */}
-        <section className="px-8 py-16 lg:px-16 lg:py-24">
-          <div className="mx-auto max-w-5xl">
-            <p className="mb-12 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#A0A0A0" }}>
-              Recent reviews
-            </p>
-
-            <div>
-              {reviews.map(({ guest, rating, date, comment }, i) => (
-                <div key={i}>
-                  <div className="py-10">
-                    {/* Review header */}
-                    <div className="mb-4 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm font-semibold text-white">{guest}</span>
-                        <span className="text-xs" style={{ color: "#A0A0A0" }}>
-                          {"★".repeat(rating)}{"☆".repeat(5 - rating)}
-                        </span>
-                      </div>
-                      <span className="text-xs" style={{ color: "#A0A0A0" }}>{date}</span>
-                    </div>
-                    {/* Comment */}
-                    <p className="max-w-2xl text-sm leading-relaxed" style={{ color: "#A0A0A0" }}>
-                      &ldquo;{comment}&rdquo;
-                    </p>
+            {/* $SERVE Rewards card */}
+            <div className="rounded-2xl border border-white/10 p-6" style={{ backgroundColor: "#0a0a0a" }}>
+              {/* Header row */}
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5 text-white">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" />
+                    </svg>
                   </div>
-                  {i < reviews.length - 1 && <div className="border-t border-white/10" />}
+                  <div>
+                    <p className="text-sm font-semibold text-white">$SERVE Rewards</p>
+                    <p className="text-xs" style={{ color: "#A0A0A0" }}>Earned automatically from verified ratings</p>
+                  </div>
                 </div>
-              ))}
+                {/* Top 1% badge */}
+                <span className="shrink-0 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+                  Top 1%
+                </span>
+              </div>
+
+              {/* Token amount */}
+              <div className="mb-5">
+                <span className="text-4xl font-bold text-white">{profile.serveTokens.toLocaleString()}</span>
+                <span className="ml-2 text-sm font-medium" style={{ color: "#A0A0A0" }}>$SERVE earned this month</span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(255,255,255,0.1)" }}>
+                <div
+                  className="h-full rounded-full bg-white transition-all"
+                  style={{ width: `${serveProgress}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs" style={{ color: "#606060" }}>
+                  Next tier: {profile.serveTokensGoal.toLocaleString()} $SERVE
+                </p>
+                <p className="text-xs font-medium text-white">
+                  {profile.serveTokensGoal - profile.serveTokens} away
+                </p>
+              </div>
             </div>
+
+            {/* Following card */}
+            <div className="rounded-2xl border border-white/10 p-6" style={{ backgroundColor: "#0a0a0a" }}>
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-white">Followers</p>
+                  <p className="text-xs" style={{ color: "#A0A0A0" }}>People following Marcus's career</p>
+                </div>
+                <span className="text-3xl font-bold text-white">{profile.followers}</span>
+              </div>
+
+              {/* Follower avatars */}
+              <div className="mb-5 flex items-center gap-1">
+                {followerAvatars.map((initials, i) => (
+                  <div
+                    key={i}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-black bg-white text-xs font-bold text-black"
+                    style={{ marginLeft: i > 0 ? '-0.5rem' : '0' }}
+                  >
+                    {initials}
+                  </div>
+                ))}
+                <div
+                  className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-black text-xs font-medium"
+                  style={{ marginLeft: '-0.5rem', backgroundColor: "#1a1a1a", color: "#A0A0A0" }}
+                >
+                  +{profile.followers - followerAvatars.length}
+                </div>
+              </div>
+
+              {/* Follow prompt */}
+              <div className="rounded-xl border border-white/10 px-4 py-3.5">
+                <p className="text-xs leading-relaxed" style={{ color: "#A0A0A0" }}>
+                  Follow Marcus to get notified when he moves to a new restaurant or has availability.
+                </p>
+                <a
+                  href={`/follow?server=${profile.id}`}
+                  className="mt-3 inline-block rounded-full bg-white px-5 py-2 text-xs font-semibold text-black transition-opacity hover:opacity-80"
+                >
+                  Follow Marcus
+                </a>
+              </div>
+            </div>
+
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* ── Divider ────────────────────────────────────────────────── */}
-        <div className="border-t border-white/10" />
+      {/* ── Divider ─────────────────────────────────────────────────────── */}
+      <div className="border-t border-white/10" />
 
-        {/* ── Career History ─────────────────────────────────────────── */}
-        <section className="px-8 py-16 lg:px-16 lg:py-24" style={{ backgroundColor: "#0a0a0a" }}>
-          <div className="mx-auto max-w-5xl">
-            <div className="mb-12 flex items-end justify-between">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#A0A0A0" }}>
-                Career history
-              </p>
-              <p className="text-xs" style={{ color: "#A0A0A0" }}>
-                Profile is portable · verified on-chain
-              </p>
-            </div>
+      {/* ── Recent Reviews ──────────────────────────────────────────────── */}
+      <section className="px-8 py-16 lg:px-16 lg:py-24">
+        <div className="mx-auto max-w-5xl">
+          <p className="mb-12 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#A0A0A0" }}>
+            Recent reviews
+          </p>
 
-            <div>
-              {career.map(({ restaurant, location, role, period, current }, i) => (
-                <div key={i}>
-                  <div className="flex flex-col gap-1 py-8 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex items-center gap-3">
-                        <span className="text-base font-semibold text-white">{restaurant}</span>
-                        {current && (
-                          <span className="rounded-full border border-white/20 px-2.5 py-0.5 text-xs font-medium text-white">
-                            Current
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs" style={{ color: "#A0A0A0" }}>
-                        {role} · {location}
+          <div>
+            {reviews.map(({ guest, rating, date, comment }, i) => (
+              <div key={i}>
+                <div className="py-10">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm font-semibold text-white">{guest}</span>
+                      <span className="text-xs tracking-widest" style={{ color: "#A0A0A0" }}>
+                        {"★".repeat(rating)}{"☆".repeat(5 - rating)}
                       </span>
                     </div>
-                    <span className="text-xs tabular-nums" style={{ color: "#A0A0A0" }}>{period}</span>
+                    <span className="text-xs" style={{ color: "#A0A0A0" }}>{date}</span>
                   </div>
-                  {i < career.length - 1 && <div className="border-t border-white/10" />}
+                  <p className="max-w-2xl text-sm leading-relaxed" style={{ color: "#A0A0A0" }}>
+                    &ldquo;{comment}&rdquo;
+                  </p>
                 </div>
-              ))}
-            </div>
+                {i < reviews.length - 1 && <div className="border-t border-white/10" />}
+              </div>
+            ))}
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* ── Divider ────────────────────────────────────────────────── */}
-        <div className="border-t border-white/10" />
+      {/* ── Divider ─────────────────────────────────────────────────────── */}
+      <div className="border-t border-white/10" />
 
-      </main>
+      {/* ── Career History ──────────────────────────────────────────────── */}
+      <section className="px-8 py-16 lg:px-16 lg:py-24" style={{ backgroundColor: "#0a0a0a" }}>
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-12 flex items-end justify-between">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#A0A0A0" }}>
+              Career history
+            </p>
+            <p className="text-xs" style={{ color: "#A0A0A0" }}>
+              Profile is portable · verified on-chain
+            </p>
+          </div>
 
-      {/* ── Footer ─────────────────────────────────────────────────── */}
+          <div>
+            {career.map(({ restaurant, location, role, period, current }, i) => (
+              <div key={i}>
+                <div className="flex flex-col gap-1 py-8 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-3">
+                      <span className="text-base font-semibold text-white">{restaurant}</span>
+                      {current && (
+                        <span className="rounded-full border border-white/20 px-2.5 py-0.5 text-xs font-medium text-white">
+                          Current
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs" style={{ color: "#A0A0A0" }}>
+                      {role} · {location}
+                    </span>
+                  </div>
+                  <span className="text-xs tabular-nums" style={{ color: "#A0A0A0" }}>{period}</span>
+                </div>
+                {i < career.length - 1 && <div className="border-t border-white/10" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Divider ─────────────────────────────────────────────────────── */}
+      <div className="border-t border-white/10" />
+
+      {/* ── Footer ──────────────────────────────────────────────────────── */}
       <footer className="flex items-center justify-between px-8 py-8 lg:px-16">
-        <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">
-          Slate
-        </span>
+        <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Slate</span>
         <p className="text-xs" style={{ color: "#A0A0A0" }}>
           © {new Date().getFullYear()} Slate
         </p>
       </footer>
 
     </div>
-  );
+  )
 }
