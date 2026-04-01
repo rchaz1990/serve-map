@@ -29,7 +29,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           Explore
         </a>
         <a
-          href="/servers"
+          href="/servers/signup"
           className="text-xs font-medium text-white/50 transition-colors hover:text-white"
         >
           For Servers
@@ -51,7 +51,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           Sign In
         </a>
         <a
-          href="/book"
+          href="/explore"
           className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
         >
           Get Started
