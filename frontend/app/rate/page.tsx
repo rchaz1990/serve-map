@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { PublicKey } from '@solana/web3.js'
 import Navbar from '@/app/components/Navbar'
+import { getOrCreateDemoKeypair, keypairToWallet, getProgram } from '@/lib/solana'
 
 const tags = [
   'Attentive',
@@ -61,11 +63,17 @@ const ratingLabels: Record<number, string> = {
   5: 'Exceptional',
 }
 
+// Fallback demo server profile — used when no profile has been created in this session.
+// Replace with a real pubkey after running initialize_profile on localnet.
+const DEMO_SERVER_PROFILE = '11111111111111111111111111111111'
+
 export default function RatePage() {
   const [rating, setRating] = useState(0)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [comment, setComment] = useState('')
-  const [submitted, setSubmitted] = useState(false)
+  const [txSig, setTxSig] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   function toggleTag(tag: string) {
     setSelectedTags((prev) =>
@@ -75,9 +83,42 @@ export default function RatePage() {
 
   const canSubmit = rating > 0
 
+  async function handleSubmit() {
+    setLoading(true)
+    setError(null)
+    try {
+      const keypair = await getOrCreateDemoKeypair()
+      const wallet = keypairToWallet(keypair)
+      const program = getProgram(wallet)
+
+      // Use the server profile created in this session, or fall back to demo constant.
+      const serverProfileKey = typeof window !== 'undefined'
+        ? (localStorage.getItem('slate-server-profile') ?? DEMO_SERVER_PROFILE)
+        : DEMO_SERVER_PROFILE
+      const serverProfile = new PublicKey(serverProfileKey)
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sig = await (program.methods as any)
+        .submitRating(rating, comment, true)
+        .accounts({
+          serverProfile,
+          rater: keypair.publicKey,
+        })
+        .signers([keypair])
+        .rpc()
+
+      setTxSig(sig)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg.includes('already in use') ? 'You have already rated this server.' : msg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // ── Submitted state ────────────────────────────────────────────────────────
 
-  if (submitted) {
+  if (txSig) {
     return (
       <div
         className="flex min-h-screen flex-col"
@@ -93,14 +134,22 @@ export default function RatePage() {
           </div>
 
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            Rating submitted.
+            Rating submitted on-chain ✓
           </h1>
           <p className="mt-4 max-w-sm text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
-            Your {rating}-star review has been recorded on-chain and attached to Marcus&apos;s profile permanently.
+            Your {rating}-star review has been permanently written to Solana and attached to Marcus&apos;s profile.
           </p>
 
+          {/* Transaction signature */}
+          <div className="mt-6 w-full max-w-sm rounded-xl border border-white/10 px-4 py-4 text-left">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>
+              Transaction
+            </p>
+            <p className="break-all font-mono text-xs text-white">{txSig}</p>
+          </div>
+
           {/* $SERVE notice */}
-          <div className="mt-8 flex items-center gap-3 rounded-none border border-white/10 px-6 py-4">
+          <div className="mt-6 flex w-full max-w-sm items-center gap-3 rounded-none border border-white/10 px-6 py-4">
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={1.5} className="h-5 w-5 shrink-0">
               <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
             </svg>
@@ -111,7 +160,7 @@ export default function RatePage() {
 
           <a
             href="/"
-            className="mt-10 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+            className="mt-8 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80"
           >
             Back to home
           </a>
@@ -238,16 +287,31 @@ export default function RatePage() {
           </div>
         </section>
 
+        {/* ── Error ───────────────────────────────────────────────────── */}
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+            <p className="text-xs text-red-400">{error}</p>
+          </div>
+        )}
+
         {/* ── Submit ──────────────────────────────────────────────────── */}
         <div className="flex flex-col gap-3">
           <button
-            onClick={() => setSubmitted(true)}
-            disabled={!canSubmit}
+            onClick={handleSubmit}
+            disabled={!canSubmit || loading}
             className="w-full rounded-full bg-white py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-25"
           >
-            Submit rating
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Submitting on-chain…
+              </span>
+            ) : 'Submit rating'}
           </button>
-          {!canSubmit && (
+          {!canSubmit && !loading && (
             <p className="text-center text-xs" style={{ color: '#A0A0A0' }}>
               Select a star rating to continue
             </p>

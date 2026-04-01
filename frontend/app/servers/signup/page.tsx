@@ -2,12 +2,15 @@
 
 import { useState } from 'react'
 import Navbar from '@/app/components/Navbar'
+import { getOrCreateDemoKeypair, keypairToWallet, getProgram, deriveServerProfilePDA } from '@/lib/solana'
 
 const STEPS = ['Your info', 'Work history', 'Photo & bio']
 
 export default function ServerSignupPage() {
   const [step, setStep] = useState(0)
-  const [submitted, setSubmitted] = useState(false)
+  const [txSig, setTxSig] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Step 1 fields
   const [firstName, setFirstName] = useState('')
@@ -29,12 +32,45 @@ export default function ServerSignupPage() {
   const canAdvanceStep1 = role && venue && city
   const canAdvanceStep2 = bio.length >= 20
 
-  function handleNext() {
-    if (step < 2) setStep(step + 1)
-    else setSubmitted(true)
+  async function handleClaim() {
+    setLoading(true)
+    setError(null)
+    try {
+      const keypair = await getOrCreateDemoKeypair()
+      const wallet = keypairToWallet(keypair)
+      const program = getProgram(wallet)
+
+      const fullName = `${firstName} ${lastName}`.trim()
+      const restaurant = `${venue}, ${city}`.trim()
+
+      const sig = await program.methods
+        .initializeProfile(fullName, restaurant)
+        .accounts({ owner: keypair.publicKey })
+        .signers([keypair])
+        .rpc()
+
+      // Persist the server_profile PDA so the rate page can reference it
+      const profilePDA = deriveServerProfilePDA(keypair.publicKey)
+      localStorage.setItem('slate-server-profile', profilePDA.toBase58())
+
+      setTxSig(sig)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      // Surface the most useful part of Anchor's verbose errors
+      setError(msg.includes('already in use') ? 'A profile already exists for this wallet.' : msg)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  if (submitted) {
+  function handleNext() {
+    if (step < 2) setStep(step + 1)
+    else handleClaim()
+  }
+
+  // ── Success screen ───────────────────────────────────────────────────────────
+
+  if (txSig) {
     return (
       <div
         className="min-h-screen text-white"
@@ -50,13 +86,22 @@ export default function ServerSignupPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-white">Profile claimed.</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-white">Profile created on-chain!</h1>
             <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>
-              You&apos;re on the list. We&apos;ll review your profile and send a confirmation to <span className="text-white">{email}</span>.
+              Your portable profile has been written to the Solana blockchain and is permanently yours.
             </p>
+
+            {/* Transaction signature */}
+            <div className="mt-6 rounded-xl border border-white/10 px-4 py-4 text-left">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>
+                Transaction
+              </p>
+              <p className="break-all font-mono text-xs text-white">{txSig}</p>
+            </div>
+
             <a
               href="/"
-              className="mt-10 inline-block rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+              className="mt-8 inline-block rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
             >
               Back to home
             </a>
@@ -65,6 +110,8 @@ export default function ServerSignupPage() {
       </div>
     )
   }
+
+  // ── Form ─────────────────────────────────────────────────────────────────────
 
   return (
     <div
@@ -302,12 +349,20 @@ export default function ServerSignupPage() {
             </div>
           )}
 
+          {/* Error */}
+          {error && (
+            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+              <p className="text-xs text-red-400">{error}</p>
+            </div>
+          )}
+
           {/* Navigation */}
           <div className={['mt-8 flex gap-3', step > 0 ? 'flex-row' : 'flex-col'].join(' ')}>
             {step > 0 && (
               <button
                 onClick={() => setStep(step - 1)}
-                className="flex-1 rounded-full border border-white/20 py-3.5 text-sm font-medium text-white transition-colors hover:border-white"
+                disabled={loading}
+                className="flex-1 rounded-full border border-white/20 py-3.5 text-sm font-medium text-white transition-colors hover:border-white disabled:opacity-40"
               >
                 Back
               </button>
@@ -315,13 +370,22 @@ export default function ServerSignupPage() {
             <button
               onClick={handleNext}
               disabled={
+                loading ||
                 (step === 0 && !canAdvanceStep0) ||
                 (step === 1 && !canAdvanceStep1) ||
                 (step === 2 && !canAdvanceStep2)
               }
               className="flex-1 rounded-full bg-white py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-40"
             >
-              {step < 2 ? 'Continue' : 'Claim my profile'}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Creating on-chain…
+                </span>
+              ) : step < 2 ? 'Continue' : 'Claim my profile'}
             </button>
           </div>
 
