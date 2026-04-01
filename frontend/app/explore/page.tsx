@@ -15,7 +15,7 @@ const SERVERS = [
     rating: 4.9,
     ratingCount: 214,
     specialty: 'Craft Cocktails',
-    role: 'Bartenders',
+    filters: ['Servers', 'Craft Cocktails', 'Top Rated'],
   },
   {
     id: 2,
@@ -26,7 +26,7 @@ const SERVERS = [
     rating: 4.8,
     ratingCount: 189,
     specialty: 'Fine Dining & Wine',
-    role: 'Servers',
+    filters: ['Servers', 'Fine Dining', 'Wine'],
   },
   {
     id: 3,
@@ -37,7 +37,7 @@ const SERVERS = [
     rating: 4.9,
     ratingCount: 301,
     specialty: 'Mixology',
-    role: 'Bartenders',
+    filters: ['Bartenders', 'Craft Cocktails', 'Top Rated'],
   },
   {
     id: 4,
@@ -48,7 +48,7 @@ const SERVERS = [
     rating: 4.7,
     ratingCount: 143,
     specialty: 'Sake & Japanese Cuisine',
-    role: 'Servers',
+    filters: ['Servers', 'Fine Dining'],
   },
   {
     id: 5,
@@ -59,7 +59,7 @@ const SERVERS = [
     rating: 4.8,
     ratingCount: 167,
     specialty: 'Classic Cocktails',
-    role: 'Bartenders',
+    filters: ['Bartenders'],
   },
   {
     id: 6,
@@ -70,7 +70,7 @@ const SERVERS = [
     rating: 4.9,
     ratingCount: 258,
     specialty: 'Wine & Fine Dining',
-    role: 'Servers',
+    filters: ['Servers', 'Fine Dining', 'Wine', 'Top Rated'],
   },
 ]
 
@@ -82,14 +82,7 @@ function filterServers(servers: typeof SERVERS, query: string, active: string) {
       s.restaurant.toLowerCase().includes(query.toLowerCase()) ||
       s.specialty.toLowerCase().includes(query.toLowerCase())
 
-    const matchesFilter =
-      active === 'All' ||
-      s.role === active ||
-      s.specialty.toLowerCase().includes(active.toLowerCase()) ||
-      (active === 'Top Rated' && s.rating >= 4.8) ||
-      (active === 'Wine' && s.specialty.toLowerCase().includes('wine')) ||
-      (active === 'Fine Dining' && s.specialty.toLowerCase().includes('dining')) ||
-      (active === 'Craft Cocktails' && s.specialty.toLowerCase().includes('cocktail'))
+    const matchesFilter = active === 'All' || s.filters.includes(active)
 
     return matchesQuery && matchesFilter
   })
