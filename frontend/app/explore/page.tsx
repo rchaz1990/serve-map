@@ -139,13 +139,13 @@ export default function ExplorePage() {
           </div>
 
           {/* Filter pills */}
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
             {FILTERS.map(f => (
               <button
                 key={f}
                 onClick={() => setActiveFilter(f)}
                 className={[
-                  'rounded-full border px-4 py-1.5 text-xs font-medium transition-colors',
+                  'shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium transition-colors',
                   activeFilter === f
                     ? 'border-white bg-white text-black'
                     : 'border-white/20 text-white hover:border-white/50',

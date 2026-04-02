@@ -116,7 +116,7 @@ export default function ServerProfilePage() {
       </div>
 
       {/* ── Banner ──────────────────────────────────────────────────────── */}
-      <div className="relative h-72 w-full overflow-hidden sm:h-80 lg:h-96">
+      <div className="relative h-56 w-full overflow-hidden sm:h-72 lg:h-96">
         <Image
           src="https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=1920&q=80"
           alt="Bar background"
@@ -142,18 +142,18 @@ export default function ServerProfilePage() {
             {profile.initials}
           </div>
 
-          {/* Reserve CTA — aligned to bottom-right on desktop */}
-          <div className="flex flex-wrap gap-3 sm:pb-2">
+          {/* Reserve CTA — stacks on mobile, row on desktop */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:pb-2">
             <a
               href="/book"
-              className="rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+              className="w-full rounded-full bg-white px-8 py-3 text-center text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:w-auto"
             >
               Reserve with Marcus
             </a>
             <button
               onClick={handleFollow}
               className={[
-                'rounded-full border px-6 py-3 text-sm font-medium transition-colors',
+                'w-full rounded-full border px-6 py-3 text-sm font-medium transition-colors sm:w-auto',
                 following
                   ? 'border-white/40 text-white/60 hover:border-white/60'
                   : 'border-white/30 text-white hover:border-white',
@@ -163,7 +163,7 @@ export default function ServerProfilePage() {
             </button>
             <a
               href="/server/1/card"
-              className="rounded-full border border-white/20 px-5 py-3 text-sm font-medium text-white/60 transition-colors hover:border-white hover:text-white"
+              className="w-full rounded-full border border-white/20 px-5 py-3 text-center text-sm font-medium text-white/60 transition-colors hover:border-white hover:text-white sm:w-auto"
             >
               Share my card
             </a>

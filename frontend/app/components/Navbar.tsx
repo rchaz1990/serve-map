@@ -1,86 +1,169 @@
-// Server Component — no state or browser APIs needed.
+'use client'
+
 // overlay=true: positioned absolute over a full-bleed hero (homepage).
 // overlay=false (default): normal document flow for all other pages.
 
+import { useState } from 'react'
+
 export default function Navbar({ overlay = false }: { overlay?: boolean }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
   return (
-    <header
-      className={[
-        'flex h-16 items-center justify-between px-8 lg:px-16',
-        overlay ? 'absolute left-0 right-0 top-0 z-20' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-    >
-      {/* Logo */}
-      <a
-        href="/"
-        className="text-sm font-semibold uppercase tracking-[0.2em] text-white"
+    <>
+      <header
+        className={[
+          'flex h-16 items-center justify-between px-8 lg:px-16',
+          overlay ? 'absolute left-0 right-0 top-0 z-20' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
       >
-        Slate
-      </a>
+        {/* Logo */}
+        <a
+          href="/"
+          className="text-sm font-semibold uppercase tracking-[0.2em] text-white"
+        >
+          Slate
+        </a>
 
-      {/* Middle nav — hidden on small screens */}
-      <nav className="hidden items-center gap-8 md:flex">
-        <a
-          href="/explore"
-          className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-        >
-          Explore
-        </a>
-        <a
-          href="/pay"
-          className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-        >
-          Slate Pay
-        </a>
-        <a
-          href="/my-servers"
-          className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-        >
-          My Servers
-        </a>
-        <a
-          href="/for-servers"
-          className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-        >
-          For Servers
-        </a>
-        <a
-          href="/#how-it-works"
-          className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-        >
-          How it Works
-        </a>
-        <a
-          href="/dashboard"
-          className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-        >
-          Dashboard
-        </a>
-      </nav>
+        {/* Middle nav — hidden on small screens */}
+        <nav className="hidden items-center gap-8 md:flex">
+          <a
+            href="/explore"
+            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
+          >
+            Explore
+          </a>
+          <a
+            href="/pay"
+            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
+          >
+            Slate Pay
+          </a>
+          <a
+            href="/my-servers"
+            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
+          >
+            My Servers
+          </a>
+          <a
+            href="/for-servers"
+            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
+          >
+            For Servers
+          </a>
+          <a
+            href="/#how-it-works"
+            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
+          >
+            How it Works
+          </a>
+          <a
+            href="/dashboard"
+            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
+          >
+            Dashboard
+          </a>
+        </nav>
 
-      {/* Right buttons */}
-      <div className="flex items-center gap-3">
-        <a
-          href="/for-restaurants"
-          className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
+        {/* Right buttons — hidden on mobile */}
+        <div className="hidden items-center gap-3 md:flex">
+          <a
+            href="/for-restaurants"
+            className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
+          >
+            For Restaurants
+          </a>
+          <a
+            href="/login"
+            className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
+          >
+            Sign In
+          </a>
+          <a
+            href="/explore"
+            className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
+          >
+            Get Started
+          </a>
+        </div>
+
+        {/* Hamburger — shown only on mobile */}
+        <button
+          className="flex items-center justify-center text-white md:hidden"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Open menu"
         >
-          For Restaurants
-        </a>
-        <a
-          href="/login"
-          className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
-        >
-          Sign In
-        </a>
-        <a
-          href="/explore"
-          className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
-        >
-          Get Started
-        </a>
-      </div>
-    </header>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-6 w-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+          </svg>
+        </button>
+      </header>
+
+      {/* ── Mobile full-screen overlay ── */}
+      {menuOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black md:hidden">
+          {/* Top bar: logo + close — matches navbar height */}
+          <div className="flex h-16 shrink-0 items-center justify-between px-8">
+            <a
+              href="/"
+              onClick={() => setMenuOpen(false)}
+              className="text-sm font-semibold uppercase tracking-[0.2em] text-white"
+            >
+              Slate
+            </a>
+            <button
+              onClick={() => setMenuOpen(false)}
+              aria-label="Close menu"
+              className="flex h-10 w-10 items-center justify-center text-white"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-6 w-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="border-t border-white/10" />
+
+          {/* Nav links */}
+          <nav className="flex flex-1 flex-col overflow-y-auto px-8 pt-6">
+            {[
+              { href: '/explore',          label: 'Explore' },
+              { href: '/my-servers',       label: 'My Servers' },
+              { href: '/for-servers',      label: 'For Servers' },
+              { href: '/for-restaurants',  label: 'For Restaurants' },
+              { href: '/dashboard',        label: 'Dashboard' },
+            ].map(({ href, label }) => (
+              <a
+                key={href}
+                href={href}
+                onClick={() => setMenuOpen(false)}
+                className="border-b border-white/10 py-5 text-2xl font-semibold text-white transition-colors active:text-white/60"
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+
+          {/* Bottom actions */}
+          <div className="shrink-0 flex flex-col gap-3 px-8 pb-10 pt-6">
+            <a
+              href="/login"
+              onClick={() => setMenuOpen(false)}
+              className="w-full rounded-full border border-white/30 py-4 text-center text-sm font-medium text-white transition-colors hover:border-white"
+            >
+              Sign In
+            </a>
+            <a
+              href="/explore"
+              onClick={() => setMenuOpen(false)}
+              className="w-full rounded-full bg-white py-4 text-center text-sm font-semibold text-black transition-opacity hover:opacity-80"
+            >
+              Get Started
+            </a>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

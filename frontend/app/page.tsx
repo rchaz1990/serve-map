@@ -67,7 +67,7 @@ export default function Home() {
           {/* Content — sits above the overlay */}
           <div className="relative z-10 w-full px-8 pb-24 lg:px-16 lg:pb-32">
             <div className="mx-auto max-w-5xl">
-              <h1 className="text-[clamp(3rem,8vw,7rem)] font-bold leading-[1.0] tracking-tight text-white">
+              <h1 className="text-[clamp(2.25rem,8vw,7rem)] font-bold leading-[1.0] tracking-tight text-white">
                 Your table.
                 <br />
                 Your server.
@@ -79,12 +79,20 @@ export default function Home() {
                 Slate lets you book a table and request the server who makes it worth coming back to — and rate them directly after.
               </p>
 
-              <a
-                href="/book"
-                className="mt-10 inline-block rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
-              >
-                Make a reservation
-              </a>
+              <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href="/book"
+                  className="block rounded-full bg-white px-8 py-3.5 text-center text-sm font-semibold text-black transition-opacity hover:opacity-80"
+                >
+                  Make a reservation
+                </a>
+                <a
+                  href="/explore"
+                  className="block rounded-full border border-white/30 px-8 py-3.5 text-center text-sm font-medium text-white transition-colors hover:border-white"
+                >
+                  Explore servers
+                </a>
+              </div>
             </div>
           </div>
         </section>

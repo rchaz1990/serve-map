@@ -150,7 +150,7 @@ function StepIndicator({ current }: { current: number }) {
                 0{n}
               </span>
               <span
-                className="text-xs"
+                className="max-w-[5rem] truncate text-center text-xs sm:max-w-none"
                 style={{ color: isActive ? '#FFFFFF' : '#A0A0A0' }}
               >
                 {label}
@@ -297,7 +297,7 @@ export default function BookPage() {
               <button
                 onClick={() => setStep(2)}
                 disabled={!step1Complete}
-                className="rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
+                className="w-full rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30 sm:w-auto"
               >
                 Continue
               </button>
@@ -382,16 +382,16 @@ export default function BookPage() {
             </button>
 
             {/* Actions */}
-            <div className="mt-10 flex items-center gap-6">
-              <button onClick={() => setStep(1)} className="text-sm transition-colors" style={{ color: '#A0A0A0' }}>
-                ← Back
-              </button>
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
               <button
                 onClick={() => setStep(3)}
                 disabled={!step2Complete}
-                className="rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
+                className="order-first w-full rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30 sm:order-last sm:w-auto"
               >
                 Continue
+              </button>
+              <button onClick={() => setStep(1)} className="text-center text-sm transition-colors sm:text-left" style={{ color: '#A0A0A0' }}>
+                ← Back
               </button>
             </div>
           </section>
@@ -450,16 +450,16 @@ export default function BookPage() {
             </div>
 
             {/* Actions */}
-            <div className="mt-10 flex items-center gap-6">
-              <button onClick={() => setStep(2)} className="text-sm transition-colors" style={{ color: '#A0A0A0' }}>
-                ← Back
-              </button>
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
               <button
                 onClick={() => setConfirmed(true)}
                 disabled={!step3Complete}
-                className="rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
+                className="order-first w-full rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30 sm:order-last sm:w-auto"
               >
                 Confirm reservation
+              </button>
+              <button onClick={() => setStep(2)} className="text-center text-sm transition-colors sm:text-left" style={{ color: '#A0A0A0' }}>
+                ← Back
               </button>
             </div>
 
