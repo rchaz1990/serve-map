@@ -43,7 +43,7 @@ export default function ServerSignupPage() {
       const fullName = `${firstName} ${lastName}`.trim()
       const restaurant = `${venue}, ${city}`.trim()
 
-      const sig = await program.methods
+      const sig = await (program as any).methods
         .initializeProfile(fullName, restaurant)
         .accounts({ owner: keypair.publicKey })
         .signers([keypair])
