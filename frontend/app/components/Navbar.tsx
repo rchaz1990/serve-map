@@ -35,7 +35,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           Slate Pay
         </a>
         <a
-          href="/servers/signup"
+          href="/for-servers"
           className="text-xs font-medium text-white/50 transition-colors hover:text-white"
         >
           For Servers
