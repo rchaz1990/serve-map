@@ -32,11 +32,15 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           .join(' ')}
       >
         {/* Logo */}
-        <a
-          href="/"
-          className="text-sm font-semibold uppercase tracking-[0.2em] text-white"
-        >
-          Slate
+        <a href="/" className="flex items-center gap-2.5">
+          {/* Icon: square with three lines */}
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="3.25" stroke="white" strokeWidth="1.5" />
+            <line x1="5" y1="7"  x2="15" y2="7"  stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="5" y1="10" x2="15" y2="10" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="5" y1="13" x2="15" y2="13" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Slate</span>
         </a>
 
         {/* Middle nav — hidden on small screens */}
@@ -145,12 +149,14 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
         <div className="fixed inset-0 z-50 flex flex-col bg-black md:hidden">
           {/* Top bar: logo + close — matches navbar height */}
           <div className="flex h-16 shrink-0 items-center justify-between px-8">
-            <a
-              href="/"
-              onClick={() => setMenuOpen(false)}
-              className="text-sm font-semibold uppercase tracking-[0.2em] text-white"
-            >
-              Slate
+            <a href="/" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="3.25" stroke="white" strokeWidth="1.5" />
+                <line x1="5" y1="7"  x2="15" y2="7"  stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                <line x1="5" y1="10" x2="15" y2="10" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                <line x1="5" y1="13" x2="15" y2="13" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Slate</span>
             </a>
             <button
               onClick={() => setMenuOpen(false)}
