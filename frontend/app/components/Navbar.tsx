@@ -57,6 +57,12 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
       {/* Right buttons */}
       <div className="flex items-center gap-3">
         <a
+          href="/waitlist"
+          className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
+        >
+          Join Waitlist
+        </a>
+        <a
           href="/login"
           className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
         >
