@@ -1,16 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { getOrCreateDemoKeypair, keypairToWallet, getProgram, deriveServerProfilePDA } from '@/lib/solana'
 
 const STEPS = ['Your info', 'Work history', 'Photo & bio']
 
 export default function ServerSignupPage() {
+  const router = useRouter()
   const [step, setStep] = useState(0)
   const [txSig, setTxSig] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!txSig) return
+    const t = setTimeout(() => router.push('/dashboard'), 2000)
+    return () => clearTimeout(t)
+  }, [txSig, router])
 
   // Step 1 fields
   const [firstName, setFirstName] = useState('')
@@ -86,7 +94,7 @@ export default function ServerSignupPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-white">Profile created on-chain!</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-white">Profile created on-chain! ✓</h1>
             <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>
               Your portable profile has been written to the Solana blockchain and is permanently yours.
             </p>
@@ -99,12 +107,14 @@ export default function ServerSignupPage() {
               <p className="break-all font-mono text-xs text-white">{txSig}</p>
             </div>
 
-            <a
-              href="/"
-              className="mt-8 inline-block rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
-            >
-              Back to home
-            </a>
+            {/* Redirect notice */}
+            <div className="mt-6 flex items-center justify-center gap-2" style={{ color: '#A0A0A0' }}>
+              <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              <p className="text-xs">Taking you to your dashboard…</p>
+            </div>
           </div>
         </main>
       </div>

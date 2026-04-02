@@ -46,16 +46,16 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
         >
           How it Works
         </a>
-      </nav>
-
-      {/* Right buttons */}
-      <div className="flex items-center gap-3">
         <a
           href="/dashboard"
           className="text-xs font-medium text-white/50 transition-colors hover:text-white"
         >
           Dashboard
         </a>
+      </nav>
+
+      {/* Right buttons */}
+      <div className="flex items-center gap-3">
         <a
           href="/login"
           className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
