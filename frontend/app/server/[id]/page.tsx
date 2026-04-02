@@ -161,6 +161,12 @@ export default function ServerProfilePage() {
             >
               {following ? 'Following ✓' : '+ Follow'}
             </button>
+            <a
+              href="/server/1/card"
+              className="rounded-full border border-white/20 px-5 py-3 text-sm font-medium text-white/60 transition-colors hover:border-white hover:text-white"
+            >
+              Share my card
+            </a>
           </div>
         </div>
 
