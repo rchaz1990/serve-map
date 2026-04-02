@@ -3,10 +3,23 @@
 // overlay=true: positioned absolute over a full-bleed hero (homepage).
 // overlay=false (default): normal document flow for all other pages.
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [signInOpen, setSignInOpen] = useState(false)
+  const signInRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (signInRef.current && !signInRef.current.contains(e.target as Node)) {
+        setSignInOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   return (
     <>
@@ -74,12 +87,39 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           >
             For Restaurants
           </a>
-          <a
-            href="/login"
-            className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
-          >
-            Sign In
-          </a>
+          {/* Sign In dropdown */}
+          <div ref={signInRef} className="relative">
+            <button
+              onClick={() => setSignInOpen(o => !o)}
+              className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
+            >
+              Sign In
+            </button>
+            {signInOpen && (
+              <div
+                className="absolute right-0 top-full mt-2 w-48 overflow-hidden rounded-xl border border-white/15 shadow-2xl"
+                style={{ backgroundColor: '#111111' }}
+              >
+                <a
+                  href="/account"
+                  onClick={() => setSignInOpen(false)}
+                  className="flex flex-col px-4 py-3.5 transition-colors hover:bg-white/[0.06]"
+                >
+                  <span className="text-xs font-semibold text-white">I&apos;m a guest</span>
+                  <span className="mt-0.5 text-[10px]" style={{ color: '#606060' }}>Book tables &amp; follow servers</span>
+                </a>
+                <div className="border-t border-white/10" />
+                <a
+                  href="/dashboard"
+                  onClick={() => setSignInOpen(false)}
+                  className="flex flex-col px-4 py-3.5 transition-colors hover:bg-white/[0.06]"
+                >
+                  <span className="text-xs font-semibold text-white">I&apos;m a server</span>
+                  <span className="mt-0.5 text-[10px]" style={{ color: '#606060' }}>Manage your profile &amp; rewards</span>
+                </a>
+              </div>
+            )}
+          </div>
           <a
             href="/explore"
             className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
@@ -148,11 +188,18 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           {/* Bottom actions */}
           <div className="shrink-0 flex flex-col gap-3 px-8 pb-10 pt-6">
             <a
-              href="/login"
+              href="/account"
               onClick={() => setMenuOpen(false)}
               className="w-full rounded-full border border-white/30 py-4 text-center text-sm font-medium text-white transition-colors hover:border-white"
             >
-              Sign In
+              Sign in as guest
+            </a>
+            <a
+              href="/dashboard"
+              onClick={() => setMenuOpen(false)}
+              className="w-full rounded-full border border-white/30 py-4 text-center text-sm font-medium text-white transition-colors hover:border-white"
+            >
+              Sign in as server
             </a>
             <a
               href="/explore"
