@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import Navbar from '@/app/components/Navbar'
 
 const FILTERS = ['All', 'Bartenders', 'Servers', 'Fine Dining', 'Craft Cocktails', 'Wine', 'Top Rated']
@@ -9,7 +10,7 @@ const SERVERS = [
   {
     id: 1,
     name: 'Marcus Johnson',
-    initials: 'MJ',
+    photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80',
     restaurant: 'Carbone',
     city: 'New York, NY',
     rating: 4.9,
@@ -20,7 +21,7 @@ const SERVERS = [
   {
     id: 2,
     name: 'Sofia Rivera',
-    initials: 'SR',
+    photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&q=80',
     restaurant: 'Le Bernardin',
     city: 'New York, NY',
     rating: 4.8,
@@ -31,7 +32,7 @@ const SERVERS = [
   {
     id: 3,
     name: 'James Chen',
-    initials: 'JC',
+    photo: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&q=80',
     restaurant: 'Employees Only',
     city: 'New York, NY',
     rating: 4.9,
@@ -42,7 +43,7 @@ const SERVERS = [
   {
     id: 4,
     name: 'Aisha Williams',
-    initials: 'AW',
+    photo: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&q=80',
     restaurant: 'Nobu',
     city: 'New York, NY',
     rating: 4.7,
@@ -53,7 +54,7 @@ const SERVERS = [
   {
     id: 5,
     name: 'Tyler Brooks',
-    initials: 'TB',
+    photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&q=80',
     restaurant: 'The NoMad Bar',
     city: 'New York, NY',
     rating: 4.8,
@@ -64,7 +65,7 @@ const SERVERS = [
   {
     id: 6,
     name: 'Maria Santos',
-    initials: 'MS',
+    photo: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=200&q=80',
     restaurant: 'Gramercy Tavern',
     city: 'New York, NY',
     rating: 4.9,
@@ -177,8 +178,8 @@ export default function ExplorePage() {
               >
                 {/* Avatar + name row */}
                 <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/20 text-sm font-semibold text-white">
-                    {server.initials}
+                  <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full border border-white/20">
+                    <Image src={server.photo} alt={server.name} fill className="object-cover" sizes="44px" />
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-white">{server.name}</p>
