@@ -29,6 +29,12 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           Explore
         </a>
         <a
+          href="/pay"
+          className="text-xs font-medium text-white/50 transition-colors hover:text-white"
+        >
+          Slate Pay
+        </a>
+        <a
           href="/servers/signup"
           className="text-xs font-medium text-white/50 transition-colors hover:text-white"
         >
