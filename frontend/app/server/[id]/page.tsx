@@ -1,3 +1,6 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Navbar from '@/app/components/Navbar'
 
@@ -78,12 +81,27 @@ const stats = [
 // Placeholder follower initials
 const followerAvatars = ["SK", "DL", "RM"]
 
-export default async function ServerProfilePage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id: _id } = await params
+export default function ServerProfilePage() {
+  const [following, setFollowing] = useState(false)
+  const [followerCount, setFollowerCount] = useState(profile.followers)
+  const [showToast, setShowToast] = useState(false)
+
+  useEffect(() => {
+    if (!showToast) return
+    const t = setTimeout(() => setShowToast(false), 3000)
+    return () => clearTimeout(t)
+  }, [showToast])
+
+  function handleFollow() {
+    if (following) {
+      setFollowing(false)
+      setFollowerCount(c => c - 1)
+    } else {
+      setFollowing(true)
+      setFollowerCount(c => c + 1)
+      setShowToast(true)
+    }
+  }
 
   const serveProgress = Math.round((profile.serveTokens / profile.serveTokensGoal) * 100)
 
@@ -132,12 +150,17 @@ export default async function ServerProfilePage({
             >
               Reserve with Marcus
             </a>
-            <a
-              href={`/follow?server=${profile.id}`}
-              className="rounded-full border border-white/30 px-6 py-3 text-sm font-medium text-white transition-colors hover:border-white"
+            <button
+              onClick={handleFollow}
+              className={[
+                'rounded-full border px-6 py-3 text-sm font-medium transition-colors',
+                following
+                  ? 'border-white/40 text-white/60 hover:border-white/60'
+                  : 'border-white/30 text-white hover:border-white',
+              ].join(' ')}
             >
-              + Follow
-            </a>
+              {following ? 'Following ✓' : '+ Follow'}
+            </button>
           </div>
         </div>
 
@@ -170,6 +193,10 @@ export default async function ServerProfilePage({
             </span>
             <span className="text-sm" style={{ color: "#A0A0A0" }}>
               {profile.totalRatings} verified ratings
+            </span>
+            <span style={{ color: "#404040" }}>·</span>
+            <span className="text-sm" style={{ color: "#A0A0A0" }}>
+              {followerCount} followers
             </span>
             <span style={{ color: "#404040" }}>·</span>
             <span className="text-sm" style={{ color: "#A0A0A0" }}>
@@ -294,12 +321,15 @@ export default async function ServerProfilePage({
                 <p className="text-xs leading-relaxed" style={{ color: "#A0A0A0" }}>
                   Follow Marcus to get notified when he moves to a new restaurant or has availability.
                 </p>
-                <a
-                  href={`/follow?server=${profile.id}`}
-                  className="mt-3 inline-block rounded-full bg-white px-5 py-2 text-xs font-semibold text-black transition-opacity hover:opacity-80"
+                <button
+                  onClick={handleFollow}
+                  className={[
+                    'mt-3 inline-block rounded-full px-5 py-2 text-xs font-semibold transition-opacity hover:opacity-80',
+                    following ? 'border border-white/30 text-white' : 'bg-white text-black',
+                  ].join(' ')}
                 >
-                  Follow Marcus
-                </a>
+                  {following ? 'Following ✓' : 'Follow Marcus'}
+                </button>
               </div>
             </div>
 
@@ -392,6 +422,21 @@ export default async function ServerProfilePage({
           © {new Date().getFullYear()} Slate
         </p>
       </footer>
+
+      {/* ── Toast ───────────────────────────────────────────────────────── */}
+      <div
+        className={[
+          'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full border border-white/20 bg-black px-5 py-3 shadow-lg transition-all duration-300',
+          showToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none',
+        ].join(' ')}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-4 w-4 shrink-0 text-white">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+        </svg>
+        <p className="text-xs font-medium text-white">
+          You&apos;re now following Marcus. We&apos;ll notify you when he moves restaurants.
+        </p>
+      </div>
 
     </div>
   )
