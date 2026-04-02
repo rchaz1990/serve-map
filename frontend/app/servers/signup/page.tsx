@@ -136,6 +136,11 @@ export default function ServerSignupPage() {
 
           {/* Header */}
           <div className="mb-10 text-center">
+            {/* Founding member badge */}
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[0.05] px-4 py-1.5">
+              <span className="text-xs">✦</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-white">Founding Member — Early Access</span>
+            </div>
             <h1 className="text-3xl font-bold tracking-tight text-white">
               Claim your profile
             </h1>

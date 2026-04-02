@@ -109,6 +109,26 @@ export default function ForServersPage() {
       style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}
     >
 
+      {/* ── Early Access banner ───────────────────────────────────────────── */}
+      <div className="border-b border-white/10 bg-black px-8 py-3 lg:px-16">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-sm">🎉</span>
+            <div>
+              <span className="text-xs font-semibold text-white">Early Access — Be one of the first servers on Slate</span>
+              <span className="mx-2 text-white/20">·</span>
+              <span className="text-xs" style={{ color: '#A0A0A0' }}>Founding members get bonus $SERVE rewards at launch</span>
+            </div>
+          </div>
+          <a
+            href="/servers/signup"
+            className="shrink-0 rounded-full border border-white/25 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:border-white"
+          >
+            Join now →
+          </a>
+        </div>
+      </div>
+
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="relative flex min-h-screen flex-col overflow-hidden">
         <Image
