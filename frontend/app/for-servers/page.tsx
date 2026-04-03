@@ -121,7 +121,7 @@ export default function ForServersPage() {
             </div>
           </div>
           <a
-            href="/servers/signup"
+            href="/server-waitlist"
             className="shrink-0 rounded-full border border-white/25 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:border-white"
           >
             Join now →
@@ -161,7 +161,7 @@ export default function ForServersPage() {
             </p>
             <div className="mt-10 flex flex-wrap gap-3">
               <a
-                href="/servers/signup"
+                href="/server-waitlist"
                 className="rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
               >
                 Claim your free profile
@@ -331,7 +331,7 @@ export default function ForServersPage() {
             Free to join. Takes two minutes. Your reviews are yours forever.
           </p>
           <a
-            href="/servers/signup"
+            href="/server-waitlist"
             className="mt-10 inline-block rounded-full bg-white px-10 py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80"
           >
             Claim your free profile

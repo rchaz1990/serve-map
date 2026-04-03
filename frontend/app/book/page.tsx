@@ -17,36 +17,6 @@ const times = [
   '9:30 PM', '10:00 PM',
 ]
 
-const servers = [
-  {
-    id: 'marcus',
-    initials: 'MJ',
-    name: 'Marcus Johnson',
-    rating: 4.9,
-    ratings: 127,
-    specialty: 'Craft Cocktails',
-    featured: true,
-  },
-  {
-    id: 'elena',
-    initials: 'ER',
-    name: 'Elena Reyes',
-    rating: 4.8,
-    ratings: 94,
-    specialty: 'Wine Expert',
-    featured: false,
-  },
-  {
-    id: 'james',
-    initials: 'JK',
-    name: 'James Kim',
-    rating: 4.7,
-    ratings: 88,
-    specialty: 'Fine Dining',
-    featured: false,
-  },
-]
-
 // ── Sub-components ──────────────────────────────────────────────────────────
 
 function SelectField({
@@ -77,7 +47,6 @@ function SelectField({
         >
           {children}
         </select>
-        {/* Custom caret */}
         <svg
           className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2"
           width="12"
@@ -127,11 +96,7 @@ function TextField({
 
 // ── Step indicator ──────────────────────────────────────────────────────────
 
-const stepLabels = [
-  'Your experience',
-  'Your server',
-  'Confirm',
-]
+const stepLabels = ['Your experience', 'Confirm']
 
 function StepIndicator({ current }: { current: number }) {
   return (
@@ -181,28 +146,23 @@ export default function BookPage() {
   const [partySize, setPartySize] = useState('')
 
   // Step 2
-  const [selectedServer, setSelectedServer] = useState<string | null>(null)
-
-  // Step 3
   const [guestName, setGuestName] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
   const [confirmed, setConfirmed] = useState(false)
 
   const selectedRestaurant = restaurants.find((r) => r.id === restaurant)
-  const selectedServerData  = servers.find((s) => s.id === selectedServer)
 
   const step1Complete = Boolean(restaurant && date && time && partySize)
-  const step2Complete = Boolean(selectedServer)
-  const step3Complete = Boolean(guestName.trim() && guestEmail.trim())
+  const step2Complete = Boolean(guestName.trim() && guestEmail.trim())
 
-  // ── Confirmation screen ────────────────────────────────────────────────────
+  // ── Confirmation screen ──────────────────────────────────────────────────
 
   if (confirmed) {
     return (
       <div className="flex min-h-screen flex-col" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
         <Navbar />
         <main className="flex flex-1 flex-col items-center justify-center px-8 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/20 text-white mb-8">
+          <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-full border border-white/20 text-white">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-7 w-7">
               <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
             </svg>
@@ -211,15 +171,12 @@ export default function BookPage() {
           <p className="mt-4 text-sm" style={{ color: '#A0A0A0' }}>
             {selectedRestaurant?.name} · {date} · {time} · {partySize} {Number(partySize) === 1 ? 'guest' : 'guests'}
           </p>
-          <p className="mt-1 text-sm" style={{ color: '#A0A0A0' }}>
-            Server: {selectedServerData?.name}
-          </p>
           <p className="mt-8 max-w-sm text-xs" style={{ color: '#A0A0A0' }}>
-            A confirmation has been sent to {guestEmail}. Your rating after dining helps {selectedServerData?.name.split(' ')[0]} earn $SERVE rewards.
+            A confirmation has been sent to {guestEmail}. Your rating after dining helps your server earn $SERVE rewards.
           </p>
           <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <a href="/rate" className="inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80">
-              Rate your server
+              Rate your server after dining
             </a>
             <a href="/" className="inline-block rounded-full border border-white/30 px-8 py-3 text-sm font-medium text-white transition-colors hover:border-white">
               Back to home
@@ -230,7 +187,7 @@ export default function BookPage() {
     )
   }
 
-  // ── Main flow ─────────────────────────────────────────────────────────────
+  // ── Main flow ────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
@@ -246,7 +203,7 @@ export default function BookPage() {
           <StepIndicator current={step} />
         </div>
 
-        {/* ── Step 1: Experience ─────────────────────────────────────── */}
+        {/* ── Step 1: Experience ────────────────────────────────────── */}
         {step === 1 && (
           <section>
             <h1 className="mb-10 text-3xl font-bold tracking-tight text-white sm:text-4xl">
@@ -254,7 +211,6 @@ export default function BookPage() {
             </h1>
 
             <div className="flex flex-col gap-10">
-              {/* Restaurant */}
               <SelectField id="restaurant" label="Restaurant" value={restaurant} onChange={setRestaurant}>
                 <option value="" disabled style={{ backgroundColor: '#111' }}>Select a restaurant</option>
                 {restaurants.map((r) => (
@@ -264,7 +220,6 @@ export default function BookPage() {
                 ))}
               </SelectField>
 
-              {/* Date */}
               <TextField
                 id="date"
                 label="Date"
@@ -274,7 +229,6 @@ export default function BookPage() {
                 onChange={setDate}
               />
 
-              {/* Time */}
               <SelectField id="time" label="Time" value={time} onChange={setTime}>
                 <option value="" disabled style={{ backgroundColor: '#111' }}>Select a time</option>
                 {times.map((t) => (
@@ -282,7 +236,6 @@ export default function BookPage() {
                 ))}
               </SelectField>
 
-              {/* Party size */}
               <SelectField id="party" label="Party size" value={partySize} onChange={setPartySize}>
                 <option value="" disabled style={{ backgroundColor: '#111' }}>Select party size</option>
                 {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
@@ -305,100 +258,8 @@ export default function BookPage() {
           </section>
         )}
 
-        {/* ── Step 2: Server ────────────────────────────────────────── */}
+        {/* ── Step 2: Confirm ───────────────────────────────────────── */}
         {step === 2 && (
-          <section>
-            <h1 className="mb-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Choose your server
-            </h1>
-            <p className="mb-10 text-sm" style={{ color: '#A0A0A0' }}>
-              {selectedRestaurant?.name} · {date} · {time}
-            </p>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {servers.map((server) => {
-                const isSelected = selectedServer === server.id
-                return (
-                  <button
-                    key={server.id}
-                    onClick={() => setSelectedServer(server.id)}
-                    className="relative flex flex-col items-center gap-4 rounded-none border px-6 py-8 text-left transition-colors"
-                    style={{
-                      borderColor: isSelected ? '#FFFFFF' : 'rgba(255,255,255,0.15)',
-                      backgroundColor: isSelected ? 'rgba(255,255,255,0.04)' : 'transparent',
-                    }}
-                  >
-                    {/* Featured badge */}
-                    {server.featured && (
-                      <span className="absolute left-0 right-0 top-0 py-1.5 text-center text-xs font-semibold uppercase tracking-widest text-white" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                        Most requested tonight
-                      </span>
-                    )}
-
-                    {/* Avatar */}
-                    <div
-                      className="flex h-16 w-16 items-center justify-center rounded-full text-base font-bold text-black"
-                      style={{ marginTop: server.featured ? '1.5rem' : '0', backgroundColor: '#FFFFFF' }}
-                    >
-                      {server.initials}
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex flex-col items-center gap-1 text-center">
-                      <span className="text-sm font-semibold text-white">{server.name}</span>
-                      <span className="text-xs" style={{ color: '#A0A0A0' }}>{server.specialty}</span>
-                      <span className="mt-1 text-xs text-white">
-                        {server.rating} ★{' '}
-                        <span style={{ color: '#A0A0A0' }}>({server.ratings})</span>
-                      </span>
-                    </div>
-
-                    {/* Select indicator */}
-                    <div
-                      className="mt-1 rounded-full px-5 py-1.5 text-xs font-semibold transition-colors"
-                      style={
-                        isSelected
-                          ? { backgroundColor: '#FFFFFF', color: '#000000' }
-                          : { border: '1px solid rgba(255,255,255,0.25)', color: '#FFFFFF' }
-                      }
-                    >
-                      {isSelected ? 'Selected' : 'Select'}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Anyone fine option */}
-            <button
-              onClick={() => setSelectedServer('anyone')}
-              className="mt-4 w-full border py-4 text-sm transition-colors"
-              style={{
-                borderColor: selectedServer === 'anyone' ? '#FFFFFF' : 'rgba(255,255,255,0.15)',
-                color: selectedServer === 'anyone' ? '#FFFFFF' : '#A0A0A0',
-              }}
-            >
-              No preference — surprise me
-            </button>
-
-            {/* Actions */}
-            <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
-              <button
-                onClick={() => setStep(3)}
-                disabled={!step2Complete}
-                className="order-first w-full rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30 sm:order-last sm:w-auto"
-              >
-                Continue
-              </button>
-              <button onClick={() => setStep(1)} className="text-center text-sm transition-colors sm:text-left" style={{ color: '#A0A0A0' }}>
-                ← Back
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* ── Step 3: Confirm ───────────────────────────────────────── */}
-        {step === 3 && (
           <section>
             <h1 className="mb-10 text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Confirm your reservation
@@ -412,15 +273,9 @@ export default function BookPage() {
               <div className="flex flex-col gap-3">
                 {[
                   { label: 'Restaurant', value: selectedRestaurant?.name },
-                  { label: 'Date', value: date },
-                  { label: 'Time', value: time },
-                  { label: 'Party', value: `${partySize} ${Number(partySize) === 1 ? 'guest' : 'guests'}` },
-                  {
-                    label: 'Server',
-                    value: selectedServer === 'anyone'
-                      ? 'No preference'
-                      : selectedServerData?.name,
-                  },
+                  { label: 'Date',       value: date },
+                  { label: 'Time',       value: time },
+                  { label: 'Party',      value: `${partySize} ${Number(partySize) === 1 ? 'guest' : 'guests'}` },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex items-center justify-between">
                     <span className="text-xs" style={{ color: '#A0A0A0' }}>{label}</span>
@@ -453,12 +308,12 @@ export default function BookPage() {
             <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
               <button
                 onClick={() => setConfirmed(true)}
-                disabled={!step3Complete}
+                disabled={!step2Complete}
                 className="order-first w-full rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30 sm:order-last sm:w-auto"
               >
                 Confirm reservation
               </button>
-              <button onClick={() => setStep(2)} className="text-center text-sm transition-colors sm:text-left" style={{ color: '#A0A0A0' }}>
+              <button onClick={() => setStep(1)} className="text-center text-sm transition-colors sm:text-left" style={{ color: '#A0A0A0' }}>
                 ← Back
               </button>
             </div>

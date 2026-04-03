@@ -90,7 +90,7 @@ export default function Home() {
                   href="/explore"
                   className="block rounded-full border border-white/30 px-8 py-3.5 text-center text-sm font-medium text-white transition-colors hover:border-white"
                 >
-                  Explore servers
+                  Explore restaurants
                 </a>
               </div>
             </div>
