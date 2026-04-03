@@ -70,15 +70,24 @@ export default function ScanPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white">This QR code has expired</h1>
-          <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>
-            The server&apos;s QR code is only active for 8 hours.
+          <p className="mt-3 max-w-xs text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
+            Follow {SERVER.firstName} to stay connected and know where they work next.
           </p>
-          <a
-            href={SERVER.profileHref}
-            className="mt-8 inline-block rounded-full bg-white px-7 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80"
-          >
-            Find {SERVER.firstName} on Slate
-          </a>
+          <div className="mt-8 flex flex-col items-center gap-3 w-full max-w-xs">
+            <button
+              onClick={() => setFollowed(f => !f)}
+              className="w-full rounded-full bg-white py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+            >
+              {followed ? `Following ${SERVER.firstName} ✓` : `Follow ${SERVER.firstName}`}
+            </button>
+            <a
+              href={SERVER.profileHref}
+              className="py-2 text-xs transition-colors hover:text-white"
+              style={{ color: '#606060' }}
+            >
+              View {SERVER.firstName}&apos;s profile →
+            </a>
+          </div>
         </main>
       </div>
     )
@@ -115,7 +124,7 @@ export default function ScanPage() {
 
         {/* Message */}
         <p className="mx-auto mt-8 max-w-xs text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
-          You dined with {SERVER.firstName} tonight. Leave a review and follow them to know where they work next.
+          You&apos;re dining with {SERVER.firstName} tonight. Rate your experience and follow them to know where they work next.
         </p>
 
         {/* CTAs */}
