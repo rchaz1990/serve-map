@@ -1,7 +1,76 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import QRCode from 'react-qr-code'
 import Navbar from '@/app/components/Navbar'
+
+const QR_DURATION_MS = 8 * 60 * 60 * 1000 // 8 hours
+
+function useQRCode() {
+  const [qrCode, setQrCode] = useState<string | null>(null)
+  const [activatedAt, setActivatedAt] = useState<number | null>(null)
+  const [msLeft, setMsLeft] = useState(0)
+
+  // Rehydrate from localStorage on mount
+  useEffect(() => {
+    const code = localStorage.getItem('slate-qr-code')
+    const ts = localStorage.getItem('slate-qr-activated-at')
+    if (code && ts) {
+      const activated = parseInt(ts, 10)
+      const remaining = activated + QR_DURATION_MS - Date.now()
+      if (remaining > 0) {
+        setQrCode(code)
+        setActivatedAt(activated)
+        setMsLeft(remaining)
+      } else {
+        localStorage.removeItem('slate-qr-code')
+        localStorage.removeItem('slate-qr-activated-at')
+      }
+    }
+  }, [])
+
+  // Countdown tick
+  useEffect(() => {
+    if (!activatedAt) return
+    const id = setInterval(() => {
+      const remaining = activatedAt + QR_DURATION_MS - Date.now()
+      if (remaining <= 0) {
+        deactivate()
+      } else {
+        setMsLeft(remaining)
+      }
+    }, 10000) // update every 10s
+    return () => clearInterval(id)
+  }, [activatedAt])
+
+  function activate() {
+    const code = Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
+    const now = Date.now()
+    localStorage.setItem('slate-qr-code', code)
+    localStorage.setItem('slate-qr-activated-at', String(now))
+    setQrCode(code)
+    setActivatedAt(now)
+    setMsLeft(QR_DURATION_MS)
+  }
+
+  function deactivate() {
+    localStorage.removeItem('slate-qr-code')
+    localStorage.removeItem('slate-qr-activated-at')
+    setQrCode(null)
+    setActivatedAt(null)
+    setMsLeft(0)
+  }
+
+  function formatCountdown(ms: number) {
+    const totalMins = Math.ceil(ms / 60000)
+    const h = Math.floor(totalMins / 60)
+    const m = totalMins % 60
+    if (h > 0) return `${h}h ${m}m`
+    return `${m}m`
+  }
+
+  return { qrCode, msLeft, activate, deactivate, formatCountdown }
+}
 
 const stats = [
   { label: 'Total Ratings', value: '127' },
@@ -74,6 +143,7 @@ const maxWeekly = Math.max(...weeklyEarnings.map(w => w.amount))
 
 export default function DashboardPage() {
   const [copied, setCopied] = useState(false)
+  const { qrCode, msLeft, activate, deactivate, formatCountdown } = useQRCode()
 
   function handleCopy() {
     navigator.clipboard.writeText('https://slatenow.xyz/server/1')
@@ -315,6 +385,62 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* ── My QR Code ──────────────────────────────────────────────── */}
+        <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white">My QR Code</p>
+              <p className="mt-0.5 text-xs" style={{ color: '#A0A0A0' }}>
+                Let guests scan to rate and follow you instantly
+              </p>
+            </div>
+            {qrCode && (
+              <span className="rounded-full border border-white/20 bg-white/[0.05] px-3 py-1 text-xs font-semibold text-white">
+                Active {formatCountdown(msLeft)}
+              </span>
+            )}
+          </div>
+
+          {qrCode ? (
+            <>
+              {/* QR code */}
+              <div className="mb-5 flex flex-col items-center gap-5">
+                <div className="rounded-2xl bg-white p-5">
+                  <QRCode
+                    value={`https://slatenow.xyz/scan/${qrCode}`}
+                    size={200}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                  />
+                </div>
+                <p className="max-w-xs text-center text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
+                  Show this to your guests so they can rate and follow you
+                </p>
+              </div>
+
+              {/* URL + deactivate */}
+              <div className="mb-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <span className="flex-1 truncate font-mono text-xs" style={{ color: '#606060' }}>
+                  slatenow.xyz/scan/{qrCode}
+                </span>
+              </div>
+              <button
+                onClick={deactivate}
+                className="w-full rounded-full border border-white/20 py-3 text-xs font-semibold text-white transition-colors hover:border-white"
+              >
+                Deactivate
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={activate}
+              className="w-full rounded-full bg-white py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+            >
+              Activate my QR code
+            </button>
+          )}
         </div>
 
         {/* ── Share your profile ──────────────────────────────────────── */}
