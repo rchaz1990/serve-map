@@ -11,6 +11,7 @@ const profile = {
   name: "Marcus Johnson",
   role: "Head Bartender",
   restaurant: "Eleven Madison Park",
+  restaurantOnSlate: false, // toggle to true when restaurant is listed
   location: "New York, NY",
   rating: 4.9,
   totalRatings: 127,
@@ -85,12 +86,25 @@ export default function ServerProfilePage() {
   const [following, setFollowing] = useState(false)
   const [followerCount, setFollowerCount] = useState(profile.followers)
   const [showToast, setShowToast] = useState(false)
+  const [inviteSent, setInviteSent] = useState(false)
+  const [showInviteToast, setShowInviteToast] = useState(false)
 
   useEffect(() => {
     if (!showToast) return
     const t = setTimeout(() => setShowToast(false), 3000)
     return () => clearTimeout(t)
   }, [showToast])
+
+  useEffect(() => {
+    if (!showInviteToast) return
+    const t = setTimeout(() => setShowInviteToast(false), 4000)
+    return () => clearTimeout(t)
+  }, [showInviteToast])
+
+  function handleInvite() {
+    setInviteSent(true)
+    setShowInviteToast(true)
+  }
 
   function handleFollow() {
     if (following) {
@@ -142,25 +156,47 @@ export default function ServerProfilePage() {
             {profile.initials}
           </div>
 
-          {/* Reserve CTA — stacks on mobile, row on desktop */}
+          {/* Action buttons — stacks on mobile, row on desktop */}
           <div className="flex flex-col gap-3 sm:flex-row sm:pb-2">
-            <a
-              href="/book"
-              className="w-full rounded-full bg-white px-8 py-3 text-center text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:w-auto"
-            >
-              Reserve with Marcus
-            </a>
-            <button
-              onClick={handleFollow}
-              className={[
-                'w-full rounded-full border px-6 py-3 text-sm font-medium transition-colors sm:w-auto',
-                following
-                  ? 'border-white/40 text-white/60 hover:border-white/60'
-                  : 'border-white/30 text-white hover:border-white',
-              ].join(' ')}
-            >
-              {following ? 'Following ✓' : '+ Follow'}
-            </button>
+            {profile.restaurantOnSlate ? (
+              /* Restaurant is on Slate — show reserve */
+              <a
+                href="/book"
+                className="w-full rounded-full bg-white px-8 py-3 text-center text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:w-auto"
+              >
+                Reserve with {profile.name.split(' ')[0]}
+              </a>
+            ) : (
+              /* Restaurant not on Slate — show follow + invite */
+              <>
+                <button
+                  onClick={handleFollow}
+                  className="w-full rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:w-auto"
+                >
+                  {following ? `Following ${profile.name.split(' ')[0]} ✓` : `Follow ${profile.name.split(' ')[0]}`}
+                </button>
+                <button
+                  onClick={handleInvite}
+                  disabled={inviteSent}
+                  className="w-full rounded-full border border-white/30 px-6 py-3 text-sm font-medium text-white transition-colors hover:border-white disabled:opacity-50 sm:w-auto"
+                >
+                  {inviteSent ? 'Invitation sent ✓' : `Invite ${profile.restaurant} to Slate`}
+                </button>
+              </>
+            )}
+            {profile.restaurantOnSlate && (
+              <button
+                onClick={handleFollow}
+                className={[
+                  'w-full rounded-full border px-6 py-3 text-sm font-medium transition-colors sm:w-auto',
+                  following
+                    ? 'border-white/40 text-white/60 hover:border-white/60'
+                    : 'border-white/30 text-white hover:border-white',
+                ].join(' ')}
+              >
+                {following ? 'Following ✓' : '+ Follow'}
+              </button>
+            )}
             <a
               href="/server/1/card"
               className="w-full rounded-full border border-white/20 px-5 py-3 text-center text-sm font-medium text-white/60 transition-colors hover:border-white hover:text-white sm:w-auto"
@@ -190,8 +226,14 @@ export default function ServerProfilePage() {
               </svg>
             </span>
           </div>
-          <p className="text-sm" style={{ color: "#A0A0A0" }}>
-            {profile.role} · {profile.restaurant} · {profile.location}
+          <p className="flex flex-wrap items-center gap-2 text-sm" style={{ color: "#A0A0A0" }}>
+            {profile.role} · {profile.restaurant}
+            {!profile.restaurantOnSlate && (
+              <span className="rounded-full border border-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/50">
+                Not yet on Slate
+              </span>
+            )}
+            · {profile.location}
           </p>
           <div className="mt-1 flex items-center gap-3">
             <span className="text-lg font-bold text-white">
@@ -429,7 +471,22 @@ export default function ServerProfilePage() {
         </p>
       </footer>
 
-      {/* ── Toast ───────────────────────────────────────────────────────── */}
+      {/* ── Invite toast ────────────────────────────────────────────────── */}
+      <div
+        className={[
+          'fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full border border-white/20 bg-black px-5 py-3 shadow-lg transition-all duration-300 whitespace-nowrap',
+          showInviteToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none',
+        ].join(' ')}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-4 w-4 shrink-0 text-white">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+        </svg>
+        <p className="text-xs font-medium text-white">
+          Invitation sent! We&apos;ll notify you when {profile.restaurant} joins Slate.
+        </p>
+      </div>
+
+      {/* ── Follow toast ────────────────────────────────────────────────── */}
       <div
         className={[
           'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full border border-white/20 bg-black px-5 py-3 shadow-lg transition-all duration-300',

@@ -73,10 +73,11 @@ function useQRCode() {
 }
 
 const stats = [
-  { label: 'Total Ratings', value: '127' },
-  { label: 'Average Score', value: '4.9 ★' },
-  { label: 'Followers', value: '89' },
-  { label: '$SERVE Earned', value: '847' },
+  { label: 'Total Ratings',    value: '127'   },
+  { label: 'Average Score',    value: '4.9 ★' },
+  { label: 'Followers',        value: '89'    },
+  { label: '$SERVE Earned',    value: '847'   },
+  { label: 'Invitations Sent', value: '3'     },
 ]
 
 const weeklyEarnings = [
@@ -189,7 +190,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Stats row ───────────────────────────────────────────────── */}
-        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {stats.map(({ label, value }) => (
             <div
               key={label}
