@@ -83,6 +83,12 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
             How it Works
           </a>
           <a
+            href="/whitepaper"
+            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
+          >
+            Whitepaper
+          </a>
+          <a
             href="/dashboard"
             className="text-xs font-medium text-white/50 transition-colors hover:text-white"
           >
@@ -184,6 +190,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
               { href: '/explore',          label: 'Explore' },
               { href: '/live',             label: 'Live' },
               { href: '/how-it-works',     label: 'How it Works' },
+              { href: '/whitepaper',       label: 'Whitepaper' },
               { href: '/my-servers',       label: 'My Servers' },
               { href: '/for-servers',      label: 'For Servers' },
               { href: '/for-restaurants',  label: 'For Restaurants' },
