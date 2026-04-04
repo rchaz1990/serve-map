@@ -52,6 +52,13 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
             Explore
           </a>
           <a
+            href="/live"
+            className="flex items-center gap-1.5 text-xs font-medium text-white/50 transition-colors hover:text-white"
+          >
+            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white/50" />
+            Live
+          </a>
+          <a
             href="/pay"
             className="text-xs font-medium text-white/50 transition-colors hover:text-white"
           >
@@ -70,7 +77,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
             For Servers
           </a>
           <a
-            href="/#how-it-works"
+            href="/how-it-works"
             className="text-xs font-medium text-white/50 transition-colors hover:text-white"
           >
             How it Works
@@ -175,6 +182,8 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           <nav className="flex flex-1 flex-col overflow-y-auto px-8 pt-6">
             {[
               { href: '/explore',          label: 'Explore' },
+              { href: '/live',             label: 'Live' },
+              { href: '/how-it-works',     label: 'How it Works' },
               { href: '/my-servers',       label: 'My Servers' },
               { href: '/for-servers',      label: 'For Servers' },
               { href: '/for-restaurants',  label: 'For Restaurants' },
