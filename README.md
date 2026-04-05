@@ -160,7 +160,7 @@ NEXT_PUBLIC_GOOGLE_PLACES_KEY=your_google_places_api_key
 
 **Chaz Rodriguez — Founder**  
 NYC native and hospitality industry veteran. Built Slate from zero coding experience using Claude Code + Solana tools.  
-Twitter: [@slatenow](https://twitter.com/slatenow)
+Twitter: [@cryptospvce](https://twitter.com/cryptospvce)
 
 ---
 
