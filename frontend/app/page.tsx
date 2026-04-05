@@ -12,13 +12,19 @@ const steps = [
     number: "02",
     title: "Book directly",
     description:
-      "Reserve your table and request your server in one step. Your preference is confirmed on-chain.",
+      "Reserve your table in seconds. Next time — book with the same server wherever they work. Your loyalty follows the talent, not just the restaurant.",
   },
   {
     number: "03",
     title: "Leave a verified rating",
     description:
       "Post-visit, your rating is attached to the server's profile permanently — not the restaurant's Yelp page.",
+  },
+  {
+    number: "04",
+    title: "Follow your favorites",
+    description:
+      "Send follow requests — servers approve or block anyone at any time. Your safety and privacy are always in your control.",
   },
 ]
 
@@ -95,9 +101,10 @@ export default function Home() {
                   href="/explore"
                   className="block rounded-full border border-white/30 px-8 py-3.5 text-center text-sm font-medium text-white transition-colors hover:border-white"
                 >
-                  Explore restaurants
+                  Explore Restaurants
                 </a>
               </div>
+              <p className="mt-4 text-xs" style={{ color: '#606060' }}>No wallet needed · Free to use</p>
             </div>
           </div>
         </section>
