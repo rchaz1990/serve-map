@@ -12,7 +12,7 @@ const steps = [
     number: "02",
     title: "Book directly",
     description:
-      "Reserve your table in seconds. Next time — book with the same server wherever they work. Your loyalty follows the talent, not just the restaurant.",
+      "Reserve your table in seconds. Next time — book with the same server wherever they work. Your loyalty follows the talent, not just the restaurant. Next time? Book with them again — wherever they work.",
   },
   {
     number: "03",
@@ -105,6 +105,58 @@ export default function Home() {
                 </a>
               </div>
               <p className="mt-4 text-xs" style={{ color: '#606060' }}>No wallet needed · Free to use</p>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Divider ────────────────────────────────────────────────── */}
+        <div className="border-t border-white/10" />
+
+        {/* ── Three pillars ──────────────────────────────────────────── */}
+        <section className="px-8 py-16 lg:px-16">
+          <div className="mx-auto max-w-5xl">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {[
+                {
+                  icon: (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-6 w-6 text-white">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
+                    </svg>
+                  ),
+                  heading: 'Rate the person',
+                  sub: 'Not just the restaurant',
+                },
+                {
+                  icon: (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-6 w-6 text-white">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                    </svg>
+                  ),
+                  heading: 'Follow anywhere',
+                  sub: 'They move, you know',
+                },
+                {
+                  icon: (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-6 w-6 text-white">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+                    </svg>
+                  ),
+                  heading: 'Earn $SERVE',
+                  sub: 'Great service pays',
+                },
+              ].map(item => (
+                <div
+                  key={item.heading}
+                  className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-7"
+                >
+                  {item.icon}
+                  <div>
+                    <p className="text-sm font-semibold text-white">{item.heading}</p>
+                    <p className="mt-1 text-xs" style={{ color: '#606060' }}>{item.sub}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
