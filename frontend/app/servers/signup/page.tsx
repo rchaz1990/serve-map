@@ -89,6 +89,26 @@ export default function ServerSignupPage() {
   // Step 3 fields
   const [bio, setBio] = useState('')
   const [instagram, setInstagram] = useState('')
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoError, setPhotoError] = useState<string | null>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    setPhotoError(null)
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/gif'].includes(file.type)) {
+      setPhotoError('Please upload a JPG, PNG, or GIF.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoError('Photo must be under 5 MB.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = ev => setPhotoPreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
 
   const canAdvanceStep0 = firstName && lastName && email
   const canAdvanceStep1 = role && venue && city
@@ -324,11 +344,47 @@ export default function ServerSignupPage() {
                   <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>
                     Profile photo <span style={{ color: '#606060' }}>(optional)</span>
                   </label>
-                  <div className="flex h-24 w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-dashed border-white/20 transition-colors hover:border-white/40">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5" style={{ color: '#A0A0A0' }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-                    </svg>
-                    <span className="text-sm" style={{ color: '#A0A0A0' }}>Upload a photo</span>
+                  {/* Hidden file input */}
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif"
+                    className="hidden"
+                    onChange={handlePhotoChange}
+                  />
+                  {/* Clickable avatar / upload area */}
+                  <div className="flex items-center gap-5">
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border border-white/20 transition-colors hover:border-white/50 focus:outline-none"
+                      aria-label="Upload profile photo"
+                    >
+                      {photoPreview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={photoPreview} alt="Profile preview" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-7 w-7 text-white/40">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+                          </svg>
+                        </span>
+                      )}
+                    </button>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => photoInputRef.current?.click()}
+                        className="text-sm font-medium text-white underline-offset-2 hover:underline"
+                      >
+                        {photoPreview ? 'Change photo' : 'Upload photo'}
+                      </button>
+                      <p className="mt-1 text-xs" style={{ color: '#606060' }}>JPG, PNG or GIF · max 5 MB</p>
+                      {photoError && (
+                        <p className="mt-1 text-xs text-red-400">{photoError}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div>

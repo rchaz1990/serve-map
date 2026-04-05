@@ -38,6 +38,11 @@ const serverPerks = [
     description:
       "Top-rated servers earn tokens automatically. No application. No approval.",
   },
+  {
+    title: "Your safety, always",
+    description:
+      "Guests send follow requests — you approve or block anyone, anytime. Your safety and privacy are always in your control.",
+  },
 ]
 
 export default function Home() {
@@ -93,6 +98,144 @@ export default function Home() {
                   Explore restaurants
                 </a>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Divider ────────────────────────────────────────────────── */}
+        <div className="border-t border-white/10" />
+
+        {/* ── App screenshots ────────────────────────────────────────── */}
+        <section className="overflow-hidden px-8 py-20 lg:px-16">
+          <div className="mx-auto max-w-5xl">
+            <p className="mb-10 text-center text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#606060' }}>
+              Built for the dining experience
+            </p>
+            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-end sm:justify-center">
+
+              {/* ── Phone 1: Server Profile ── */}
+              <div className="flex w-full max-w-[200px] flex-col items-center gap-3">
+                <div
+                  className="flex w-full flex-col overflow-hidden rounded-[2rem]"
+                  style={{
+                    aspectRatio: '9/19',
+                    border: '1px solid rgba(255,255,255,0.18)',
+                    backgroundColor: '#0a0a0a',
+                    boxShadow: '0 0 0 1px rgba(255,255,255,0.04), 0 24px 60px rgba(0,0,0,0.6)',
+                  }}
+                >
+                  {/* Status bar */}
+                  <div className="flex shrink-0 items-center justify-between px-4 pt-4 pb-2">
+                    <span className="text-[8px] font-semibold text-white/30">9:41</span>
+                    <div className="flex gap-1"><div className="h-1 w-3 rounded-sm bg-white/20" /><div className="h-1 w-1 rounded-sm bg-white/20" /></div>
+                  </div>
+                  {/* Content */}
+                  <div className="flex flex-1 flex-col items-center px-4 pt-2 pb-4">
+                    {/* Avatar */}
+                    <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-sm font-bold text-white">MJ</div>
+                    <p className="text-[10px] font-bold text-white">Marcus Johnson</p>
+                    <p className="mt-0.5 text-[8px]" style={{ color: '#F59E0B' }}>4.9 ★ · 127 ratings</p>
+                    <p className="mt-0.5 text-[8px]" style={{ color: '#606060' }}>Carbone, West Village</p>
+                    {/* Stat pills */}
+                    <div className="mt-3 flex flex-wrap justify-center gap-1">
+                      {['89 Followers', 'Top 1%', 'Cocktails'].map(s => (
+                        <span key={s} className="rounded-full px-1.5 py-0.5 text-[7px] font-medium text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>{s}</span>
+                      ))}
+                    </div>
+                    {/* Spacer */}
+                    <div className="flex-1" />
+                    {/* CTA */}
+                    <div className="w-full rounded-full bg-white py-1.5 text-center text-[8px] font-bold text-black">
+                      Reserve with Marcus
+                    </div>
+                  </div>
+                  {/* Home pill */}
+                  <div className="shrink-0 pb-3 flex justify-center"><div className="h-0.5 w-12 rounded-full bg-white/20" /></div>
+                </div>
+                <p className="text-center text-[10px] leading-4" style={{ color: '#606060' }}>On-chain reputation · Verified ratings</p>
+              </div>
+
+              {/* ── Phone 2: Explore (raised) ── */}
+              <div className="flex w-full max-w-[200px] flex-col items-center gap-3 sm:-translate-y-4">
+                <div
+                  className="flex w-full flex-col overflow-hidden rounded-[2rem]"
+                  style={{
+                    aspectRatio: '9/19',
+                    border: '1px solid rgba(255,255,255,0.18)',
+                    backgroundColor: '#0a0a0a',
+                    boxShadow: '0 0 0 1px rgba(255,255,255,0.04), 0 24px 60px rgba(0,0,0,0.6)',
+                  }}
+                >
+                  <div className="flex shrink-0 items-center justify-between px-4 pt-4 pb-2">
+                    <span className="text-[8px] font-semibold text-white/30">9:41</span>
+                    <div className="flex gap-1"><div className="h-1 w-3 rounded-sm bg-white/20" /><div className="h-1 w-1 rounded-sm bg-white/20" /></div>
+                  </div>
+                  <div className="flex flex-1 flex-col px-3 pt-1 pb-4">
+                    <p className="mb-3 text-[10px] font-bold text-white">Find your restaurant</p>
+                    {/* Search bar */}
+                    <div className="mb-3 rounded-lg px-2 py-1.5 text-[8px]" style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: '#606060' }}>Search restaurants…</div>
+                    {/* Cards */}
+                    {[
+                      { name: 'Carbone', hood: 'West Village', rating: '4.9' },
+                      { name: 'Don Angie', hood: 'Greenwich Village', rating: '4.8' },
+                    ].map(r => (
+                      <div key={r.name} className="mb-2 rounded-xl p-2.5" style={{ border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-[9px] font-semibold text-white">{r.name}</p>
+                            <p className="text-[7px]" style={{ color: '#606060' }}>{r.hood}</p>
+                          </div>
+                          <span className="text-[7px] font-semibold" style={{ color: '#F59E0B' }}>{r.rating} ★</span>
+                        </div>
+                        <p className="mt-1.5 text-[7px]" style={{ color: '#A0A0A0' }}>Staff Rating 4.9★</p>
+                      </div>
+                    ))}
+                    <div className="flex-1" />
+                  </div>
+                  <div className="shrink-0 pb-3 flex justify-center"><div className="h-0.5 w-12 rounded-full bg-white/20" /></div>
+                </div>
+                <p className="text-center text-[10px] leading-4" style={{ color: '#606060' }}>Browse restaurants &amp; top servers</p>
+              </div>
+
+              {/* ── Phone 3: Rate ── */}
+              <div className="flex w-full max-w-[200px] flex-col items-center gap-3">
+                <div
+                  className="flex w-full flex-col overflow-hidden rounded-[2rem]"
+                  style={{
+                    aspectRatio: '9/19',
+                    border: '1px solid rgba(255,255,255,0.18)',
+                    backgroundColor: '#0a0a0a',
+                    boxShadow: '0 0 0 1px rgba(255,255,255,0.04), 0 24px 60px rgba(0,0,0,0.6)',
+                  }}
+                >
+                  <div className="flex shrink-0 items-center justify-between px-4 pt-4 pb-2">
+                    <span className="text-[8px] font-semibold text-white/30">9:41</span>
+                    <div className="flex gap-1"><div className="h-1 w-3 rounded-sm bg-white/20" /><div className="h-1 w-1 rounded-sm bg-white/20" /></div>
+                  </div>
+                  <div className="flex flex-1 flex-col items-center px-4 pt-3 pb-4">
+                    <p className="mb-1 text-center text-[10px] font-bold leading-tight text-white">How was your<br />experience?</p>
+                    <p className="mb-4 text-[8px]" style={{ color: '#606060' }}>Marcus Johnson · Carbone</p>
+                    {/* Stars */}
+                    <div className="mb-4 flex gap-1">
+                      {[1,2,3,4,5].map(s => (
+                        <span key={s} className="text-sm" style={{ color: '#F59E0B' }}>★</span>
+                      ))}
+                    </div>
+                    {/* Verified badge */}
+                    <div className="mb-4 flex items-center gap-1 rounded-full px-2 py-1 text-[7px] font-semibold" style={{ backgroundColor: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80' }}>
+                      <span>✓</span><span>Verified Visit</span>
+                    </div>
+                    <div className="flex-1" />
+                    {/* Submit */}
+                    <div className="w-full rounded-full bg-white py-1.5 text-center text-[8px] font-bold text-black">
+                      Submit Rating
+                    </div>
+                  </div>
+                  <div className="shrink-0 pb-3 flex justify-center"><div className="h-0.5 w-12 rounded-full bg-white/20" /></div>
+                </div>
+                <p className="text-center text-[10px] leading-4" style={{ color: '#606060' }}>GPS-verified · 30 seconds</p>
+              </div>
+
             </div>
           </div>
         </section>
@@ -203,13 +346,36 @@ export default function Home() {
       </main>
 
       {/* ── Footer ─────────────────────────────────────────────────── */}
-      <footer className="flex items-center justify-between px-8 py-8 lg:px-16">
-        <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">
-          Slate
-        </span>
-        <p className="text-xs" style={{ color: '#A0A0A0' }}>
-          © {new Date().getFullYear()} Slate
-        </p>
+      <footer className="px-8 py-10 lg:px-16">
+        <div className="mx-auto max-w-5xl">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Slate</span>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Built on Solana */}
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#A0A0A0' }}>
+                <svg viewBox="0 0 24 24" fill="currentColor" className="h-2.5 w-2.5">
+                  <circle cx="12" cy="12" r="12" />
+                </svg>
+                Built on Solana
+              </span>
+              {/* Twitter */}
+              <a
+                href="https://twitter.com/slatenow"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] font-medium transition-colors hover:text-white"
+                style={{ color: '#606060' }}
+              >
+                @slatenow
+              </a>
+              {/* Pilot */}
+              <span className="text-[10px]" style={{ color: '#404040' }}>NYC Pilot — April 2026</span>
+            </div>
+            <p className="text-xs" style={{ color: '#404040' }}>
+              © {new Date().getFullYear()} Slate
+            </p>
+          </div>
+        </div>
       </footer>
 
     </div>
