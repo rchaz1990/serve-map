@@ -63,7 +63,7 @@ export default function Home() {
       <main>
 
         {/* ── Hero ───────────────────────────────────────────────────── */}
-        <section className="relative flex min-h-screen items-end overflow-hidden">
+        <section className="relative flex min-h-screen flex-col justify-end overflow-hidden">
           {/* Background photo */}
           <Image
             src="https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=1920&q=80"
@@ -75,10 +75,13 @@ export default function Home() {
           {/* Dark overlay — 60% black so text stays fully legible */}
           <div className="absolute inset-0 bg-black/60" />
 
+          {/* Spacer that pushes content below the 64px navbar */}
+          <div className="relative z-10 h-20 shrink-0" />
+
           {/* Content — sits above the overlay */}
           <div className="relative z-10 w-full px-8 pb-24 lg:px-16 lg:pb-32">
             <div className="mx-auto max-w-5xl">
-              <h1 className="text-[clamp(2.25rem,8vw,7rem)] font-bold leading-[1.0] tracking-tight text-white">
+              <h1 className="text-[clamp(2rem,5.5vw,4.5rem)] font-bold leading-[1.05] tracking-tight text-white">
                 Your table.
                 <br />
                 Your server.
