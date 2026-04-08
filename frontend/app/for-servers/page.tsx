@@ -8,8 +8,8 @@ export default function ForServersPage() {
 
       <main>
 
-        {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <section className="px-8 py-24 lg:px-24 lg:py-32">
+        {/* ── Hero ──────────────────────────────────────────────────────── */}
+        <section className="px-6 py-20 lg:px-24 lg:py-32">
           <div className="mx-auto max-w-4xl">
             <p className="mb-5 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
               For servers &amp; bartenders
@@ -21,7 +21,7 @@ export default function ForServersPage() {
               <br />
               Your rewards.
             </h1>
-            <p className="max-w-xl text-base leading-relaxed sm:text-lg" style={{ color: '#606060' }}>
+            <p className="max-w-xl text-base leading-relaxed" style={{ color: '#606060' }}>
               The first platform built entirely for the people who make hospitality great.
             </p>
           </div>
@@ -29,8 +29,8 @@ export default function ForServersPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── The problem ──────────────────────────────────────────────── */}
-        <section className="px-8 py-20 lg:px-24">
+        {/* ── The problem ───────────────────────────────────────────────── */}
+        <section className="px-6 py-16 lg:px-24 lg:py-24">
           <div className="mx-auto max-w-4xl">
             <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
               The problem
@@ -51,8 +51,8 @@ export default function ForServersPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── What you get ─────────────────────────────────────────────── */}
-        <section className="px-8 py-20 lg:px-24">
+        {/* ── What you get ──────────────────────────────────────────────── */}
+        <section className="px-6 py-16 lg:px-24 lg:py-24">
           <div className="mx-auto max-w-4xl">
             <p className="mb-10 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
               What you get
@@ -90,8 +90,8 @@ export default function ForServersPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── Safety ───────────────────────────────────────────────────── */}
-        <section className="px-8 py-20 lg:px-24" style={{ backgroundColor: '#080808' }}>
+        {/* ── Safety ────────────────────────────────────────────────────── */}
+        <section className="px-6 py-16 lg:px-24 lg:py-24" style={{ backgroundColor: '#080808' }}>
           <div className="mx-auto max-w-4xl">
             <h2 className="mb-4 text-2xl font-bold tracking-tight text-white sm:text-3xl">
               You&apos;re in complete control.
@@ -118,20 +118,20 @@ export default function ForServersPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── CTA ──────────────────────────────────────────────────────── */}
-        <section className="px-8 py-24 text-center lg:px-24">
-          <div className="mx-auto max-w-2xl">
+        {/* ── Single CTA ────────────────────────────────────────────────── */}
+        <section className="px-6 py-24 text-center lg:px-24 lg:py-36">
+          <div className="mx-auto max-w-xl">
             <h2 className="mb-5 text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Ready to own your reputation?
             </h2>
-            <p className="mx-auto mb-10 max-w-lg text-base leading-relaxed" style={{ color: '#606060' }}>
+            <p className="mx-auto mb-10 text-base leading-relaxed" style={{ color: '#606060' }}>
               Join our founding member waitlist. First 500 servers get priority placement and bonus $SERVE rewards at launch.
             </p>
             <a
               href="/server-waitlist"
-              className="inline-block rounded-full bg-white px-8 py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+              className="block w-full rounded-full bg-white py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:inline-block sm:w-auto sm:px-10"
             >
-              Join the waitlist
+              Join the waitlist →
             </a>
             <p className="mt-4 text-xs" style={{ color: '#404040' }}>Free forever. No crypto knowledge needed.</p>
           </div>

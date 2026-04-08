@@ -8,8 +8,8 @@ export default function ForRestaurantsPage() {
 
       <main>
 
-        {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <section className="px-8 py-24 lg:px-24 lg:py-32">
+        {/* ── Hero ──────────────────────────────────────────────────────── */}
+        <section className="px-6 py-20 lg:px-24 lg:py-32">
           <div className="mx-auto max-w-4xl">
             <p className="mb-5 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
               For restaurants &amp; bars
@@ -21,24 +21,16 @@ export default function ForRestaurantsPage() {
               <br />
               We help you prove it.
             </h1>
-            <p className="max-w-xl text-base leading-relaxed sm:text-lg" style={{ color: '#606060' }}>
-              Slate works with how you already operate. Reservations or walk-in. We bring your team&apos;s excellence to the surface.
+            <p className="max-w-xl text-base leading-relaxed" style={{ color: '#606060' }}>
+              Slate works with how you already operate. Reservation or walk-in. We bring your team&apos;s excellence to the surface.
             </p>
-            <div className="mt-10">
-              <a
-                href="/waitlist"
-                className="inline-block rounded-full bg-white px-8 py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80"
-              >
-                Apply to join Slate →
-              </a>
-            </div>
           </div>
         </section>
 
         <div className="border-t border-white/10" />
 
-        {/* ── The pitch ────────────────────────────────────────────────── */}
-        <section className="px-8 py-20 lg:px-24">
+        {/* ── The pitch ─────────────────────────────────────────────────── */}
+        <section className="px-6 py-16 lg:px-24 lg:py-24">
           <div className="mx-auto max-w-4xl">
             <div className="max-w-2xl space-y-5 text-base leading-8" style={{ color: '#C0C0C0' }}>
               <p>
@@ -56,8 +48,8 @@ export default function ForRestaurantsPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── What restaurants get ─────────────────────────────────────── */}
-        <section className="px-8 py-20 lg:px-24">
+        {/* ── What restaurants get ──────────────────────────────────────── */}
+        <section className="px-6 py-16 lg:px-24 lg:py-24">
           <div className="mx-auto max-w-4xl">
             <p className="mb-10 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
               What you get
@@ -78,7 +70,7 @@ export default function ForRestaurantsPage() {
                 },
                 {
                   title: 'Live vibe intelligence',
-                  body: 'Guests report your venue\'s energy in real time. See when you\'re running hot and surface that intelligence to new guests nearby.',
+                  body: "Guests report your venue's energy in real time. See when you're running hot and surface that intelligence to new guests nearby.",
                 },
               ].map(card => (
                 <div
@@ -95,13 +87,13 @@ export default function ForRestaurantsPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── How it works for venues ──────────────────────────────────── */}
-        <section className="px-8 py-20 lg:px-24">
+        {/* ── How it works for venues ───────────────────────────────────── */}
+        <section className="px-6 py-16 lg:px-24 lg:py-24">
           <div className="mx-auto max-w-4xl">
             <p className="mb-10 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
               How it works
             </p>
-            <div className="flex flex-col gap-0">
+            <div className="flex flex-col">
               {[
                 {
                   n: '01',
@@ -116,7 +108,7 @@ export default function ForRestaurantsPage() {
                 {
                   n: '03',
                   title: 'Guests scan after great service',
-                  body: 'When a guest has an exceptional experience they scan the server\'s QR code. A verified on-chain rating is created. No fake reviews.',
+                  body: "When a guest has an exceptional experience they scan the server's QR code. A verified on-chain rating is created. No fake reviews.",
                 },
                 {
                   n: '04',
@@ -141,42 +133,32 @@ export default function ForRestaurantsPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── Pricing note ─────────────────────────────────────────────── */}
-        <section className="px-8 py-16 lg:px-24" style={{ backgroundColor: '#080808' }}>
+        {/* ── Pricing note ──────────────────────────────────────────────── */}
+        <section className="px-6 py-14 lg:px-24" style={{ backgroundColor: '#080808' }}>
           <div className="mx-auto max-w-4xl">
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="mb-2 text-xl font-bold text-white sm:text-2xl">Simple, fair pricing.</h2>
-                <p className="max-w-md text-sm leading-relaxed" style={{ color: '#606060' }}>
-                  $1 per cover processed through Slate. Significantly less than OpenTable or Resy. Free for guests, always. No monthly minimums during the pilot.
-                </p>
-              </div>
-              <a
-                href="/waitlist"
-                className="shrink-0 rounded-full border border-white/25 px-6 py-3 text-sm font-medium text-white transition-colors hover:border-white"
-              >
-                Apply for the pilot →
-              </a>
-            </div>
+            <h2 className="mb-2 text-xl font-bold text-white sm:text-2xl">Simple, fair pricing.</h2>
+            <p className="max-w-md text-sm leading-relaxed" style={{ color: '#606060' }}>
+              $1 per cover processed through Slate. Significantly less than OpenTable or Resy. Free for guests, always. No monthly minimums during the pilot.
+            </p>
           </div>
         </section>
 
         <div className="border-t border-white/10" />
 
-        {/* ── CTA ──────────────────────────────────────────────────────── */}
-        <section className="px-8 py-24 text-center lg:px-24">
-          <div className="mx-auto max-w-2xl">
+        {/* ── Single CTA ────────────────────────────────────────────────── */}
+        <section className="px-6 py-24 text-center lg:px-24 lg:py-36">
+          <div className="mx-auto max-w-xl">
             <h2 className="mb-5 text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Join the NYC pilot.
             </h2>
-            <p className="mx-auto mb-10 max-w-lg text-base leading-relaxed" style={{ color: '#606060' }}>
+            <p className="mx-auto mb-10 text-base leading-relaxed" style={{ color: '#606060' }}>
               We&apos;re onboarding a small number of NYC restaurants and bars for our founding cohort. Apply now to be among the first venues on Slate.
             </p>
             <a
               href="/waitlist"
-              className="inline-block rounded-full bg-white px-8 py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+              className="block w-full rounded-full bg-white py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:inline-block sm:w-auto sm:px-10"
             >
-              Apply to join Slate
+              Apply to join Slate →
             </a>
             <p className="mt-4 text-xs" style={{ color: '#404040' }}>NYC venues only · Pilot phase · Limited spots</p>
           </div>

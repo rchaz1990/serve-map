@@ -1,24 +1,25 @@
 'use client'
 
-// overlay=true: positioned absolute over a full-bleed hero (homepage).
-// overlay=false (default): normal document flow for all other pages.
+import { useState } from 'react'
 
-import { useState, useRef, useEffect } from 'react'
+const LOGO = (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="3.25" stroke="white" strokeWidth="1.5" />
+    <line x1="5" y1="7"  x2="15" y2="7"  stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="5" y1="10" x2="15" y2="10" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="5" y1="13" x2="15" y2="13" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)
+
+const NAV_LINKS = [
+  { href: '/live',            label: "What's Live", pulse: true },
+  { href: '/for-servers',     label: 'For Servers',     pulse: false },
+  { href: '/for-restaurants', label: 'For Restaurants', pulse: false },
+  { href: '/whitepaper',      label: 'Whitepaper',      pulse: false },
+]
 
 export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [signInOpen, setSignInOpen] = useState(false)
-  const signInRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (signInRef.current && !signInRef.current.contains(e.target as Node)) {
-        setSignInOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
 
   return (
     <>
@@ -26,95 +27,35 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
         className={[
           'flex h-16 items-center justify-between px-8 lg:px-16',
           overlay ? 'absolute left-0 right-0 top-0 z-20' : '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
+        ].filter(Boolean).join(' ')}
       >
         {/* Logo */}
         <a href="/" className="flex items-center gap-2.5">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="3.25" stroke="white" strokeWidth="1.5" />
-            <line x1="5" y1="7"  x2="15" y2="7"  stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-            <line x1="5" y1="10" x2="15" y2="10" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-            <line x1="5" y1="13" x2="15" y2="13" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
+          {LOGO}
           <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Slate</span>
         </a>
 
-        {/* Middle nav — hidden on small screens */}
+        {/* Middle nav */}
         <nav className="hidden items-center gap-8 md:flex">
-          {/* What's Live — with pulsing dot */}
-          <a
-            href="/live"
-            className="flex items-center gap-2 text-xs font-medium text-white/50 transition-colors hover:text-white"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-white/70" />
-            </span>
-            What&apos;s Live
-          </a>
-          <a
-            href="/for-servers"
-            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-          >
-            For Servers
-          </a>
-          <a
-            href="/how-it-works"
-            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-          >
-            How it Works
-          </a>
-          <a
-            href="/whitepaper"
-            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-          >
-            Whitepaper
-          </a>
+          {NAV_LINKS.map(({ href, label, pulse }) => (
+            <a
+              key={href}
+              href={href}
+              className="flex items-center gap-2 text-xs font-medium text-white/50 transition-colors hover:text-white"
+            >
+              {pulse && (
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-white/70" />
+                </span>
+              )}
+              {label}
+            </a>
+          ))}
         </nav>
 
-        {/* Right buttons — hidden on mobile */}
-        <div className="hidden items-center gap-3 md:flex">
-          <a
-            href="/for-restaurants"
-            className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
-          >
-            For Restaurants
-          </a>
-          {/* Sign In dropdown */}
-          <div ref={signInRef} className="relative">
-            <button
-              onClick={() => setSignInOpen(o => !o)}
-              className="rounded-full border border-white/30 px-5 py-1.5 text-xs font-medium text-white/70 transition-colors hover:border-white hover:text-white"
-            >
-              Sign In
-            </button>
-            {signInOpen && (
-              <div
-                className="absolute right-0 top-full mt-2 w-48 overflow-hidden rounded-xl border border-white/15 shadow-2xl"
-                style={{ backgroundColor: '#111111' }}
-              >
-                <a
-                  href="/account"
-                  onClick={() => setSignInOpen(false)}
-                  className="flex flex-col px-4 py-3.5 transition-colors hover:bg-white/[0.06]"
-                >
-                  <span className="text-xs font-semibold text-white">I&apos;m a guest</span>
-                  <span className="mt-0.5 text-[10px]" style={{ color: '#606060' }}>Rate &amp; follow servers</span>
-                </a>
-                <div className="border-t border-white/10" />
-                <a
-                  href="/dashboard"
-                  onClick={() => setSignInOpen(false)}
-                  className="flex flex-col px-4 py-3.5 transition-colors hover:bg-white/[0.06]"
-                >
-                  <span className="text-xs font-semibold text-white">I&apos;m a server</span>
-                  <span className="mt-0.5 text-[10px]" style={{ color: '#606060' }}>Manage your profile &amp; rewards</span>
-                </a>
-              </div>
-            )}
-          </div>
+        {/* Get Started button */}
+        <div className="hidden md:block">
           <a
             href="/server-waitlist"
             className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
@@ -123,7 +64,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           </a>
         </div>
 
-        {/* Hamburger — shown only on mobile */}
+        {/* Hamburger */}
         <button
           className="flex items-center justify-center text-white md:hidden"
           onClick={() => setMenuOpen(true)}
@@ -135,18 +76,12 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
         </button>
       </header>
 
-      {/* ── Mobile full-screen overlay ── */}
+      {/* Mobile full-screen overlay */}
       {menuOpen && (
         <div className="fixed inset-0 z-50 flex flex-col bg-black md:hidden">
-          {/* Top bar */}
           <div className="flex h-16 shrink-0 items-center justify-between px-8">
             <a href="/" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="3.25" stroke="white" strokeWidth="1.5" />
-                <line x1="5" y1="7"  x2="15" y2="7"  stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                <line x1="5" y1="10" x2="15" y2="10" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                <line x1="5" y1="13" x2="15" y2="13" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
+              {LOGO}
               <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Slate</span>
             </a>
             <button
@@ -162,46 +97,24 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
 
           <div className="border-t border-white/10" />
 
-          {/* Nav links */}
           <nav className="flex flex-1 flex-col overflow-y-auto px-8 pt-6">
-            {[
-              { href: '/live',            label: "What's Live" },
-              { href: '/for-servers',     label: 'For Servers' },
-              { href: '/how-it-works',    label: 'How it Works' },
-              { href: '/whitepaper',      label: 'Whitepaper' },
-              { href: '/for-restaurants', label: 'For Restaurants' },
-            ].map(({ href, label }) => (
+            {NAV_LINKS.map(({ href, label }) => (
               <a
                 key={href}
                 href={href}
                 onClick={() => setMenuOpen(false)}
-                className="border-b border-white/10 py-5 text-2xl font-semibold text-white transition-colors active:text-white/60"
+                className="border-b border-white/10 py-5 text-2xl font-semibold text-white"
               >
                 {label}
               </a>
             ))}
           </nav>
 
-          {/* Bottom actions */}
-          <div className="shrink-0 flex flex-col gap-3 px-8 pb-10 pt-6">
-            <a
-              href="/account"
-              onClick={() => setMenuOpen(false)}
-              className="w-full rounded-full border border-white/30 py-4 text-center text-sm font-medium text-white transition-colors hover:border-white"
-            >
-              Sign in as guest
-            </a>
-            <a
-              href="/dashboard"
-              onClick={() => setMenuOpen(false)}
-              className="w-full rounded-full border border-white/30 py-4 text-center text-sm font-medium text-white transition-colors hover:border-white"
-            >
-              Sign in as server
-            </a>
+          <div className="shrink-0 px-8 pb-10 pt-6">
             <a
               href="/server-waitlist"
               onClick={() => setMenuOpen(false)}
-              className="w-full rounded-full bg-white py-4 text-center text-sm font-semibold text-black transition-opacity hover:opacity-80"
+              className="block w-full rounded-full bg-white py-4 text-center text-sm font-semibold text-black"
             >
               Get Started
             </a>

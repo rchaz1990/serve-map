@@ -321,29 +321,6 @@ export default function LivePage() {
           </div>
         </section>
 
-        <div className="border-t border-white/10" />
-
-        {/* ── Bottom CTA ───────────────────────────────────────────────── */}
-        <section className="px-8 py-20 text-center lg:px-16">
-          <div className="mx-auto max-w-2xl">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-              For venues
-            </p>
-            <h2 className="mb-4 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Want your venue on Slate?
-            </h2>
-            <p className="mx-auto mb-8 max-w-md text-sm leading-relaxed" style={{ color: '#606060' }}>
-              Join our founding restaurant partners and get your staff on the live map. Limited spots in the NYC pilot.
-            </p>
-            <a
-              href="/waitlist"
-              className="inline-block rounded-full bg-white px-8 py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80"
-            >
-              Apply now
-            </a>
-          </div>
-        </section>
-
       </main>
     </div>
   )
