@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Navbar from '@/app/components/Navbar'
 
 export default function Home() {
@@ -11,8 +12,17 @@ export default function Home() {
       <main>
 
         {/* ── Section 1: Hero ─────────────────────────────────────────── */}
-        <section className="flex min-h-screen flex-col items-start justify-center px-8 lg:px-24">
-          <div className="mx-auto w-full max-w-5xl pt-24 pb-20">
+        <section className="relative flex min-h-screen flex-col items-start justify-center px-8 lg:px-24">
+          <Image
+            src="https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=1920&q=80"
+            alt=""
+            fill
+            priority
+            className="object-cover"
+            style={{ zIndex: 0 }}
+          />
+          <div className="absolute inset-0" style={{ backgroundColor: 'rgba(0,0,0,0.78)', zIndex: 1 }} />
+          <div className="relative mx-auto w-full max-w-5xl pt-24 pb-20" style={{ zIndex: 2 }}>
             <p className="mb-6 text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: '#404040' }}>
               NYC · Live Now
             </p>
@@ -80,6 +90,40 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ── Split section A: For servers ────────────────────────────── */}
+        <section className="flex min-h-[520px] flex-col sm:flex-row">
+          {/* Photo */}
+          <div className="relative min-h-[280px] w-full sm:w-[60%]">
+            <Image
+              src="https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=1200&q=80"
+              alt="Bartender at work"
+              fill
+              className="object-cover"
+            />
+            <div className="absolute inset-0" style={{ backgroundColor: 'rgba(0,0,0,0.25)' }} />
+          </div>
+          {/* Copy */}
+          <div className="flex w-full flex-col justify-center px-10 py-16 sm:w-[40%] lg:px-16" style={{ backgroundColor: '#080808' }}>
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: '#404040' }}>
+              For servers &amp; bartenders
+            </p>
+            <h2 className="mb-5 text-2xl font-bold leading-tight tracking-tight text-white sm:text-3xl">
+              Your reputation.
+              <br />
+              Your rewards.
+            </h2>
+            <p className="mb-8 text-sm leading-relaxed" style={{ color: '#606060' }}>
+              Your ratings live on the blockchain. Portable. Permanent. Yours forever — no matter where you work next.
+            </p>
+            <a
+              href="/server-waitlist"
+              className="inline-block w-fit rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+            >
+              Claim your profile →
+            </a>
+          </div>
+        </section>
+
         <div className="border-t border-white/10" />
 
         {/* ── Section 3: Mission statement ────────────────────────────── */}
@@ -110,6 +154,41 @@ export default function Home() {
             <p className="mx-auto mt-16 max-w-md text-sm font-medium text-white sm:text-base">
               Slate is the first. Built for the people who deserve it most.
             </p>
+          </div>
+        </section>
+
+        {/* ── Split section B: Feel the vibe (reversed) ───────────────── */}
+        <section className="flex min-h-[520px] flex-col sm:flex-row-reverse">
+          {/* Photo */}
+          <div className="relative min-h-[280px] w-full sm:w-[55%]">
+            <Image
+              src="https://images.unsplash.com/photo-1559329007-40df8a9345d8?w=1200&q=80"
+              alt="Busy NYC bar"
+              fill
+              className="object-cover"
+            />
+            <div className="absolute inset-0" style={{ backgroundColor: 'rgba(0,0,0,0.2)' }} />
+          </div>
+          {/* Copy */}
+          <div className="flex w-full flex-col justify-center px-10 py-16 sm:w-[45%] lg:px-16" style={{ backgroundColor: '#080808' }}>
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: '#404040' }}>
+              Feel the vibe
+            </p>
+            <h2 className="mb-5 text-2xl font-bold leading-tight tracking-tight text-white sm:text-3xl">
+              NYC is alive
+              <br />
+              tonight.
+            </h2>
+            <p className="mb-8 text-sm leading-relaxed" style={{ color: '#606060' }}>
+              Updated in real time. Community reported. Location verified. See which venues are packed, live, or chill — right now.
+            </p>
+            <a
+              href="/live"
+              className="inline-flex w-fit items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+            >
+              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-black" />
+              See what&apos;s live →
+            </a>
           </div>
         </section>
 
