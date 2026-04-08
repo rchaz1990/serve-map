@@ -1,438 +1,348 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Navbar from '@/app/components/Navbar'
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-type Vibe = 'Chill' | 'Live' | 'Packed'
-type Busyness = 'Quiet' | 'Moderate' | 'Packed'
-type BarSeats = 'Yes' | 'A few' | 'No'
-type WaitTime = 'No wait' | '~15 min' | '30+ min'
-type SubmitState = 'idle' | 'locating' | 'form' | 'submitting' | 'done'
+type Vibe = 'CHILL' | 'LIVE' | 'PACKED'
 
-// ── Static data ──────────────────────────────────────────────────────────────
-
-const VIBE_CONFIG: Record<Vibe, {
-  emoji: string
-  label: string
-  tagline: string
-  count: number
-  animClass: string
-  glowStyle: React.CSSProperties
-  activeGlowStyle: React.CSSProperties
-  borderColor: string
-  activeBorderColor: string
-}> = {
-  Chill: {
-    emoji: '🧊',
-    label: 'Chill',
-    tagline: 'Calm & relaxed. Perfect for conversation.',
-    count: 8,
-    animClass: 'vibe-chill',
-    glowStyle: { boxShadow: '0 0 12px rgba(96,165,250,0.12)' },
-    activeGlowStyle: { boxShadow: '0 0 32px rgba(96,165,250,0.45)', borderColor: 'rgba(96,165,250,0.6)' },
-    borderColor: 'rgba(96,165,250,0.25)',
-    activeBorderColor: 'rgba(96,165,250,0.6)',
-  },
-  Live: {
-    emoji: '🔥',
-    label: 'Live',
-    tagline: 'Busy and energetic. Great atmosphere tonight.',
-    count: 12,
-    animClass: 'vibe-live',
-    glowStyle: { boxShadow: '0 0 12px rgba(251,146,60,0.12)' },
-    activeGlowStyle: { boxShadow: '0 0 36px rgba(251,146,60,0.5)', borderColor: 'rgba(251,146,60,0.7)' },
-    borderColor: 'rgba(251,146,60,0.25)',
-    activeBorderColor: 'rgba(251,146,60,0.7)',
-  },
-  Packed: {
-    emoji: '🚀',
-    label: 'Packed',
-    tagline: 'Slammed. Electric energy. Peak night.',
-    count: 19,
-    animClass: 'vibe-packed',
-    glowStyle: { boxShadow: '0 0 12px rgba(255,255,255,0.08)' },
-    activeGlowStyle: { boxShadow: '0 0 40px rgba(255,255,255,0.35)', borderColor: 'rgba(255,255,255,0.8)' },
-    borderColor: 'rgba(255,255,255,0.18)',
-    activeBorderColor: 'rgba(255,255,255,0.8)',
-  },
-}
-
-interface RestaurantCard {
+interface Venue {
   id: number
-  restaurant: string
+  name: string
   neighborhood: string
-  minutesAgo: number
   vibe: Vibe
-  busyness: Busyness
-  barSeats: string
-  waitTime: string
-  bookHref: string
+  minutesAgo: number
+  servers: number
+  energy: number // 0-100 for the bar
 }
 
-const REPORTS: RestaurantCard[] = [
-  { id: 1, restaurant: 'Carbone',    neighborhood: 'Greenwich Village', minutesAgo: 4,  vibe: 'Packed', busyness: 'Packed',   barSeats: 'Bar is full',      waitTime: '~45 min wait', bookHref: '/book' },
-  { id: 2, restaurant: 'Don Angie',  neighborhood: 'West Village',      minutesAgo: 9,  vibe: 'Live',   busyness: 'Moderate', barSeats: '2 seats available', waitTime: '~15 min wait', bookHref: '/book' },
-  { id: 3, restaurant: 'Lilia',      neighborhood: 'Williamsburg',      minutesAgo: 12, vibe: 'Packed', busyness: 'Packed',   barSeats: 'Bar is full',      waitTime: '~30 min wait', bookHref: '/book' },
-  { id: 4, restaurant: 'Via Carota', neighborhood: 'West Village',      minutesAgo: 18, vibe: 'Live',   busyness: 'Moderate', barSeats: '4 seats available', waitTime: 'No wait',      bookHref: '/book' },
-  { id: 5, restaurant: 'Rezdôra',    neighborhood: 'Flatiron',          minutesAgo: 22, vibe: 'Chill',  busyness: 'Quiet',    barSeats: '6 seats available', waitTime: 'No wait',      bookHref: '/book' },
-  { id: 6, restaurant: "Raoul's",    neighborhood: 'SoHo',              minutesAgo: 31, vibe: 'Packed', busyness: 'Packed',   barSeats: 'Bar is full',      waitTime: '~20 min wait', bookHref: '/book' },
+// ── Data ──────────────────────────────────────────────────────────────────────
+
+const VENUES: Venue[] = [
+  { id: 1, name: 'Employees Only',   neighborhood: 'West Village',     vibe: 'PACKED', minutesAgo: 3,  servers: 2, energy: 96 },
+  { id: 2, name: 'Death & Co',       neighborhood: 'East Village',     vibe: 'LIVE',   minutesAgo: 7,  servers: 1, energy: 62 },
+  { id: 3, name: 'Attaboy',          neighborhood: 'Lower East Side',  vibe: 'PACKED', minutesAgo: 2,  servers: 3, energy: 99 },
+  { id: 4, name: 'Dante',            neighborhood: 'West Village',     vibe: 'LIVE',   minutesAgo: 12, servers: 2, energy: 58 },
+  { id: 5, name: 'The Dead Rabbit',  neighborhood: 'Financial District',vibe: 'LIVE',   minutesAgo: 5,  servers: 1, energy: 71 },
+  { id: 6, name: "Please Don't Tell",neighborhood: 'East Village',     vibe: 'PACKED', minutesAgo: 1,  servers: 4, energy: 100 },
+  { id: 7, name: 'Maison Premiere',  neighborhood: 'Williamsburg',     vibe: 'CHILL',  minutesAgo: 18, servers: 2, energy: 28 },
+  { id: 8, name: 'Amor y Amargo',    neighborhood: 'East Village',     vibe: 'CHILL',  minutesAgo: 22, servers: 1, energy: 22 },
 ]
 
-// ── Inline keyframe styles injected once ─────────────────────────────────────
-
-const ANIM_CSS = `
-@keyframes chillPulse {
-  0%, 100% { opacity: 0.7; transform: scale(1); }
-  50%       { opacity: 1;   transform: scale(1.03); }
+const VIBE_META = {
+  CHILL:  { emoji: '🧊', label: 'CHILL',  tagline: 'Calm energy. Good conversation. Perfect for a date.', reports: 14 },
+  LIVE:   { emoji: '🔥', label: 'LIVE',   tagline: 'Buzzing energy. Great crowd. Night is just getting started.', reports: 31 },
+  PACKED: { emoji: '🚀', label: 'PACKED', tagline: 'Electric. Wall to wall. Peak NYC energy.', reports: 8 },
 }
-@keyframes chillPulseActive {
-  0%, 100% { opacity: 0.85; transform: scale(1); }
-  50%       { opacity: 1;    transform: scale(1.06); }
+
+// ── CSS animations ────────────────────────────────────────────────────────────
+
+const CSS = `
+@keyframes liveDot {
+  0%,100% { opacity:1; transform:scale(1); }
+  50%      { opacity:.4; transform:scale(1.4); }
+}
+@keyframes chillBreathe {
+  0%,100% { opacity:.85; transform:scale(1); }
+  50%      { opacity:1;  transform:scale(1.015); }
 }
 @keyframes liveFlicker {
-  0%, 100% { opacity: 0.75; transform: scale(1); }
-  25%       { opacity: 1;   transform: scale(1.04); }
-  50%       { opacity: 0.8; transform: scale(1.01); }
-  75%       { opacity: 1;   transform: scale(1.05); }
+  0%,100% { opacity:.8; }
+  20%     { opacity:1; }
+  40%     { opacity:.75; }
+  60%     { opacity:1; }
+  80%     { opacity:.82; }
 }
-@keyframes liveFlickerActive {
-  0%, 100% { opacity: 0.9;  transform: scale(1); }
-  25%       { opacity: 1;   transform: scale(1.07); }
-  50%       { opacity: 0.85; transform: scale(1.02); }
-  75%       { opacity: 1;   transform: scale(1.08); }
+@keyframes packedPulse {
+  0%,100% { opacity:.7; transform:scale(1); }
+  15%     { opacity:1;  transform:scale(1.03); }
+  30%     { opacity:.65;}
+  55%     { opacity:1;  transform:scale(1.02); }
+  75%     { opacity:.7; }
 }
-@keyframes packedFlash {
-  0%, 100% { opacity: 0.65; transform: scale(1); }
-  20%       { opacity: 1;   transform: scale(1.06); }
-  40%       { opacity: 0.7; transform: scale(1.01); }
-  60%       { opacity: 1;   transform: scale(1.05); }
-  80%       { opacity: 0.6; transform: scale(1); }
+@keyframes barGrow {
+  from { width:0; }
 }
-@keyframes packedFlashActive {
-  0%, 100% { opacity: 0.85; transform: scale(1); }
-  20%       { opacity: 1;   transform: scale(1.09); }
-  40%       { opacity: 0.75; transform: scale(1.02); }
-  60%       { opacity: 1;   transform: scale(1.08); }
-  80%       { opacity: 0.7; transform: scale(1); }
+@keyframes slideUp {
+  from { opacity:0; transform:translateY(20px); }
+  to   { opacity:1; transform:translateY(0); }
 }
-.vibe-chill        { animation: chillPulse 3s ease-in-out infinite; }
-.vibe-chill-active { animation: chillPulseActive 2.2s ease-in-out infinite; }
-.vibe-live         { animation: liveFlicker 2s ease-in-out infinite; }
-.vibe-live-active  { animation: liveFlickerActive 1.4s ease-in-out infinite; }
-.vibe-packed       { animation: packedFlash 1.6s ease-in-out infinite; }
-.vibe-packed-active { animation: packedFlashActive 0.9s ease-in-out infinite; }
+@keyframes selectedGlow {
+  0%,100% { box-shadow:0 0 20px rgba(255,255,255,.2); }
+  50%     { box-shadow:0 0 40px rgba(255,255,255,.4); }
+}
+.anim-chill  { animation: chillBreathe 4s ease-in-out infinite; }
+.anim-live   { animation: liveFlicker 2.2s ease-in-out infinite; }
+.anim-packed { animation: packedPulse 1.1s ease-in-out infinite; }
+.anim-chill-active  { animation: chillBreathe 3s ease-in-out infinite, selectedGlow 3s ease-in-out infinite; }
+.anim-live-active   { animation: liveFlicker 1.6s ease-in-out infinite, selectedGlow 2s ease-in-out infinite; }
+.anim-packed-active { animation: packedPulse .8s ease-in-out infinite, selectedGlow 1.2s ease-in-out infinite; }
+.slide-up { animation: slideUp .5s ease-out forwards; opacity:0; }
 `
 
-// ── Vibe badge used in restaurant cards ─────────────────────────────────────
+// ── Venue card ────────────────────────────────────────────────────────────────
 
-function VibeBadge({ vibe, small = false }: { vibe: Vibe; small?: boolean }) {
-  const cfg = VIBE_CONFIG[vibe]
-  const animClass = `${cfg.animClass}${small ? '' : ''}`
+function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+  const animClass = venue.vibe === 'CHILL' ? 'anim-chill' : venue.vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect() } },
+      { threshold: 0.1 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${animClass}`}
-      style={{
-        border: `1px solid ${cfg.borderColor}`,
-        ...cfg.glowStyle,
-        backgroundColor: 'rgba(255,255,255,0.04)',
-        color: '#FFFFFF',
-      }}
+    <div
+      ref={ref}
+      className={visible ? 'slide-up' : ''}
+      style={{ animationDelay: `${delay}ms` }}
     >
-      {cfg.emoji} {cfg.label}
-    </span>
+      <div
+        className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-all duration-300 hover:border-white/25 hover:bg-white/[0.05]"
+      >
+        {/* Top row */}
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <h3 className="text-base font-bold text-white">{venue.name}</h3>
+          {/* Vibe badge */}
+          <span
+            className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white ${animClass}`}
+            style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}
+          >
+            {venue.vibe}
+          </span>
+        </div>
+
+        {/* Vibe emoji */}
+        <p className="mb-2 text-3xl">{VIBE_META[venue.vibe].emoji}</p>
+
+        {/* Neighborhood */}
+        <p className="mb-4 text-xs" style={{ color: '#606060' }}>{venue.neighborhood}</p>
+
+        {/* Meta row */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white/70" />
+              </span>
+              <span className="text-xs font-semibold text-white">
+                {venue.servers} Slate {venue.servers === 1 ? 'server' : 'servers'} on shift
+              </span>
+            </div>
+            <span className="text-xs" style={{ color: '#404040' }}>
+              Reported {venue.minutesAgo} min ago
+            </span>
+          </div>
+          <a
+            href="/explore"
+            className="text-[10px] font-semibold text-white/40 transition-colors group-hover:text-white/80"
+          >
+            View venue →
+          </a>
+        </div>
+      </div>
+    </div>
   )
 }
 
-// ── Main page ────────────────────────────────────────────────────────────────
+// ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function LivePage() {
   const [selectedVibe, setSelectedVibe] = useState<Vibe | null>(null)
-  const [submitState, setSubmitState] = useState<SubmitState>('idle')
-  const [busyness, setBusyness] = useState<Busyness | ''>('')
-  const [barSeats, setBarSeats] = useState<BarSeats | ''>('')
-  const [waitTime, setWaitTime] = useState<WaitTime | ''>('')
-
-  function handleReportClick() {
-    setSubmitState('locating')
-    setTimeout(() => setSubmitState('form'), 1200)
-  }
-
-  function handleSubmit() {
-    if (!busyness || !barSeats || !waitTime) return
-    setSubmitState('submitting')
-    setTimeout(() => setSubmitState('done'), 1000)
-  }
+  const [faqOpen, setFaqOpen] = useState(false)
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
-      {/* Inject keyframe animations */}
-      <style dangerouslySetInnerHTML={{ __html: ANIM_CSS }} />
-
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <Navbar />
       <div className="border-t border-white/10" />
 
-      {/* ── Coming Soon banner ──────────────────────────────────────────── */}
-      <div className="border-b border-white/15 bg-black px-8 py-10 text-center sm:py-14">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#606060' }}>
-          Coming Soon
-        </p>
-        <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Live Intelligence</h2>
-        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
-          Earn $SERVE rewards for sharing real-time restaurant data — launching after our NYC pilot.
-        </p>
-      </div>
+      <main>
 
-      <main className="mx-auto max-w-3xl px-6 py-12 sm:px-8">
-
-        {/* ── Vibe Meter ─────────────────────────────────────────────────── */}
-        <section className="mb-12">
-          <div className="mb-6">
-            <h2 className="text-xl font-bold tracking-tight text-white">What&apos;s the vibe right now?</h2>
-            <p className="mt-1 text-xs" style={{ color: '#606060' }}>
-              Tap to report — earn 5 $SERVE for every verified vibe
-            </p>
+        {/* ── Header ───────────────────────────────────────────────────── */}
+        <section className="relative px-8 pt-16 pb-12 lg:px-16 lg:pt-20">
+          {/* LIVE pill — top right */}
+          <div className="absolute right-8 top-6 flex items-center gap-2 lg:right-16">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-40" style={{ animation: 'liveDot 1.4s ease-in-out infinite' }} />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">Live</span>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
-            {(Object.keys(VIBE_CONFIG) as Vibe[]).map(vibe => {
-              const cfg = VIBE_CONFIG[vibe]
-              const isSelected = selectedVibe === vibe
-              const isDimmed = selectedVibe !== null && !isSelected
-              const animClass = isSelected ? `${cfg.animClass}-active` : cfg.animClass
-
-              return (
-                <button
-                  key={vibe}
-                  onClick={() => setSelectedVibe(vibe)}
-                  className={`relative flex flex-col items-center rounded-2xl px-3 py-6 text-center transition-all duration-300 ${isDimmed ? 'opacity-30' : 'opacity-100'}`}
-                  style={{
-                    backgroundColor: 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${isSelected ? cfg.activeBorderColor : cfg.borderColor}`,
-                    ...(isSelected ? cfg.activeGlowStyle : cfg.glowStyle),
-                  }}
-                >
-                  <span className={`mb-2 text-3xl sm:text-4xl ${animClass}`}>{cfg.emoji}</span>
-                  <span className="text-sm font-bold text-white">{cfg.label}</span>
-                  <span className="mt-1 hidden text-[10px] leading-4 sm:block" style={{ color: '#A0A0A0' }}>
-                    {cfg.tagline}
-                  </span>
-                  {isSelected && (
-                    <span
-                      className="mt-3 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
-                      style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}
-                    >
-                      {cfg.count} people agree
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Vibe tagline for mobile (shown below buttons) */}
-          {selectedVibe && (
-            <p className="mt-3 text-center text-xs sm:hidden" style={{ color: '#A0A0A0' }}>
-              {VIBE_CONFIG[selectedVibe].tagline}
+          <div className="mx-auto max-w-5xl">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
+              NYC Tonight
             </p>
-          )}
-
-          {/* Post-vote feedback */}
-          {selectedVibe && (
-            <div
-              className="mt-4 flex items-center justify-between rounded-xl px-5 py-4"
-              style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
-            >
-              <div>
-                <p className="text-sm font-semibold text-white">
-                  {VIBE_CONFIG[selectedVibe].count} people say it&apos;s {selectedVibe} tonight
-                </p>
-                <p className="mt-0.5 text-xs" style={{ color: '#A0A0A0' }}>
-                  Thanks for sharing! You earned 5 $SERVE
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/15 px-3 py-2 text-center">
-                <p className="text-sm font-bold text-white">+5</p>
-                <p className="text-[10px] uppercase tracking-widest" style={{ color: '#606060' }}>$SERVE</p>
-              </div>
-            </div>
-          )}
+            <h1 className="mb-4 text-5xl font-bold tracking-tight text-white sm:text-6xl lg:text-7xl">
+              What&apos;s the vibe?
+            </h1>
+            <p className="mb-3 max-w-xl text-base leading-relaxed sm:text-lg" style={{ color: '#A0A0A0' }}>
+              Real time energy from NYC venues — reported by people who are there right now.
+            </p>
+            <p className="text-xs" style={{ color: '#404040' }}>
+              Updated in real time · Location verified reports only
+            </p>
+          </div>
         </section>
 
-        {/* ── Earn banner ─────────────────────────────────────────────────── */}
-        <div className="mb-10 rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
-          {submitState === 'idle' && (
-            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="mb-1 flex items-center gap-2">
-                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white" />
-                  <span className="text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: '#A0A0A0' }}>
-                    Are you there right now?
-                  </span>
-                </div>
-                <p className="text-lg font-semibold text-white">Share what you see and earn $SERVE</p>
-                <p className="mt-1 text-xs" style={{ color: '#606060' }}>
-                  GPS-verified reports earn 5 $SERVE tokens instantly.
-                </p>
-              </div>
-              <button
-                onClick={handleReportClick}
-                className="shrink-0 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
-              >
-                Submit a report
-              </button>
-            </div>
-          )}
+        <div className="border-t border-white/10" />
 
-          {submitState === 'locating' && (
-            <div className="flex items-center gap-3">
-              <svg className="h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-              <span className="text-sm text-white">Verifying your location…</span>
-            </div>
-          )}
-
-          {submitState === 'form' && (
-            <div>
-              <div className="mb-5 flex items-center gap-2">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-4 w-4 text-white">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                </svg>
-                <span className="text-xs font-semibold text-white">Location verified ✓</span>
-              </div>
-              <div className="flex flex-col gap-5">
-                <div>
-                  <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>How busy is it?</p>
-                  <div className="flex gap-2">
-                    {(['Quiet', 'Moderate', 'Packed'] as Busyness[]).map(o => (
-                      <button key={o} onClick={() => setBusyness(o)}
-                        className={['flex-1 rounded-xl border py-2.5 text-xs font-medium transition-colors',
-                          busyness === o ? 'border-white bg-white text-black' : 'border-white/15 text-white hover:border-white/40',
-                        ].join(' ')}>
-                        {o}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Bar seats available?</p>
-                  <div className="flex gap-2">
-                    {(['Yes', 'A few', 'No'] as BarSeats[]).map(o => (
-                      <button key={o} onClick={() => setBarSeats(o)}
-                        className={['flex-1 rounded-xl border py-2.5 text-xs font-medium transition-colors',
-                          barSeats === o ? 'border-white bg-white text-black' : 'border-white/15 text-white hover:border-white/40',
-                        ].join(' ')}>
-                        {o}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Walk-in wait time?</p>
-                  <div className="flex gap-2">
-                    {(['No wait', '~15 min', '30+ min'] as WaitTime[]).map(o => (
-                      <button key={o} onClick={() => setWaitTime(o)}
-                        className={['flex-1 rounded-xl border py-2.5 text-xs font-medium transition-colors',
-                          waitTime === o ? 'border-white bg-white text-black' : 'border-white/15 text-white hover:border-white/40',
-                        ].join(' ')}>
-                        {o}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <button onClick={handleSubmit} disabled={!busyness || !barSeats || !waitTime}
-                  className="mt-1 w-full rounded-full bg-white py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30">
-                  Submit — earn 5 $SERVE
-                </button>
-              </div>
-            </div>
-          )}
-
-          {submitState === 'submitting' && (
-            <div className="flex items-center gap-3">
-              <svg className="h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-              <span className="text-sm text-white">Submitting report…</span>
-            </div>
-          )}
-
-          {submitState === 'done' && (
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 shrink-0">
-                    <circle cx="12" cy="12" r="12" fill="white" />
-                    <path d="M7 12.5l3.5 3.5 6.5-7" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <span className="text-sm font-semibold text-white">Report submitted — thank you!</span>
-                </div>
-                <p className="mt-1 pl-7 text-xs" style={{ color: '#A0A0A0' }}>
-                  Your report is now live. Others can see it immediately.
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/15 px-4 py-2 text-center">
-                <p className="text-base font-bold text-white">+5</p>
-                <p className="text-[10px] uppercase tracking-widest" style={{ color: '#606060' }}>$SERVE</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Live feed header ─────────────────────────────────────────────── */}
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white" />
-              <h2 className="text-xl font-bold tracking-tight text-white">
-                What&apos;s happening right now in NYC
+        {/* ── Vibe meter ───────────────────────────────────────────────── */}
+        <section className="px-8 py-16 lg:px-16 lg:py-20">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-10">
+              <h2 className="mb-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                Share the vibe. Earn $SERVE.
               </h2>
+              <p className="text-sm" style={{ color: '#606060' }}>
+                Tap to report what you&apos;re experiencing right now.
+              </p>
             </div>
-            <p className="mt-1 text-xs" style={{ color: '#606060' }}>
-              Verified guest reports · updates in real time
-            </p>
-          </div>
-        </div>
 
-        {/* ── Restaurant cards ─────────────────────────────────────────────── */}
-        <div className="flex flex-col gap-4">
-          {REPORTS.map(r => (
-            <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-base font-semibold text-white">{r.restaurant}</h3>
-                  <p className="mt-0.5 text-xs" style={{ color: '#606060' }}>{r.neighborhood}</p>
-                </div>
-                <span className="shrink-0 text-xs" style={{ color: '#606060' }}>
-                  Reported {r.minutesAgo} min ago
-                </span>
-              </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {(Object.keys(VIBE_META) as Vibe[]).map(vibe => {
+                const meta = VIBE_META[vibe]
+                const isSelected = selectedVibe === vibe
+                const isDimmed = selectedVibe !== null && !isSelected
+                const baseAnim = vibe === 'CHILL' ? 'anim-chill' : vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
+                const activeAnim = `${baseAnim}-active`
 
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <VibeBadge vibe={r.vibe} />
-                <a
-                  href={r.bookHref}
-                  className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
+                return (
+                  <button
+                    key={vibe}
+                    onClick={() => setSelectedVibe(isSelected ? null : vibe)}
+                    className={`relative flex flex-col items-start rounded-2xl border p-7 text-left transition-all duration-300 ${isDimmed ? 'opacity-20' : 'opacity-100'}`}
+                    style={{
+                      borderColor: isSelected ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.1)',
+                      backgroundColor: isSelected ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)',
+                      transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                    }}
+                  >
+                    {/* Emoji */}
+                    <span className={`mb-5 block text-4xl ${isSelected ? activeAnim : baseAnim}`}>
+                      {meta.emoji}
+                    </span>
+
+                    {/* Label */}
+                    <p className="mb-2 text-2xl font-black tracking-[0.15em] text-white">
+                      {meta.label}
+                    </p>
+
+                    {/* Tagline */}
+                    <p className="mb-5 text-xs leading-5" style={{ color: isSelected ? '#C0C0C0' : '#606060' }}>
+                      {meta.tagline}
+                    </p>
+
+                    {/* Report count / reward */}
+                    {isSelected ? (
+                      <div
+                        className="mt-auto w-full rounded-xl px-4 py-3 text-center text-xs font-semibold text-white"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)' }}
+                      >
+                        Vibe submitted! +5 $SERVE earned ✓
+                      </div>
+                    ) : (
+                      <p className="mt-auto text-xs" style={{ color: '#404040' }}>
+                        {meta.reports} reports tonight
+                      </p>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Footer note + FAQ */}
+            <div className="mt-6">
+              <p className="mb-3 text-xs" style={{ color: '#404040' }}>
+                Must be at the venue to submit. GPS verified at launch.
+              </p>
+              <button
+                onClick={() => setFaqOpen(o => !o)}
+                className="flex items-center gap-2 text-xs transition-colors hover:text-white"
+                style={{ color: '#606060' }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  className={`h-3.5 w-3.5 transition-transform ${faqOpen ? 'rotate-90' : ''}`}
                 >
-                  Reserve a table
-                </a>
-              </div>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+                How do I earn $SERVE?
+              </button>
+              {faqOpen && (
+                <div
+                  className="mt-3 max-w-lg rounded-xl border border-white/10 px-5 py-4 text-xs leading-6"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.03)', color: '#A0A0A0' }}
+                >
+                  Submit a vibe report while you&apos;re physically at a venue and earn 5 $SERVE tokens. Reports are verified via GPS — your location is checked once to confirm you&apos;re on-site and never stored. Reports that are validated by subsequent guests earn bonus tokens. Cash out $SERVE to your bank account through Slate Pay.
+                </div>
+              )}
             </div>
-          ))}
-        </div>
+          </div>
+        </section>
 
-        {/* Disclaimer */}
-        <p className="mt-8 text-center text-xs leading-5" style={{ color: '#404040' }}>
-          Vibe reports are community submitted. Location verified guests only at launch.
-        </p>
-        <p className="mt-2 text-center text-xs" style={{ color: '#333333' }}>
-          Reports expire after 2 hours · GPS verification required to submit
-        </p>
+        <div className="border-t border-white/10" />
+
+        {/* ── Live venue feed ───────────────────────────────────────────── */}
+        <section className="px-8 py-16 lg:px-16 lg:py-20">
+          <div className="mx-auto max-w-5xl">
+            {/* Section header */}
+            <div className="mb-10 flex items-center gap-3">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-40" style={{ animation: 'liveDot 1.4s ease-in-out infinite' }} />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+              </span>
+              <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+                NYC right now
+              </h2>
+              <span className="text-xs" style={{ color: '#404040' }}>
+                · {VENUES.length} venues reporting
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {VENUES.map((venue, i) => (
+                <VenueCard key={venue.id} venue={venue} delay={i * 60} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <div className="border-t border-white/10" />
+
+        {/* ── Bottom CTA ───────────────────────────────────────────────── */}
+        <section className="px-8 py-20 text-center lg:px-16">
+          <div className="mx-auto max-w-2xl">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
+              For venues
+            </p>
+            <h2 className="mb-4 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              Want your venue on Slate?
+            </h2>
+            <p className="mx-auto mb-8 max-w-md text-sm leading-relaxed" style={{ color: '#606060' }}>
+              Join our founding restaurant partners and get your staff on the live map. Limited spots in the NYC pilot.
+            </p>
+            <a
+              href="/waitlist"
+              className="inline-block rounded-full bg-white px-8 py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+            >
+              Apply now
+            </a>
+          </div>
+        </section>
 
       </main>
     </div>

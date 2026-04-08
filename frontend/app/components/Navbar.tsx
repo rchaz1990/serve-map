@@ -10,7 +10,6 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   const [signInOpen, setSignInOpen] = useState(false)
   const signInRef = useRef<HTMLDivElement>(null)
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (signInRef.current && !signInRef.current.contains(e.target as Node)) {
@@ -33,7 +32,6 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
       >
         {/* Logo */}
         <a href="/" className="flex items-center gap-2.5">
-          {/* Icon: square with three lines */}
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="3.25" stroke="white" strokeWidth="1.5" />
             <line x1="5" y1="7"  x2="15" y2="7"  stroke="white" strokeWidth="1.5" strokeLinecap="round" />
@@ -45,30 +43,16 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
 
         {/* Middle nav — hidden on small screens */}
         <nav className="hidden items-center gap-8 md:flex">
-          <a
-            href="/explore"
-            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-          >
-            Explore
-          </a>
+          {/* What's Live — with pulsing dot */}
           <a
             href="/live"
-            className="flex items-center gap-1.5 text-xs font-medium text-white/50 transition-colors hover:text-white"
+            className="flex items-center gap-2 text-xs font-medium text-white/50 transition-colors hover:text-white"
           >
-            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white/50" />
-            Live
-          </a>
-          <a
-            href="/pay"
-            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-          >
-            Slate Pay
-          </a>
-          <a
-            href="/my-servers"
-            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-          >
-            My Servers
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-white/70" />
+            </span>
+            What&apos;s Live
           </a>
           <a
             href="/for-servers"
@@ -87,12 +71,6 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
             className="text-xs font-medium text-white/50 transition-colors hover:text-white"
           >
             Whitepaper
-          </a>
-          <a
-            href="/dashboard"
-            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-          >
-            Dashboard
           </a>
         </nav>
 
@@ -123,7 +101,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
                   className="flex flex-col px-4 py-3.5 transition-colors hover:bg-white/[0.06]"
                 >
                   <span className="text-xs font-semibold text-white">I&apos;m a guest</span>
-                  <span className="mt-0.5 text-[10px]" style={{ color: '#606060' }}>Book tables &amp; follow servers</span>
+                  <span className="mt-0.5 text-[10px]" style={{ color: '#606060' }}>Rate &amp; follow servers</span>
                 </a>
                 <div className="border-t border-white/10" />
                 <a
@@ -138,7 +116,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
             )}
           </div>
           <a
-            href="/explore"
+            href="/server-waitlist"
             className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
           >
             Get Started
@@ -160,7 +138,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
       {/* ── Mobile full-screen overlay ── */}
       {menuOpen && (
         <div className="fixed inset-0 z-50 flex flex-col bg-black md:hidden">
-          {/* Top bar: logo + close — matches navbar height */}
+          {/* Top bar */}
           <div className="flex h-16 shrink-0 items-center justify-between px-8">
             <a href="/" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -187,14 +165,11 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           {/* Nav links */}
           <nav className="flex flex-1 flex-col overflow-y-auto px-8 pt-6">
             {[
-              { href: '/explore',          label: 'Explore' },
-              { href: '/live',             label: 'Live' },
-              { href: '/how-it-works',     label: 'How it Works' },
-              { href: '/whitepaper',       label: 'Whitepaper' },
-              { href: '/my-servers',       label: 'My Servers' },
-              { href: '/for-servers',      label: 'For Servers' },
-              { href: '/for-restaurants',  label: 'For Restaurants' },
-              { href: '/dashboard',        label: 'Dashboard' },
+              { href: '/live',            label: "What's Live" },
+              { href: '/for-servers',     label: 'For Servers' },
+              { href: '/how-it-works',    label: 'How it Works' },
+              { href: '/whitepaper',      label: 'Whitepaper' },
+              { href: '/for-restaurants', label: 'For Restaurants' },
             ].map(({ href, label }) => (
               <a
                 key={href}
@@ -224,7 +199,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
               Sign in as server
             </a>
             <a
-              href="/explore"
+              href="/server-waitlist"
               onClick={() => setMenuOpen(false)}
               className="w-full rounded-full bg-white py-4 text-center text-sm font-semibold text-black transition-opacity hover:opacity-80"
             >

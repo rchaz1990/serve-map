@@ -82,12 +82,24 @@ const stats = [
 // Placeholder follower initials
 const followerAvatars = ["SK", "DL", "RM"]
 
+const QR_DURATION_MS = 8 * 60 * 60 * 1000
+
 export default function ServerProfilePage() {
   const [following, setFollowing] = useState(false)
   const [followerCount, setFollowerCount] = useState(profile.followers)
   const [showToast, setShowToast] = useState(false)
   const [inviteSent, setInviteSent] = useState(false)
   const [showInviteToast, setShowInviteToast] = useState(false)
+  const [isOnShift, setIsOnShift] = useState(false)
+
+  // Check localStorage for active shift QR on mount
+  useEffect(() => {
+    const ts = localStorage.getItem('slate-qr-activated-at')
+    if (ts) {
+      const remaining = parseInt(ts, 10) + QR_DURATION_MS - Date.now()
+      setIsOnShift(remaining > 0)
+    }
+  }, [])
 
   useEffect(() => {
     if (!showToast) return
@@ -208,7 +220,7 @@ export default function ServerProfilePage() {
 
         {/* Name + verified + meta */}
         <div className="mb-4 flex flex-col gap-1.5">
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
               {profile.name}
             </h1>
@@ -225,6 +237,20 @@ export default function ServerProfilePage() {
                 />
               </svg>
             </span>
+            {/* On-shift badge */}
+            {isOnShift ? (
+              <span className="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/[0.06] px-3 py-1 text-xs font-semibold text-white">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-50" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+                </span>
+                On shift now
+              </span>
+            ) : (
+              <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-medium" style={{ color: '#606060' }}>
+                Off shift
+              </span>
+            )}
           </div>
           <p className="flex flex-wrap items-center gap-2 text-sm" style={{ color: "#A0A0A0" }}>
             {profile.role} · {profile.restaurant}

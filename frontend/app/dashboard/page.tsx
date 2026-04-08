@@ -144,7 +144,55 @@ const maxWeekly = Math.max(...weeklyEarnings.map(w => w.amount))
 
 export default function DashboardPage() {
   const [copied, setCopied] = useState(false)
+  const [shiftToast, setShiftToast] = useState(false)
   const { qrCode, msLeft, activate, deactivate, formatCountdown } = useQRCode()
+
+  // Shift state — mirrors QR: shift is on when a QR code is active
+  const [shiftStartedAt, setShiftStartedAt] = useState<number | null>(null)
+  const [elapsed, setElapsed] = useState(0) // seconds on shift
+
+  // When QR activates, record shift start
+  const isOnShift = !!qrCode
+
+  useEffect(() => {
+    if (qrCode && !shiftStartedAt) {
+      const stored = localStorage.getItem('slate-qr-activated-at')
+      setShiftStartedAt(stored ? parseInt(stored, 10) : Date.now())
+    }
+    if (!qrCode) {
+      setShiftStartedAt(null)
+      setElapsed(0)
+    }
+  }, [qrCode, shiftStartedAt])
+
+  // Dismiss shift toast after 4 s
+  useEffect(() => {
+    if (!shiftToast) return
+    const t = setTimeout(() => setShiftToast(false), 4000)
+    return () => clearTimeout(t)
+  }, [shiftToast])
+
+  // Elapsed counter — ticks every second while on shift
+  useEffect(() => {
+    if (!shiftStartedAt) return
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - shiftStartedAt) / 1000))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [shiftStartedAt])
+
+  function formatElapsed(secs: number) {
+    const h = Math.floor(secs / 3600)
+    const m = Math.floor((secs % 3600) / 60)
+    const s = secs % 60
+    if (h > 0) return `${h}h ${m}m`
+    if (m > 0) return `${m}m ${s}s`
+    return `${s}s`
+  }
+
+  function formatShiftStart(ts: number) {
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
 
   function handleCopy() {
     navigator.clipboard.writeText('https://slatenow.xyz/server/1')
@@ -161,6 +209,110 @@ export default function DashboardPage() {
       <div className="border-t border-white/10" />
 
       <main className="mx-auto max-w-5xl px-8 py-12 lg:px-16">
+
+        {/* ── Shift Status Card ───────────────────────────────────────── */}
+        <div
+          className="mb-10 rounded-2xl p-7"
+          style={{
+            border: isOnShift ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(255,255,255,0.12)',
+            backgroundColor: isOnShift ? 'rgba(255,255,255,0.04)' : '#0a0a0a',
+          }}
+        >
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              {/* Status pill */}
+              <div className="mb-3 flex items-center gap-2">
+                {isOnShift ? (
+                  <>
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-50" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white">
+                      On Shift
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="inline-block h-2 w-2 rounded-full bg-white/20" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: '#606060' }}>
+                      Off Shift
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Headline */}
+              <h2 className="mb-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                {isOnShift ? "You're live tonight 🔥" : "You're off the clock"}
+              </h2>
+
+              {/* Sub */}
+              <p className="text-sm leading-relaxed" style={{ color: isOnShift ? '#A0A0A0' : '#606060' }}>
+                {isOnShift
+                  ? 'Guests near your venue can see you\'re working right now.'
+                  : 'Toggle on when your shift starts to appear on the live map.'}
+              </p>
+
+              {/* Shift time info */}
+              {isOnShift && shiftStartedAt && (
+                <div className="mt-3 flex flex-wrap items-center gap-4">
+                  <span className="text-xs" style={{ color: '#606060' }}>
+                    Shift started: <span className="text-white">{formatShiftStart(shiftStartedAt)}</span>
+                  </span>
+                  <span className="text-xs" style={{ color: '#606060' }}>
+                    Active for: <span className="font-mono text-white">{formatElapsed(elapsed)}</span>
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Toggle button */}
+            <button
+              onClick={() => { if (isOnShift) { deactivate() } else { activate(); setShiftToast(true) } }}
+              className={[
+                'shrink-0 rounded-full px-8 py-4 text-sm font-bold transition-all',
+                isOnShift
+                  ? 'border border-white/30 text-white hover:border-white'
+                  : 'bg-white text-black hover:opacity-80',
+              ].join(' ')}
+            >
+              {isOnShift ? 'End Shift' : 'Start Shift 🍸'}
+            </button>
+          </div>
+
+          {/* QR section — only when on shift */}
+          {isOnShift && qrCode && (
+            <div className="mt-7 border-t border-white/10 pt-7">
+              <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
+                <div className="rounded-2xl bg-white p-4">
+                  <QRCode
+                    value={`https://slatenow.xyz/scan/${qrCode}`}
+                    size={120}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                  />
+                </div>
+                <div className="flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <p className="text-sm font-semibold text-white">Your shift QR is active</p>
+                    <span className="rounded-full border border-white/20 bg-white/[0.05] px-2.5 py-0.5 text-[10px] font-semibold text-white">
+                      {formatCountdown(msLeft)} left
+                    </span>
+                  </div>
+                  <p className="mb-4 text-xs leading-relaxed" style={{ color: '#606060' }}>
+                    Show this to guests after great service. They scan to rate and follow you — no app needed.
+                  </p>
+                  <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                    <span className="flex-1 truncate font-mono text-xs" style={{ color: '#606060' }}>
+                      slatenow.xyz/scan/{qrCode}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -486,6 +638,40 @@ export default function DashboardPage() {
         </div>
 
       </main>
+
+      {/* ── Shift start toast ───────────────────────────────────────── */}
+      <div
+        className={[
+          'fixed right-6 top-6 z-50 max-w-sm rounded-2xl border border-white/15 bg-black px-5 py-4 shadow-2xl transition-all duration-500',
+          shiftToast ? 'translate-x-0 opacity-100' : 'translate-x-8 opacity-0 pointer-events-none',
+        ].join(' ')}
+        style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 24px 48px rgba(0,0,0,0.8)' }}
+      >
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white">
+            <svg viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth={2.5} className="h-3 w-3">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-white">Shift started</p>
+            <p className="mt-0.5 text-xs leading-5" style={{ color: '#A0A0A0' }}>
+              ✓ Your followers have been notified you&apos;re on shift at Eleven Madison Park
+            </p>
+          </div>
+        </div>
+        {/* Progress bar draining over 4 s */}
+        <div className="mt-3 h-0.5 overflow-hidden rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+          <div
+            className="h-full rounded-full bg-white/40"
+            style={{
+              width: shiftToast ? '0%' : '100%',
+              transition: shiftToast ? 'width 4s linear' : 'none',
+            }}
+          />
+        </div>
+      </div>
+
     </div>
   )
 }
