@@ -456,22 +456,32 @@ export default function WhitepaperPage() {
         {/* ── Business Model ───────────────────────────────────────────────── */}
         <section className="py-12">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>08</p>
-          <h2 className="mb-8 text-2xl font-bold tracking-tight text-white sm:text-3xl">Business Model</h2>
+          <h2 className="mb-6 text-2xl font-bold tracking-tight text-white sm:text-3xl">Business Model</h2>
+
+          {/* Free for servers — unambiguous */}
+          <div className="mb-8 rounded-xl border border-white/25 bg-white/[0.04] px-6 py-5">
+            <p className="mb-1 text-sm font-bold text-white">Slate is permanently free for every server and bartender.</p>
+            <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>No subscriptions. No fees. No exceptions. Revenue comes entirely from restaurants and the token ecosystem — never from the workers the platform exists to serve.</p>
+          </div>
 
           <h3 className="mb-4 text-base font-semibold text-white">Revenue Streams</h3>
           <div className="mb-8 space-y-4">
             {[
               {
-                title: 'Booking fees',
-                body: '$1 per cover processed through Slate, paid by the restaurant. Significantly cheaper than OpenTable ($1–$9 per diner) and Resy ($249–$899/month). Completely free for guests always.',
-              },
-              {
                 title: 'Restaurant subscriptions',
-                body: 'Monthly plans for analytics dashboard, priority placement, and scheduling features. Pricing based on team size.',
+                body: 'Pro plan at $99/month — analytics dashboard, staff performance reporting, and priority placement in the venue feed. Premium plan at $299/month — everything in Pro plus dedicated account management, featured placement, and early access to new features.',
               },
               {
-                title: 'Token ecosystem',
-                body: 'Portion of all booking fees automatically purchases $SERVE from the open market creating constant buy pressure. Platform revenue and token value are directly aligned.',
+                title: 'Cover fees (Phase 2)',
+                body: '$1 per cover for restaurants that opt into Slate-facilitated reservations. Significantly cheaper than OpenTable ($1–$9 per diner) and Resy ($249–$899/month). Completely free for guests, always.',
+              },
+              {
+                title: '$SERVE token ecosystem',
+                body: 'Guests spend $SERVE tokens for priority notifications when a followed server is working. Servers stake $SERVE to boost profile visibility in search results. Portion of all platform fees automatically purchases $SERVE from the open market, creating constant buy pressure aligned with platform growth.',
+              },
+              {
+                title: 'Brand partnerships (future)',
+                body: 'Sponsored venue features, branded vibe categories, and co-marketing opportunities for premium spirits, hospitality brands, and lifestyle companies seeking direct access to the NYC nightlife audience.',
               },
             ].map(stream => (
               <div key={stream.title} className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
@@ -485,9 +495,9 @@ export default function WhitepaperPage() {
           <div className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
             <div className="space-y-3">
               {[
-                { vol: '1,000 bookings / mo',   rev: '$1,000 in booking fees' },
-                { vol: '10,000 bookings / mo',  rev: '$10,000 in booking fees' },
-                { vol: '100,000 bookings / mo', rev: '$100,000 in booking fees' },
+                { vol: '10 restaurant partners',  rev: '$990–$2,990 / mo in subscriptions' },
+                { vol: '50 restaurant partners',  rev: '$4,950–$14,950 / mo in subscriptions' },
+                { vol: '100 restaurant partners', rev: '$9,900–$29,900 / mo in subscriptions' },
               ].map(row => (
                 <div key={row.vol} className="flex items-center justify-between gap-6 border-b border-white/5 pb-3 last:border-0 last:pb-0">
                   <span className="font-mono text-sm text-white">{row.vol}</span>

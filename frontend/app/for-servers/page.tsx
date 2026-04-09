@@ -21,8 +21,11 @@ export default function ForServersPage() {
               <br />
               Your rewards.
             </h1>
-            <p className="max-w-xl text-base leading-relaxed" style={{ color: '#606060' }}>
+            <p className="mb-6 max-w-xl text-base leading-relaxed" style={{ color: '#606060' }}>
               The first platform built entirely for the people who make hospitality great.
+            </p>
+            <p className="text-sm font-semibold text-white">
+              Free forever. No credit card. No catch.
             </p>
           </div>
         </section>
