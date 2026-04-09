@@ -266,12 +266,13 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="border-t border-white/10 pt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs" style={{ color: '#404040' }}>© 2026 Slate</p>
-            <div className="flex gap-4">
-              <a href="/privacy" className="text-xs transition-colors hover:text-white" style={{ color: '#404040' }}>Privacy</a>
-              <a href="/terms" className="text-xs transition-colors hover:text-white" style={{ color: '#404040' }}>Terms</a>
-            </div>
+          <div className="border-t border-white/10 pt-6">
+            <p className="text-xs" style={{ color: '#404040' }}>
+              © 2026 Slate ·{' '}
+              <a href="/privacy" className="transition-colors hover:text-white">Privacy Policy</a>
+              {' '}·{' '}
+              <a href="/terms" className="transition-colors hover:text-white">Terms of Service</a>
+            </p>
           </div>
         </div>
       </footer>
