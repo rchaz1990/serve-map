@@ -12,7 +12,7 @@ serve_mvp = "9zMshqvyGNRH9AMyWB8BxJp46U4e5Bish7rhtpq9T9EE"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
