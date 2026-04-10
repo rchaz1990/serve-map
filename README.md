@@ -47,7 +47,8 @@ Slate fixes this permanently.
 ## Smart Contract
 
 **Program ID:** `9zMshqvyGNRH9AMyWB8BxJp46U4e5Bish7rhtpq9T9EE`  
-**Network:** Localnet (devnet deployment in progress)
+**Network:** Deployed on Solana devnet ✅  
+**Devnet Explorer:** https://explorer.solana.com/address/9zMshqvyGNRH9AMyWB8BxJp46U4e5Bish7rhtpq9T9EE?cluster=devnet
 
 ### On-chain accounts
 
