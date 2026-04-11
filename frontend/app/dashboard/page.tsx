@@ -303,6 +303,183 @@ function WorkplaceSection() {
   )
 }
 
+// ── Worker Council / Suggestions ──────────────────────────────────────────────
+
+type Suggestion = {
+  id: string
+  title: string
+  description: string | null
+  upvotes: number
+  status: 'pending' | 'reviewed' | 'implemented'
+}
+
+const STATUS_LABEL: Record<Suggestion['status'], string> = {
+  pending: 'Pending',
+  reviewed: 'Reviewed',
+  implemented: 'Implemented',
+}
+
+function WorkerCouncilSection() {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [upvoted, setUpvoted] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    fetchSuggestions()
+  }, [])
+
+  async function fetchSuggestions() {
+    const { data } = await supabase
+      .from('suggestions')
+      .select('id, title, description, upvotes, status')
+      .order('upvotes', { ascending: false })
+      .limit(5)
+    if (data) setSuggestions(data as Suggestion[])
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!title.trim()) return
+    setSubmitting(true)
+    const { error } = await supabase.from('suggestions').insert({
+      title: title.trim(),
+      description: description.trim() || null,
+      upvotes: 0,
+      status: 'pending',
+    })
+    if (error) console.error('[supabase] suggestion insert:', error)
+    setSubmitting(false)
+    setSubmitted(true)
+    setTitle('')
+    setDescription('')
+    fetchSuggestions()
+  }
+
+  async function handleUpvote(id: string, current: number) {
+    if (upvoted.has(id)) return
+    setUpvoted(prev => new Set(prev).add(id))
+    setSuggestions(prev =>
+      prev.map(s => s.id === id ? { ...s, upvotes: s.upvotes + 1 } : s)
+    )
+    await supabase.from('suggestions').update({ upvotes: current + 1 }).eq('id', id)
+  }
+
+  return (
+    <div className="mt-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+      <div className="mb-6">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
+          Worker Council
+        </p>
+        <h2 className="mb-1 text-xl font-bold tracking-tight text-white">Your voice matters.</h2>
+        <p className="text-sm" style={{ color: '#606060' }}>
+          Suggest a feature or improvement. The most upvoted ideas get built first.
+        </p>
+      </div>
+
+      {/* Submit form */}
+      {submitted ? (
+        <div className="mb-8 flex items-center gap-2 rounded-xl border border-white/10 px-4 py-4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 shrink-0 text-white">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+          </svg>
+          <p className="text-sm font-medium text-white">
+            Your suggestion has been submitted. Thank you for helping build Slate.
+          </p>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="mb-8 flex flex-col gap-3">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>
+              What&apos;s your suggestion?
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="e.g. Add a way to share my profile link on Instagram"
+              required
+              className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>
+              Tell us more <span style={{ color: '#404040' }}>(optional)</span>
+            </label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Any extra context or details…"
+              rows={3}
+              className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
+              style={{ resize: 'none' }}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!title.trim() || submitting}
+            className="self-start rounded-full bg-white px-6 py-2.5 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
+          >
+            {submitting ? 'Submitting…' : 'Submit suggestion'}
+          </button>
+        </form>
+      )}
+
+      {/* Top suggestions */}
+      {suggestions.length > 0 && (
+        <div>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#404040' }}>
+            Top suggestions
+          </p>
+          <div className="flex flex-col gap-2">
+            {suggestions.map(s => (
+              <div
+                key={s.id}
+                className="flex items-start gap-4 rounded-xl border border-white/10 px-4 py-4"
+                style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
+              >
+                {/* Upvote */}
+                <button
+                  onClick={() => handleUpvote(s.id, s.upvotes)}
+                  disabled={upvoted.has(s.id)}
+                  className="flex shrink-0 flex-col items-center gap-0.5 transition-opacity hover:opacity-80 disabled:opacity-30"
+                  aria-label="Upvote"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 text-white">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+                  </svg>
+                  <span className="font-mono text-xs font-semibold text-white">{s.upvotes}</span>
+                </button>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <p className="mb-0.5 text-sm font-semibold text-white">{s.title}</p>
+                  {s.description && (
+                    <p className="text-xs leading-5" style={{ color: '#606060' }}>{s.description}</p>
+                  )}
+                </div>
+
+                {/* Status badge */}
+                <span
+                  className="shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest"
+                  style={{
+                    borderColor: s.status === 'implemented' ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)',
+                    color: s.status === 'implemented' ? 'white' : '#606060',
+                  }}
+                >
+                  {STATUS_LABEL[s.status]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const [copied, setCopied] = useState(false)
   const [shiftToast, setShiftToast] = useState(false)
@@ -980,6 +1157,9 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
+
+        {/* ── Worker Council ──────────────────────────────────────────── */}
+        <WorkerCouncilSection />
 
       </main>
 
