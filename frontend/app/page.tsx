@@ -43,16 +43,16 @@ export default function Home() {
             <p className="mb-5 text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: '#404040' }}>
               NYC · Live Now
             </p>
-            <h1 className="mb-5 text-5xl font-bold leading-[1.0] tracking-tight text-white sm:text-6xl lg:text-8xl">
+            <h1 className="mb-4 text-5xl font-bold leading-[1.0] tracking-tight text-white sm:text-6xl lg:text-8xl">
               Your night
               <br />
               starts here.
             </h1>
-            <p className="mb-3 max-w-xl text-lg font-medium text-white sm:text-xl lg:text-2xl">
-              Discover the night. Follow the ones who make it.
+            <p className="mb-4 max-w-xl text-lg font-medium text-white sm:text-xl lg:text-2xl">
+              The reputation layer for the people who make hospitality great.
             </p>
-            <p className="mb-10 max-w-lg text-sm leading-relaxed sm:text-base" style={{ color: '#606060' }}>
-              See what&apos;s live in NYC tonight. Rate and follow the servers and bartenders who make it unforgettable.
+            <p className="mb-10 max-w-2xl text-sm leading-relaxed sm:text-base" style={{ color: '#606060' }}>
+              Servers and bartenders lose their reputation every time they change jobs. Slate fixes that — portable on-chain profiles, verified guest ratings, and automatic $SERVE rewards. Free forever for every hospitality worker.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <a
@@ -85,31 +85,40 @@ export default function Home() {
         {/* ── Three value props ─────────────────────────────────────────── */}
         <section className="px-6 py-16 lg:px-24 lg:py-28">
           <div className="mx-auto max-w-5xl">
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+            <div className="grid grid-cols-1 divide-y divide-white/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
               {[
                 {
-                  icon: '🔥',
-                  title: 'Feel the vibe',
-                  body: 'See which venues are live right now. Community reported, location verified.',
+                  n: '01',
+                  label: 'FEEL THE VIBE',
+                  body: 'See which venues are electric tonight. Community reported. Location verified. Updated in real time.',
                 },
                 {
-                  icon: '⭐',
-                  title: 'Rate the person',
-                  body: 'After a great experience scan their QR and leave a verified on-chain rating. Not the restaurant — the individual.',
+                  n: '02',
+                  label: 'RATE THE PERSON',
+                  body: 'Scan your server\'s QR code after great service. Leave a GPS verified on-chain rating in 30 seconds. Not the restaurant — the individual.',
                 },
                 {
-                  icon: '👤',
-                  title: 'Follow forever',
-                  body: 'Your favorite bartender moves spots. You already know. Follow the talent, not the venue.',
+                  n: '03',
+                  label: 'FOLLOW FOREVER',
+                  body: 'Your favorite bartender moves spots. You already know. Follow the talent not the venue.',
                 },
               ].map(item => (
-                <div
-                  key={item.title}
-                  className="rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-7 sm:px-7 sm:py-8"
-                >
-                  <span className="mb-5 block text-2xl">{item.icon}</span>
-                  <p className="mb-2 text-sm font-semibold text-white">{item.title}</p>
-                  <p className="text-sm leading-relaxed" style={{ color: '#606060' }}>{item.body}</p>
+                <div key={item.n} className="relative overflow-hidden px-0 py-10 sm:px-10 sm:py-8 first:pl-0 last:pr-0">
+                  {/* Watermark number */}
+                  <span
+                    className="pointer-events-none absolute right-2 top-0 select-none font-bold leading-none text-white sm:right-4"
+                    style={{ fontSize: 'clamp(5rem, 10vw, 8rem)', opacity: 0.04 }}
+                  >
+                    {item.n}
+                  </span>
+                  {/* Label */}
+                  <p className="mb-4 text-[10px] font-semibold tracking-[0.22em] text-white">
+                    {item.label}
+                  </p>
+                  {/* Rule */}
+                  <div className="mb-5 h-px w-8 bg-white" />
+                  {/* Body */}
+                  <p className="text-sm leading-7" style={{ color: '#808080' }}>{item.body}</p>
                 </div>
               ))}
             </div>
@@ -202,6 +211,9 @@ export default function Home() {
               Claim your free profile →
             </a>
             <p className="mt-4 text-xs" style={{ color: '#404040' }}>Free forever. Takes 2 minutes.</p>
+            <p className="mt-3 text-xs" style={{ color: '#404040' }}>
+              Every follow request requires your approval. Block anyone at any time. You are always in control.
+            </p>
           </div>
         </section>
 

@@ -1,12 +1,12 @@
-import { Connection, PublicKey, Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js'
+import { Connection, PublicKey, Keypair, LAMPORTS_PER_SOL, clusterApiUrl } from '@solana/web3.js'
 import { AnchorProvider, Program } from '@coral-xyz/anchor'
 import { IDL } from './idl'
 
 export const PROGRAM_ID = new PublicKey('9zMshqvyGNRH9AMyWB8BxJp46U4e5Bish7rhtpq9T9EE')
 
-export const connection = new Connection('http://127.0.0.1:8899', 'confirmed')
+export const connection = new Connection(clusterApiUrl('devnet'), 'confirmed')
 
-// Minimal wallet interface Anchor needs — fulfilled by a raw Keypair on localnet.
+// Minimal wallet interface Anchor needs — fulfilled by a raw Keypair.
 export interface DemoWallet {
   publicKey: PublicKey
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,8 +31,7 @@ export function getProgram(wallet: DemoWallet): Program<any> {
 
 /**
  * Returns a persistent demo keypair stored in localStorage.
- * On first call (or missing balance) requests an airdrop so the wallet
- * is always funded on localnet.
+ * On first call (or low balance) requests a devnet airdrop.
  */
 export async function getOrCreateDemoKeypair(): Promise<Keypair> {
   const STORAGE_KEY = 'slate-demo-keypair'
@@ -51,10 +50,11 @@ export async function getOrCreateDemoKeypair(): Promise<Keypair> {
     const balance = await connection.getBalance(kp.publicKey)
     if (balance < 0.5 * LAMPORTS_PER_SOL) {
       const sig = await connection.requestAirdrop(kp.publicKey, 2 * LAMPORTS_PER_SOL)
-      await connection.confirmTransaction(sig)
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+      await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight })
     }
   } catch {
-    // Localnet might not be running yet — swallow and let the tx fail with a clear error.
+    // Devnet airdrop may be rate-limited — swallow and let the tx fail with a clear error.
   }
 
   return kp
