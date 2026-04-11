@@ -5,6 +5,7 @@ import Script from 'next/script'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { getOrCreateDemoKeypair, keypairToWallet, getProgram, deriveServerProfilePDA } from '@/lib/solana'
+import { supabase } from '@/lib/supabase'
 
 const STEPS = ['Your info', 'Work history', 'Photo & bio']
 
@@ -37,10 +38,17 @@ export default function ServerSignupPage() {
   const [city, setCity] = useState('')
   const [years, setYears] = useState('')
 
-  // Restaurant autocomplete
+  // Primary restaurant autocomplete
   const venueInputRef = useRef<HTMLInputElement>(null)
   const [confirmedPlace, setConfirmedPlace] = useState<{ name: string; address: string } | null>(null)
   const [googleLoaded, setGoogleLoaded] = useState(false)
+
+  // Second workplace
+  const [showSecondVenue, setShowSecondVenue] = useState(false)
+  const [venue2, setVenue2] = useState('')
+  const [city2, setCity2] = useState('')
+  const venue2InputRef = useRef<HTMLInputElement>(null)
+  const [confirmedPlace2, setConfirmedPlace2] = useState<{ name: string; address: string } | null>(null)
 
   // Initialise Google Places Autocomplete whenever step 1 is visible and the
   // script has loaded (or was already loaded on a previous render).
@@ -83,8 +91,39 @@ export default function ServerSignupPage() {
     setConfirmedPlace(null)
     setVenue('')
     setCity('')
-    // clear the input value so autocomplete starts fresh
     if (venueInputRef.current) venueInputRef.current.value = ''
+  }
+
+  // Second venue autocomplete
+  useEffect(() => {
+    if (step !== 1 || !googleLoaded || !showSecondVenue || !venue2InputRef.current || confirmedPlace2) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const google = (window as any).google
+    if (!google?.maps?.places) return
+
+    const ac2 = new google.maps.places.Autocomplete(venue2InputRef.current, {
+      types: ['establishment'],
+      componentRestrictions: { country: 'us' },
+    })
+    ac2.addListener('place_changed', () => {
+      const place = ac2.getPlace()
+      const name    = place.name ?? ''
+      const address = place.formatted_address ?? ''
+      setVenue2(name)
+      setCity2(address)
+      setConfirmedPlace2({ name, address })
+    })
+    const input2 = venue2InputRef.current
+    const suppressEnter = (e: KeyboardEvent) => { if (e.key === 'Enter') e.preventDefault() }
+    input2.addEventListener('keydown', suppressEnter)
+    return () => input2.removeEventListener('keydown', suppressEnter)
+  }, [step, googleLoaded, showSecondVenue, confirmedPlace2])
+
+  function clearPlace2() {
+    setConfirmedPlace2(null)
+    setVenue2('')
+    setCity2('')
+    if (venue2InputRef.current) venue2InputRef.current.value = ''
   }
 
   // Step 3 fields
@@ -136,19 +175,49 @@ export default function ServerSignupPage() {
       const profilePDA = deriveServerProfilePDA(keypair.publicKey)
       localStorage.setItem('slate-server-profile', profilePDA.toBase58())
 
-      // Capture email in Beehiiv — fire and forget, never block on it
+      // Save to Supabase — fire and forget
+      ;(async () => {
+        try {
+          const { data: serverRow, error: serverErr } = await supabase
+            .from('servers')
+            .insert({
+              name: fullName,
+              email,
+              role,
+              wallet_address: keypair.publicKey.toBase58(),
+              is_founding_member: true,
+              notify_mainnet: notifyMainnet,
+            })
+            .select('id')
+            .single()
+
+          if (serverErr) { console.error('[supabase] server insert:', serverErr); return }
+
+          // Primary restaurant
+          const restaurants = [
+            { restaurant_name: venue, city, is_primary: true, currently_working: true },
+          ]
+          // Second workplace if provided
+          if (venue2 && city2) {
+            restaurants.push({ restaurant_name: venue2, city: city2, is_primary: false, currently_working: true })
+          }
+
+          const { error: restErr } = await supabase
+            .from('server_restaurants')
+            .insert(restaurants.map(r => ({ ...r, server_id: serverRow.id })))
+
+          if (restErr) console.error('[supabase] restaurant insert:', restErr)
+        } catch (e) {
+          console.error('[supabase] unexpected error:', e)
+        }
+      })()
+
+      // Capture email in Beehiiv — fire and forget
       fetch('/api/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          firstName,
-          lastName,
-          role,
-          venue: `${venue}, ${city}`.trim(),
-          notifyMainnet,
-        }),
-      }).catch(() => {/* swallow — tx already confirmed */})
+        body: JSON.stringify({ email, firstName, lastName, role, venue: `${venue}, ${city}`.trim(), notifyMainnet }),
+      }).catch(() => {})
 
       setTxSig(sig)
     } catch (e: unknown) {
@@ -178,9 +247,9 @@ export default function ServerSignupPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-white">Profile created on-chain! ✓</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-white">Welcome to Slate! ✓</h1>
             <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>
-              Your portable profile has been written to the Solana blockchain and is permanently yours.
+              Your founding member profile is live. Portable, permanent, and entirely yours — written to the Solana blockchain forever.
             </p>
             <div className="mt-6 rounded-xl border border-white/10 px-4 py-4 text-left">
               <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>Transaction</p>
@@ -361,6 +430,52 @@ export default function ServerSignupPage() {
                   <input type="number" min="0" max="50" value={years} onChange={e => setYears(e.target.value)} placeholder="5"
                     className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40" />
                 </div>
+
+                {/* Second workplace */}
+                {!showSecondVenue ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowSecondVenue(true)}
+                    className="text-left text-xs font-medium transition-colors hover:text-white"
+                    style={{ color: '#606060' }}
+                  >
+                    + Add another workplace
+                  </button>
+                ) : (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>
+                      Second workplace <span style={{ color: '#606060' }}>(optional)</span>
+                    </label>
+                    {confirmedPlace2 ? (
+                      <div className="rounded-xl border border-white/20 bg-white/[0.05] px-4 py-3">
+                        <div className="mb-2 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">{confirmedPlace2.name}</p>
+                            <p className="text-xs" style={{ color: '#A0A0A0' }}>{confirmedPlace2.address}</p>
+                          </div>
+                          <button onClick={clearPlace2}
+                            className="shrink-0 rounded-lg border border-white/15 px-2.5 py-1 text-xs text-white transition-colors hover:border-white">
+                            Change
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 shrink-0">
+                            <circle cx="12" cy="12" r="12" fill="white" />
+                            <path d="M7 12.5l3.5 3.5 6.5-7" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          <span className="text-xs font-medium text-white">Confirmed</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <input
+                        ref={venue2InputRef}
+                        type="text"
+                        placeholder="Search for second restaurant..."
+                        className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

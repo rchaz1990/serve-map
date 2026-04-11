@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import QRCode from 'react-qr-code'
 import Navbar from '@/app/components/Navbar'
+import { supabase } from '@/lib/supabase'
 
 const QR_DURATION_MS = 8 * 60 * 60 * 1000 // 8 hours
 
@@ -147,6 +148,13 @@ export default function DashboardPage() {
   const [shiftToast, setShiftToast] = useState(false)
   const { qrCode, msLeft, activate, deactivate, formatCountdown } = useQRCode()
 
+  // Vibe check — shown inline after shift starts
+  const [vibeSubmitted, setVibeSubmitted] = useState(false)
+  const [selectedVibe, setSelectedVibe] = useState<'CHILL' | 'LIVE' | 'PACKED' | null>(null)
+  const [shiftCovers, setShiftCovers] = useState('')
+  const [shiftSpecials, setShiftSpecials] = useState('')
+  const [shiftDbId, setShiftDbId] = useState<string | null>(null)
+
   // Shift state — mirrors QR: shift is on when a QR code is active
   const [shiftStartedAt, setShiftStartedAt] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState(0) // seconds on shift
@@ -269,7 +277,32 @@ export default function DashboardPage() {
 
             {/* Toggle button */}
             <button
-              onClick={() => { if (isOnShift) { deactivate() } else { activate(); setShiftToast(true) } }}
+              onClick={async () => {
+                if (isOnShift) {
+                  // Mark shift inactive in Supabase
+                  if (shiftDbId) {
+                    supabase.from('shifts').update({ is_active: false, ended_at: new Date().toISOString() })
+                      .eq('id', shiftDbId).then(({ error }) => { if (error) console.error('[supabase] shift end:', error) })
+                  }
+                  deactivate()
+                  setVibeSubmitted(false)
+                  setSelectedVibe(null)
+                  setShiftCovers('')
+                  setShiftSpecials('')
+                  setShiftDbId(null)
+                } else {
+                  activate()
+                  setShiftToast(true)
+                  // Save shift to Supabase
+                  const { data, error } = await supabase.from('shifts').insert({
+                    restaurant_name: 'Eleven Madison Park',
+                    started_at: new Date().toISOString(),
+                    is_active: true,
+                  }).select('id').single()
+                  if (error) console.error('[supabase] shift start:', error)
+                  else setShiftDbId(data.id)
+                }
+              }}
               className={[
                 'shrink-0 rounded-full px-8 py-4 text-sm font-bold transition-all',
                 isOnShift
@@ -309,6 +342,90 @@ export default function DashboardPage() {
                     </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Vibe check — inline questions */}
+              <div className="mt-7 border-t border-white/10 pt-7">
+                {vibeSubmitted ? (
+                  <div className="flex items-center gap-2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 text-white">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                    <p className="text-xs font-medium text-white">Vibe submitted — your venue is on the live map.</p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-white">
+                      Quick check-in
+                    </p>
+
+                    {/* Q1: Vibe */}
+                    <div className="mb-5">
+                      <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>What&apos;s the vibe right now?</p>
+                      <div className="flex gap-2">
+                        {(['CHILL', 'LIVE', 'PACKED'] as const).map(v => (
+                          <button
+                            key={v}
+                            onClick={() => setSelectedVibe(v)}
+                            className={[
+                              'flex-1 rounded-xl border py-2.5 text-xs font-semibold transition-colors',
+                              selectedVibe === v
+                                ? 'border-white bg-white text-black'
+                                : 'border-white/15 text-white hover:border-white/40',
+                            ].join(' ')}
+                          >
+                            {v === 'CHILL' ? '🧊' : v === 'LIVE' ? '🔥' : '🚀'} {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Q2: Covers */}
+                    <div className="mb-5">
+                      <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>How many covers tonight so far?</p>
+                      <input
+                        type="number"
+                        min="0"
+                        value={shiftCovers}
+                        onChange={e => setShiftCovers(e.target.value)}
+                        placeholder="e.g. 24"
+                        className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
+                      />
+                    </div>
+
+                    {/* Q3: Specials */}
+                    <div className="mb-5">
+                      <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Any specials to share? <span style={{ color: '#606060' }}>(optional)</span></p>
+                      <input
+                        type="text"
+                        value={shiftSpecials}
+                        onChange={e => setShiftSpecials(e.target.value)}
+                        placeholder="e.g. Truffle pasta, $18 negronis"
+                        className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
+                      />
+                    </div>
+
+                    <button
+                      disabled={!selectedVibe}
+                      onClick={async () => {
+                        if (!selectedVibe) return
+                        // Update shift row with vibe data
+                        if (shiftDbId) {
+                          const { error } = await supabase.from('shifts').update({
+                            vibe: selectedVibe,
+                            covers: shiftCovers ? parseInt(shiftCovers) : null,
+                            specials: shiftSpecials || null,
+                          }).eq('id', shiftDbId)
+                          if (error) console.error('[supabase] vibe update:', error)
+                        }
+                        setVibeSubmitted(true)
+                      }}
+                      className="rounded-full bg-white px-6 py-2.5 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
+                    >
+                      Submit check-in
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}

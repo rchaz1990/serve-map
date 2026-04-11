@@ -458,53 +458,83 @@ export default function WhitepaperPage() {
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>08</p>
           <h2 className="mb-6 text-2xl font-bold tracking-tight text-white sm:text-3xl">Business Model</h2>
 
-          {/* Free for servers — unambiguous */}
-          <div className="mb-8 rounded-xl border border-white/25 bg-white/[0.04] px-6 py-5">
-            <p className="mb-1 text-sm font-bold text-white">Slate is permanently free for every server and bartender.</p>
-            <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>No subscriptions. No fees. No exceptions. Revenue comes entirely from restaurants and the token ecosystem — never from the workers the platform exists to serve.</p>
+          <div className="mb-8 space-y-4 text-base leading-8" style={{ color: '#C0C0C0' }}>
+            <p>
+              Slate operates on a freemium model designed to drive maximum adoption before monetization.
+            </p>
           </div>
 
-          <h3 className="mb-4 text-base font-semibold text-white">Revenue Streams</h3>
+          {/* Free for servers */}
+          <div className="mb-8 rounded-xl border border-white/25 bg-white/[0.04] px-6 py-5">
+            <p className="mb-1 text-sm font-bold text-white">For servers and bartenders: Free forever.</p>
+            <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>No subscriptions. No fees. No exceptions.</p>
+          </div>
+
+          {/* Restaurant tiers */}
+          <h3 className="mb-4 text-base font-semibold text-white">For restaurants — three tiers</h3>
           <div className="mb-8 space-y-4">
             {[
               {
-                title: 'Restaurant subscriptions',
-                body: 'Pro plan at $99/month — analytics dashboard, staff performance reporting, and priority placement in the venue feed. Premium plan at $299/month — everything in Pro plus dedicated account management, featured placement, and early access to new features.',
+                title: 'Ghost listing — Automatic, free',
+                body: 'Any venue reported by guests appears on Slate\'s live map automatically. No signup required. Guests discovering and reporting venues is the core growth loop — zero friction for the restaurant.',
               },
               {
-                title: 'Cover fees (Phase 2)',
-                body: '$1 per cover for restaurants that opt into Slate-facilitated reservations. Significantly cheaper than OpenTable ($1–$9 per diner) and Resy ($249–$899/month). Completely free for guests, always.',
+                title: 'Claimed listing — Free forever',
+                body: 'Restaurants claim their venue page, add photos and a description, and see basic vibe reports from guests. Always free. Claiming creates the relationship and sets up the upgrade path.',
               },
               {
-                title: '$SERVE token ecosystem',
-                body: 'Guests spend $SERVE tokens for priority notifications when a followed server is working. Servers stake $SERVE to boost profile visibility in search results. Portion of all platform fees automatically purchases $SERVE from the open market, creating constant buy pressure aligned with platform growth.',
+                title: 'Verified partner — $99/month',
+                body: 'Staff performance analytics, see which servers are on shift tonight, scheduling integration, priority placement on the live map, and guest insight data.',
               },
               {
-                title: 'Brand partnerships (future)',
-                body: 'Sponsored venue features, branded vibe categories, and co-marketing opportunities for premium spirits, hospitality brands, and lifestyle companies seeking direct access to the NYC nightlife audience.',
+                title: 'Premium partner — $299/month',
+                body: 'Everything in Verified plus recruitment tools to search and invite high-rated servers, a custom venue profile, and featured placement in search results.',
               },
-            ].map(stream => (
-              <div key={stream.title} className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
-                <p className="mb-2 text-sm font-semibold text-white">{stream.title}</p>
-                <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>{stream.body}</p>
+            ].map(tier => (
+              <div key={tier.title} className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
+                <p className="mb-2 text-sm font-semibold text-white">{tier.title}</p>
+                <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>{tier.body}</p>
               </div>
             ))}
           </div>
 
-          <h3 className="mb-4 text-base font-semibold text-white">Unit Economics</h3>
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
-            <div className="space-y-3">
+          {/* Flywheel */}
+          <h3 className="mb-4 text-base font-semibold text-white">Revenue flywheel</h3>
+          <div className="mb-8 rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
+            <div className="flex flex-col gap-2">
               {[
-                { vol: '10 restaurant partners',  rev: '$990–$2,990 / mo in subscriptions' },
-                { vol: '50 restaurant partners',  rev: '$4,950–$14,950 / mo in subscriptions' },
-                { vol: '100 restaurant partners', rev: '$9,900–$29,900 / mo in subscriptions' },
-              ].map(row => (
-                <div key={row.vol} className="flex items-center justify-between gap-6 border-b border-white/5 pb-3 last:border-0 last:pb-0">
-                  <span className="font-mono text-sm text-white">{row.vol}</span>
-                  <span className="text-sm" style={{ color: '#A0A0A0' }}>{row.rev}</span>
+                'Guests report venues for free',
+                'Restaurants get discovered',
+                'Restaurants claim their page',
+                'Restaurants see the value and upgrade for staff analytics',
+                'Restaurants recruit top servers',
+                'More servers join',
+                'More guests use Slate',
+              ].map((step, i, arr) => (
+                <div key={step} className="flex items-center gap-3">
+                  <span className="shrink-0 font-mono text-[10px]" style={{ color: '#404040' }}>{String(i + 1).padStart(2, '0')}</span>
+                  <span className="text-sm" style={{ color: '#A0A0A0' }}>{step}</span>
+                  {i < arr.length - 1 && <span className="ml-auto text-xs" style={{ color: '#404040' }}>→</span>}
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Token ecosystem */}
+          <h3 className="mb-4 text-base font-semibold text-white">$SERVE token ecosystem</h3>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
+            <ul className="space-y-2">
+              {[
+                'Guests spend $SERVE for priority notifications when a followed server is working.',
+                'Servers stake $SERVE for profile visibility in search results.',
+                'All platform fees generate automatic buy pressure on $SERVE.',
+              ].map(item => (
+                <li key={item} className="flex items-start gap-3 text-sm leading-6" style={{ color: '#A0A0A0' }}>
+                  <span className="mt-1 shrink-0 text-xs" style={{ color: '#606060' }}>—</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 

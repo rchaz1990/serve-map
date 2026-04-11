@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Navbar from '@/app/components/Navbar'
+import { supabase } from '@/lib/supabase'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -14,20 +15,20 @@ interface Venue {
   vibe: Vibe
   minutesAgo: number
   servers: number
-  energy: number // 0-100 for the bar
+  energy: number
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
 const VENUES: Venue[] = [
-  { id: 1, name: 'Employees Only',   neighborhood: 'West Village',     vibe: 'PACKED', minutesAgo: 3,  servers: 2, energy: 96 },
-  { id: 2, name: 'Death & Co',       neighborhood: 'East Village',     vibe: 'LIVE',   minutesAgo: 7,  servers: 1, energy: 62 },
-  { id: 3, name: 'Attaboy',          neighborhood: 'Lower East Side',  vibe: 'PACKED', minutesAgo: 2,  servers: 3, energy: 99 },
-  { id: 4, name: 'Dante',            neighborhood: 'West Village',     vibe: 'LIVE',   minutesAgo: 12, servers: 2, energy: 58 },
-  { id: 5, name: 'The Dead Rabbit',  neighborhood: 'Financial District',vibe: 'LIVE',   minutesAgo: 5,  servers: 1, energy: 71 },
-  { id: 6, name: "Please Don't Tell",neighborhood: 'East Village',     vibe: 'PACKED', minutesAgo: 1,  servers: 4, energy: 100 },
-  { id: 7, name: 'Maison Premiere',  neighborhood: 'Williamsburg',     vibe: 'CHILL',  minutesAgo: 18, servers: 2, energy: 28 },
-  { id: 8, name: 'Amor y Amargo',    neighborhood: 'East Village',     vibe: 'CHILL',  minutesAgo: 22, servers: 1, energy: 22 },
+  { id: 1, name: 'Employees Only',    neighborhood: 'West Village',      vibe: 'PACKED', minutesAgo: 3,  servers: 2, energy: 96 },
+  { id: 2, name: 'Death & Co',        neighborhood: 'East Village',      vibe: 'LIVE',   minutesAgo: 7,  servers: 1, energy: 62 },
+  { id: 3, name: 'Attaboy',           neighborhood: 'Lower East Side',   vibe: 'PACKED', minutesAgo: 2,  servers: 3, energy: 99 },
+  { id: 4, name: 'Dante',             neighborhood: 'West Village',      vibe: 'LIVE',   minutesAgo: 12, servers: 2, energy: 58 },
+  { id: 5, name: 'The Dead Rabbit',   neighborhood: 'Financial District', vibe: 'LIVE',  minutesAgo: 5,  servers: 1, energy: 71 },
+  { id: 6, name: "Please Don't Tell", neighborhood: 'East Village',      vibe: 'PACKED', minutesAgo: 1,  servers: 4, energy: 100 },
+  { id: 7, name: 'Maison Premiere',   neighborhood: 'Williamsburg',      vibe: 'CHILL',  minutesAgo: 18, servers: 2, energy: 28 },
+  { id: 8, name: 'Amor y Amargo',     neighborhood: 'East Village',      vibe: 'CHILL',  minutesAgo: 22, servers: 1, energy: 22 },
 ]
 
 const VIBE_META = {
@@ -61,9 +62,6 @@ const CSS = `
   55%     { opacity:1;  transform:scale(1.02); }
   75%     { opacity:.7; }
 }
-@keyframes barGrow {
-  from { width:0; }
-}
 @keyframes slideUp {
   from { opacity:0; transform:translateY(20px); }
   to   { opacity:1; transform:translateY(0); }
@@ -81,12 +79,38 @@ const CSS = `
 .slide-up { animation: slideUp .5s ease-out forwards; opacity:0; }
 `
 
+// ── Pill button ───────────────────────────────────────────────────────────────
+
+function Pill({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+      style={{
+        borderColor: selected ? 'white' : 'rgba(255,255,255,0.2)',
+        backgroundColor: selected ? 'white' : 'black',
+        color: selected ? 'black' : 'white',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
 // ── Venue card ────────────────────────────────────────────────────────────────
 
 function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
   const ref = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const animClass = venue.vibe === 'CHILL' ? 'anim-chill' : venue.vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
+
+  // Check-in form state
+  const [checkInOpen, setCheckInOpen] = useState(false)
+  const [vibe, setVibe] = useState<string | null>(null)
+  const [seats, setSeats] = useState<string | null>(null)
+  const [wait, setWait] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
 
   useEffect(() => {
     const el = ref.current
@@ -99,56 +123,133 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
     return () => obs.disconnect()
   }, [])
 
+  async function handleSubmit() {
+    if (!vibe) return
+    setSubmitting(true)
+    const { error } = await supabase.from('vibe_reports').insert({
+      venue_name: venue.name,
+      neighborhood: venue.neighborhood,
+      vibe,
+      bar_seats: seats,
+      wait_time: wait,
+      reported_at: new Date().toISOString(),
+    })
+    if (error) console.error('[supabase] vibe_report:', error)
+    setSubmitting(false)
+    setSubmitted(true)
+  }
+
   return (
     <div
       ref={ref}
       className={visible ? 'slide-up' : ''}
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div
-        className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-all duration-300 hover:border-white/25 hover:bg-white/[0.05]"
-      >
-        {/* Top row */}
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <h3 className="text-base font-bold text-white">{venue.name}</h3>
-          {/* Vibe badge */}
-          <span
-            className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white ${animClass}`}
-            style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}
-          >
-            {venue.vibe}
-          </span>
-        </div>
-
-        {/* Vibe emoji */}
-        <p className="mb-2 text-3xl">{VIBE_META[venue.vibe].emoji}</p>
-
-        {/* Neighborhood */}
-        <p className="mb-4 text-xs" style={{ color: '#606060' }}>{venue.neighborhood}</p>
-
-        {/* Meta row */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white/70" />
-              </span>
-              <span className="text-xs font-semibold text-white">
-                {venue.servers} Slate {venue.servers === 1 ? 'server' : 'servers'} on shift
-              </span>
-            </div>
-            <span className="text-xs" style={{ color: '#404040' }}>
-              Reported {venue.minutesAgo} min ago
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] transition-all duration-300 hover:border-white/25 hover:bg-white/[0.05]">
+        {/* Card body */}
+        <div className="group p-6">
+          {/* Top row */}
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <h3 className="text-base font-bold text-white">{venue.name}</h3>
+            <span
+              className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white ${animClass}`}
+              style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}
+            >
+              {venue.vibe}
             </span>
           </div>
-          <a
-            href="/explore"
-            className="text-[10px] font-semibold text-white/40 transition-colors group-hover:text-white/80"
-          >
-            View venue →
-          </a>
+
+          <p className="mb-2 text-3xl">{VIBE_META[venue.vibe].emoji}</p>
+          <p className="mb-4 text-xs" style={{ color: '#606060' }}>{venue.neighborhood}</p>
+
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white/70" />
+                </span>
+                <span className="text-xs font-semibold text-white">
+                  {venue.servers} Slate {venue.servers === 1 ? 'server' : 'servers'} on shift
+                </span>
+              </div>
+              <span className="text-xs" style={{ color: '#404040' }}>
+                Reported {venue.minutesAgo} min ago
+              </span>
+            </div>
+          </div>
+
+          {/* I'm here button */}
+          {!submitted && (
+            <button
+              onClick={() => setCheckInOpen(o => !o)}
+              className="w-full rounded-full border border-white/20 py-2.5 text-xs font-semibold text-white transition-colors hover:border-white"
+            >
+              {checkInOpen ? 'Cancel' : "I'm here right now 📍"}
+            </button>
+          )}
         </div>
+
+        {/* Inline check-in form */}
+        {checkInOpen && !submitted && (
+          <div className="border-t border-white/10 px-6 pb-6 pt-5">
+            <p className="mb-5 text-sm font-semibold text-white">
+              You&apos;re at {venue.name}
+            </p>
+
+            {/* Vibe */}
+            <div className="mb-4">
+              <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>What&apos;s the vibe?</p>
+              <div className="flex flex-wrap gap-2">
+                {[{ v: 'CHILL', label: 'Chill 🧊' }, { v: 'LIVE', label: 'Live 🔥' }, { v: 'PACKED', label: 'Packed 🚀' }].map(({ v, label }) => (
+                  <Pill key={v} label={label} selected={vibe === v} onClick={() => setVibe(v)} />
+                ))}
+              </div>
+            </div>
+
+            {/* Bar seats */}
+            <div className="mb-4">
+              <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Bar seats?</p>
+              <div className="flex flex-wrap gap-2">
+                {['Plenty', 'A few', 'None'].map(s => (
+                  <Pill key={s} label={s} selected={seats === s} onClick={() => setSeats(s)} />
+                ))}
+              </div>
+            </div>
+
+            {/* Wait time */}
+            <div className="mb-5">
+              <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Wait time?</p>
+              <div className="flex flex-wrap gap-2">
+                {['No wait', '~15 min', '30+ min'].map(w => (
+                  <Pill key={w} label={w} selected={wait === w} onClick={() => setWait(w)} />
+                ))}
+              </div>
+            </div>
+
+            <button
+              disabled={!vibe || submitting}
+              onClick={handleSubmit}
+              className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
+            >
+              {submitting ? 'Submitting…' : 'Share the vibe — earn 5 $SERVE 🍸'}
+            </button>
+          </div>
+        )}
+
+        {/* Success state */}
+        {submitted && (
+          <div className="border-t border-white/10 px-6 pb-5 pt-4">
+            <div className="flex items-center gap-2">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 shrink-0 text-white">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+              <p className="text-xs font-medium text-white">
+                Thanks! Guests can see {venue.name} is {vibe?.toLowerCase()} tonight ✓
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -170,7 +271,6 @@ export default function LivePage() {
 
         {/* ── Header ───────────────────────────────────────────────────── */}
         <section className="relative px-8 pt-16 pb-12 lg:px-16 lg:pt-20">
-          {/* LIVE pill — top right */}
           <div className="absolute right-8 top-6 flex items-center gap-2 lg:right-16">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-40" style={{ animation: 'liveDot 1.4s ease-in-out infinite' }} />
@@ -228,22 +328,15 @@ export default function LivePage() {
                       transform: isSelected ? 'scale(1.02)' : 'scale(1)',
                     }}
                   >
-                    {/* Emoji */}
                     <span className={`mb-5 block text-4xl ${isSelected ? activeAnim : baseAnim}`}>
                       {meta.emoji}
                     </span>
-
-                    {/* Label */}
                     <p className="mb-2 text-2xl font-black tracking-[0.15em] text-white">
                       {meta.label}
                     </p>
-
-                    {/* Tagline */}
                     <p className="mb-5 text-xs leading-5" style={{ color: isSelected ? '#C0C0C0' : '#606060' }}>
                       {meta.tagline}
                     </p>
-
-                    {/* Report count / reward */}
                     {isSelected ? (
                       <div
                         className="mt-auto w-full rounded-xl px-4 py-3 text-center text-xs font-semibold text-white"
@@ -261,7 +354,6 @@ export default function LivePage() {
               })}
             </div>
 
-            {/* Footer note + FAQ */}
             <div className="mt-6">
               <p className="mb-3 text-xs" style={{ color: '#404040' }}>
                 Must be at the venue to submit. GPS verified at launch.
@@ -287,7 +379,7 @@ export default function LivePage() {
                   className="mt-3 max-w-lg rounded-xl border border-white/10 px-5 py-4 text-xs leading-6"
                   style={{ backgroundColor: 'rgba(255,255,255,0.03)', color: '#A0A0A0' }}
                 >
-                  Submit a vibe report while you&apos;re physically at a venue and earn 5 $SERVE tokens. Reports are verified via GPS — your location is checked once to confirm you&apos;re on-site and never stored. Reports that are validated by subsequent guests earn bonus tokens. Cash out $SERVE to your bank account through Slate Pay.
+                  Submit a vibe report while you&apos;re physically at a venue and earn 5 $SERVE tokens. Reports are verified via GPS — your location is checked once to confirm you&apos;re on-site and never stored. Reports validated by subsequent guests earn bonus tokens. Cash out $SERVE to your bank account through Slate Pay.
                 </div>
               )}
             </div>
@@ -299,7 +391,6 @@ export default function LivePage() {
         {/* ── Live venue feed ───────────────────────────────────────────── */}
         <section className="px-8 py-16 lg:px-16 lg:py-20">
           <div className="mx-auto max-w-5xl">
-            {/* Section header */}
             <div className="mb-10 flex items-center gap-3">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-40" style={{ animation: 'liveDot 1.4s ease-in-out infinite' }} />
