@@ -320,6 +320,7 @@ const STATUS_LABEL: Record<Suggestion['status'], string> = {
 }
 
 function WorkerCouncilSection() {
+  const [mounted, setMounted] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -328,6 +329,7 @@ function WorkerCouncilSection() {
   const [upvoted, setUpvoted] = useState<Set<string>>(new Set())
 
   useEffect(() => {
+    setMounted(true)
     fetchSuggestions()
   }, [])
 
@@ -366,6 +368,8 @@ function WorkerCouncilSection() {
     )
     await supabase.from('suggestions').update({ upvotes: current + 1 }).eq('id', id)
   }
+
+  if (!mounted) return null
 
   return (
     <div className="mt-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
