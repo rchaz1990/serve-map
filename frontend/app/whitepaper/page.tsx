@@ -453,9 +453,87 @@ export default function WhitepaperPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── Business Model ───────────────────────────────────────────────── */}
+        {/* ── Governance ───────────────────────────────────────────────────── */}
         <section className="py-12">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>08</p>
+          <h2 className="mb-6 text-2xl font-bold tracking-tight text-white sm:text-3xl">The Slate Worker Council</h2>
+
+          <div className="mb-8 space-y-4 text-base leading-8" style={{ color: '#C0C0C0' }}>
+            <p>
+              Slate is built for hospitality workers — and in Q1 2027 they will govern it.
+            </p>
+            <p>
+              Every verified server and bartender with a Slate profile becomes a member of the Slate Worker Council — the first reputation-weighted governance system in hospitality.
+            </p>
+            <p>
+              Unlike traditional DAOs where voting power is determined by token holdings — giving control to the wealthiest participants — the Slate Worker Council weights votes by reputation. The servers and bartenders who have actually built careers on Slate make the decisions that shape it.
+            </p>
+          </div>
+
+          {/* Voting power tiers */}
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-white">How voting power works</h3>
+          <div className="mb-8 space-y-2">
+            {[
+              { tier: 'Bronze Council Member', condition: '10 verified ratings', votes: '1 vote' },
+              { tier: 'Silver Council Member', condition: '50 verified ratings', votes: '3 votes' },
+              { tier: 'Gold Council Member',   condition: '100 verified ratings', votes: '10 votes' },
+              { tier: 'Platinum Council Member', condition: 'Top 1% in city', votes: '25 votes' },
+            ].map(row => (
+              <div key={row.tier} className="flex items-baseline gap-3 border-b border-white/[0.06] py-3">
+                <span className="w-48 shrink-0 text-sm font-medium text-white">{row.tier}</span>
+                <span className="flex-1 text-sm" style={{ color: '#A0A0A0' }}>{row.condition}</span>
+                <span className="text-sm font-semibold text-white">{row.votes}</span>
+              </div>
+            ))}
+            <p className="pt-2 text-sm leading-7" style={{ color: '#606060' }}>
+              Plus 1 additional vote per 1,000 $SERVE held.
+            </p>
+          </div>
+
+          {/* What the council votes on */}
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-white">What the Worker Council votes on</h3>
+          <div className="mb-8 space-y-2">
+            {[
+              'Which cities Slate expands to next',
+              'New features to prioritize',
+              '$SERVE reward distribution percentages',
+              'Community guidelines and safety policies',
+              'Treasury spending proposals',
+              'Partnership and restaurant policy decisions',
+            ].map(item => (
+              <div key={item} className="flex items-start gap-2 py-1 text-sm leading-7" style={{ color: '#A0A0A0' }}>
+                <span className="mt-1 shrink-0 text-xs" style={{ color: '#404040' }}>—</span>
+                {item}
+              </div>
+            ))}
+          </div>
+
+          <div className="mb-10 rounded-xl border border-white/25 bg-white/[0.04] px-6 py-5">
+            <p className="text-sm leading-7" style={{ color: '#C0C0C0' }}>
+              The people who build their careers on Slate will shape its future. Not investors. Not the company. The workers.
+            </p>
+            <p className="mt-3 text-xs font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>
+              Launching Q1 2027 alongside mainnet governance infrastructure.
+            </p>
+          </div>
+
+          {/* Community Suggestions */}
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-white">Community Suggestions</h3>
+          <div className="space-y-4 text-base leading-8" style={{ color: '#C0C0C0' }}>
+            <p>
+              Before formal governance launches every server and bartender can submit product suggestions directly through their Slate dashboard. Suggestions are publicly visible and other members can upvote them. The most upvoted suggestions get prioritized by the Slate team each month.
+            </p>
+            <p>
+              This is how Slate gets built — by the people who use it every day.
+            </p>
+          </div>
+        </section>
+
+        <div className="border-t border-white/10" />
+
+        {/* ── Business Model ───────────────────────────────────────────────── */}
+        <section className="py-12">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>09</p>
           <h2 className="mb-6 text-2xl font-bold tracking-tight text-white sm:text-3xl">Business Model</h2>
 
           <div className="mb-8 space-y-4 text-base leading-8" style={{ color: '#C0C0C0' }}>
@@ -542,7 +620,7 @@ export default function WhitepaperPage() {
 
         {/* ── Team ─────────────────────────────────────────────────────────── */}
         <section className="py-12">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>09</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>10</p>
           <h2 className="mb-8 text-2xl font-bold tracking-tight text-white sm:text-3xl">Team</h2>
 
           <div className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-6">
@@ -565,7 +643,7 @@ export default function WhitepaperPage() {
 
         {/* ── Conclusion ───────────────────────────────────────────────────── */}
         <section className="py-12">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>10</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>11</p>
           <h2 className="mb-6 text-2xl font-bold tracking-tight text-white sm:text-3xl">Conclusion</h2>
           <div className="space-y-4 text-base leading-8" style={{ color: '#C0C0C0' }}>
             <p>
