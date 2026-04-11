@@ -29,6 +29,7 @@ export default function ServerSignupPage() {
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [notifyMainnet, setNotifyMainnet] = useState(true)
 
   // Step 2 fields
   const [role, setRole] = useState('')
@@ -134,6 +135,21 @@ export default function ServerSignupPage() {
 
       const profilePDA = deriveServerProfilePDA(keypair.publicKey)
       localStorage.setItem('slate-server-profile', profilePDA.toBase58())
+
+      // Capture email in Beehiiv — fire and forget, never block on it
+      fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          firstName,
+          lastName,
+          role,
+          venue: `${venue}, ${city}`.trim(),
+          notifyMainnet,
+        }),
+      }).catch(() => {/* swallow — tx already confirmed */})
+
       setTxSig(sig)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -266,6 +282,17 @@ export default function ServerSignupPage() {
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 212 555 0100"
                     className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40" />
                 </div>
+                <label className="flex cursor-pointer items-start gap-3 pt-1">
+                  <input
+                    type="checkbox"
+                    checked={notifyMainnet}
+                    onChange={e => setNotifyMainnet(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-white"
+                  />
+                  <span className="text-xs leading-5" style={{ color: '#A0A0A0' }}>
+                    Notify me when Slate launches on mainnet — I want to be migrated automatically.
+                  </span>
+                </label>
               </div>
             )}
 

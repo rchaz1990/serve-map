@@ -123,7 +123,7 @@ export default function HowItWorksPage() {
           </div>
           <div className="mt-8">
             <a
-              href="/server-waitlist"
+              href="/servers/signup"
               className="inline-block rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80"
             >
               Claim your free profile →

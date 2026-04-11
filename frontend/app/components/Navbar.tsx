@@ -57,7 +57,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
         {/* Get Started button */}
         <div className="hidden md:block">
           <a
-            href="/server-waitlist"
+            href="/servers/signup"
             className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
           >
             Get Started
@@ -112,7 +112,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
 
           <div className="shrink-0 px-8 pb-10 pt-6">
             <a
-              href="/server-waitlist"
+              href="/servers/signup"
               onClick={() => setMenuOpen(false)}
               className="block w-full rounded-full bg-white py-4 text-center text-sm font-semibold text-black"
             >

@@ -149,7 +149,7 @@ export default function Home() {
               Your ratings live on the blockchain. Portable. Permanent. Yours forever — no matter where you work next.
             </p>
             <a
-              href="/server-waitlist"
+              href="/servers/signup"
               className="w-full rounded-full bg-white px-6 py-3.5 text-center text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:w-fit"
             >
               Claim your profile →
@@ -205,7 +205,7 @@ export default function Home() {
               Your reputation belongs to you. Not your employer. Not Yelp. Claim your free profile and start earning $SERVE rewards for every great shift.
             </p>
             <a
-              href="/server-waitlist"
+              href="/servers/signup"
               className="inline-block w-full rounded-full bg-white px-8 py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:w-auto"
             >
               Claim your free profile →

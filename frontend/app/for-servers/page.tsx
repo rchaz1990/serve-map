@@ -128,13 +128,13 @@ export default function ForServersPage() {
               Ready to own your reputation?
             </h2>
             <p className="mx-auto mb-10 text-base leading-relaxed" style={{ color: '#606060' }}>
-              Join our founding member waitlist. First 500 servers get priority placement and bonus $SERVE rewards at launch.
+              Free forever. Takes 2 minutes. Your reputation starts the moment you claim your profile.
             </p>
             <a
-              href="/server-waitlist"
+              href="/servers/signup"
               className="block w-full rounded-full bg-white py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:inline-block sm:w-auto sm:px-10"
             >
-              Join the waitlist →
+              Claim your free profile →
             </a>
             <p className="mt-4 text-xs" style={{ color: '#404040' }}>Free forever. No crypto knowledge needed.</p>
           </div>
