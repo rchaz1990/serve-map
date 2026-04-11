@@ -62,7 +62,7 @@ export default function Home() {
                 I work in hospitality
               </a>
               <a
-                href="/get-started"
+                href="/login"
                 className="w-full rounded-full border border-white/25 px-8 py-4 text-center text-sm font-medium text-white transition-colors hover:border-white sm:w-auto"
               >
                 I&apos;m a guest

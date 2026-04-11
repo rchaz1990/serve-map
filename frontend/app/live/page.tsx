@@ -98,6 +98,29 @@ function Pill({ label, selected, onClick }: { label: string; selected: boolean; 
   )
 }
 
+const VIBE_EMOJI: Record<string, string> = { CHILL: '🧊', LIVE: '🔥', PACKED: '🚀' }
+
+function VibePill({ vibe, selected, onClick }: { vibe: string; selected: boolean; onClick: () => void }) {
+  const emoji = VIBE_EMOJI[vibe] ?? vibe
+  const label = vibe.charAt(0) + vibe.slice(1).toLowerCase()
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-1 rounded-xl border px-4 py-3 transition-colors"
+      style={{
+        borderColor: selected ? 'white' : 'rgba(255,255,255,0.2)',
+        backgroundColor: selected ? 'white' : 'black',
+        minWidth: '72px',
+      }}
+    >
+      <span style={{ fontSize: '28px', lineHeight: 1 }}>{emoji}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: selected ? 'black' : '#606060' }}>
+        {label}
+      </span>
+    </button>
+  )
+}
+
 // ── Venue card ────────────────────────────────────────────────────────────────
 
 function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
@@ -202,8 +225,8 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
             <div className="mb-4">
               <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>What&apos;s the vibe?</p>
               <div className="flex flex-wrap gap-2">
-                {[{ v: 'CHILL', label: 'Chill 🧊' }, { v: 'LIVE', label: 'Live 🔥' }, { v: 'PACKED', label: 'Packed 🚀' }].map(({ v, label }) => (
-                  <Pill key={v} label={label} selected={vibe === v} onClick={() => setVibe(v)} />
+                {['CHILL', 'LIVE', 'PACKED'].map(v => (
+                  <VibePill key={v} vibe={v} selected={vibe === v} onClick={() => setVibe(v)} />
                 ))}
               </div>
             </div>
@@ -239,16 +262,19 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
         )}
 
         {/* Success state */}
-        {submitted && (
-          <div className="border-t border-white/10 px-6 pb-5 pt-4">
-            <div className="flex items-center gap-2">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 shrink-0 text-white">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-              </svg>
-              <p className="text-xs font-medium text-white">
-                Thanks! Guests can see {venue.name} is {vibe?.toLowerCase()} tonight ✓
-              </p>
+        {submitted && vibe && (
+          <div className="border-t border-white/10 px-6 pb-6 pt-5">
+            <div style={{ fontSize: '48px', lineHeight: 1 }} className="mb-3">
+              {VIBE_META[vibe as Vibe]?.emoji ?? VIBE_EMOJI[vibe]}
             </div>
+            <p className="mb-1 text-sm font-semibold text-white capitalize">{vibe.toLowerCase()}</p>
+            <p className="mb-3 text-xs" style={{ color: '#606060' }}>Reported just now</p>
+            {(seats || wait) && (
+              <div className="flex flex-wrap gap-3 text-xs" style={{ color: '#A0A0A0' }}>
+                {seats && <span>Bar seats: {seats}</span>}
+                {wait && <span>Wait: {wait}</span>}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -354,8 +380,8 @@ function VenueSearch() {
             <div className="mb-4">
               <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>What&apos;s the vibe?</p>
               <div className="flex flex-wrap gap-2">
-                {[{ v: 'CHILL', label: 'Chill' }, { v: 'LIVE', label: 'Live' }, { v: 'PACKED', label: 'Packed' }].map(({ v, label }) => (
-                  <Pill key={v} label={label} selected={vibe === v} onClick={() => setVibe(v)} />
+                {['CHILL', 'LIVE', 'PACKED'].map(v => (
+                  <VibePill key={v} vibe={v} selected={vibe === v} onClick={() => setVibe(v)} />
                 ))}
               </div>
             </div>
@@ -475,10 +501,10 @@ export default function LivePage() {
                       transform: isSelected ? 'scale(1.02)' : 'scale(1)',
                     }}
                   >
-                    <span className={`mb-5 block text-4xl ${isSelected ? activeAnim : baseAnim}`}>
+                    <span className={`mb-4 block ${isSelected ? activeAnim : baseAnim}`} style={{ fontSize: '48px', lineHeight: 1 }}>
                       {meta.emoji}
                     </span>
-                    <p className="mb-2 text-2xl font-black tracking-[0.15em] text-white">
+                    <p className="mb-1 text-lg font-black tracking-[0.15em] text-white">
                       {meta.label}
                     </p>
                     <p className="mb-5 text-xs leading-5" style={{ color: isSelected ? '#C0C0C0' : '#606060' }}>

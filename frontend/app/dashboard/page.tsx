@@ -315,6 +315,25 @@ export default function DashboardPage() {
   const [shiftSpecials, setShiftSpecials] = useState('')
   const [shiftDbId, setShiftDbId] = useState<string | null>(null)
 
+  // Restaurant picker — shown before shift starts
+  const [restaurants, setRestaurants] = useState<{ id: string; restaurant_name: string; is_primary: boolean }[]>([])
+  const [selectedRestaurant, setSelectedRestaurant] = useState<string>('')
+  const [showRestaurantPicker, setShowRestaurantPicker] = useState(false)
+
+  // Load server's registered restaurants from Supabase
+  useEffect(() => {
+    supabase
+      .from('server_restaurants')
+      .select('id, restaurant_name, is_primary')
+      .eq('currently_working', true)
+      .then(({ data }) => {
+        const rows = data ?? DEMO_WORKPLACES.map(w => ({ id: w.id, restaurant_name: w.restaurant_name, is_primary: w.is_primary }))
+        setRestaurants(rows)
+        // Auto-select if only one
+        if (rows.length === 1) setSelectedRestaurant(rows[0].restaurant_name)
+      })
+  }, [])
+
   // Shift state — mirrors QR: shift is on when a QR code is active
   const [shiftStartedAt, setShiftStartedAt] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState(0) // seconds on shift
@@ -366,6 +385,19 @@ export default function DashboardPage() {
     navigator.clipboard.writeText('https://slatenow.xyz/server/1')
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function startShift(restaurantName: string) {
+    activate()
+    setShiftToast(true)
+    setShowRestaurantPicker(false)
+    const { data, error } = await supabase.from('shifts').insert({
+      restaurant_name: restaurantName,
+      started_at: new Date().toISOString(),
+      is_active: true,
+    }).select('id').single()
+    if (error) console.error('[supabase] shift start:', error)
+    else setShiftDbId(data.id)
   }
 
   return (
@@ -450,17 +482,14 @@ export default function DashboardPage() {
                   setShiftCovers('')
                   setShiftSpecials('')
                   setShiftDbId(null)
+                  setShowRestaurantPicker(false)
                 } else {
-                  activate()
-                  setShiftToast(true)
-                  // Save shift to Supabase
-                  const { data, error } = await supabase.from('shifts').insert({
-                    restaurant_name: 'Eleven Madison Park',
-                    started_at: new Date().toISOString(),
-                    is_active: true,
-                  }).select('id').single()
-                  if (error) console.error('[supabase] shift start:', error)
-                  else setShiftDbId(data.id)
+                  // Show restaurant picker (or skip if auto-selected and only one)
+                  if (restaurants.length <= 1 && selectedRestaurant) {
+                    await startShift(selectedRestaurant)
+                  } else {
+                    setShowRestaurantPicker(true)
+                  }
                 }
               }}
               className={[
@@ -470,9 +499,44 @@ export default function DashboardPage() {
                   : 'bg-white text-black hover:opacity-80',
               ].join(' ')}
             >
-              {isOnShift ? 'End Shift' : 'Start Shift 🍸'}
+              {isOnShift ? 'End Shift' : 'Start Shift'}
             </button>
           </div>
+
+          {/* Restaurant picker — shown before shift starts */}
+          {showRestaurantPicker && !isOnShift && (
+            <div className="mt-7 border-t border-white/10 pt-7">
+              <p className="mb-4 text-sm font-semibold text-white">Which restaurant are you working at today?</p>
+              <div className="flex flex-col gap-2">
+                {restaurants.map(r => (
+                  <button
+                    key={r.id}
+                    onClick={() => { setSelectedRestaurant(r.restaurant_name); startShift(r.restaurant_name) }}
+                    className={[
+                      'flex items-center justify-between rounded-xl border px-4 py-3.5 text-left transition-colors',
+                      selectedRestaurant === r.restaurant_name
+                        ? 'border-white bg-white/5'
+                        : 'border-white/15 hover:border-white/40',
+                    ].join(' ')}
+                  >
+                    <span className="text-sm font-medium text-white">{r.restaurant_name}</span>
+                    {r.is_primary && (
+                      <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>
+                        Primary
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setShowRestaurantPicker(false)}
+                className="mt-4 text-xs transition-colors hover:text-white"
+                style={{ color: '#606060' }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
 
           {/* QR section — only when on shift */}
           {isOnShift && qrCode && (

@@ -488,7 +488,7 @@ export default function WhitepaperPage() {
               },
               {
                 title: 'Premium partner — $299/month',
-                body: 'Everything in Verified plus recruitment tools to search and invite high-rated servers, a custom venue profile, and featured placement in search results.',
+                body: 'Everything in Verified plus recruitment tools to search and invite high-rated servers, a custom venue profile, featured placement in search results, and Scheduling & Reservations — Coming Soon.',
               },
             ].map(tier => (
               <div key={tier.title} className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
