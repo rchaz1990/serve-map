@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react'
 import Script from 'next/script'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
-import { getOrCreateDemoKeypair, keypairToWallet, getProgram, deriveServerProfilePDA } from '@/lib/solana'
 import { supabase } from '@/lib/supabase'
 
 const STEPS = ['Your info', 'Work history', 'Photo & bio']
@@ -30,7 +29,6 @@ export default function ServerSignupPage() {
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [notifyMainnet, setNotifyMainnet] = useState(true)
 
   // Step 2 fields
   const [role, setRole] = useState('')
@@ -158,90 +156,46 @@ export default function ServerSignupPage() {
     setLoading(true)
     setError(null)
     try {
-      const keypair = await getOrCreateDemoKeypair()
-      const wallet = keypairToWallet(keypair)
-      const program = getProgram(wallet)
+      const fullName = `${firstName} ${lastName}`.trim()
 
-      const fullName   = `${firstName} ${lastName}`.trim()
-      const restaurant = `${venue}, ${city}`.trim()
+      const res = await fetch('/api/signup-server', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: fullName,
+          email,
+          role,
+          restaurant: venue,
+          restaurantAddress: confirmedPlace?.address ?? city,
+          city,
+          restaurant2: venue2 || undefined,
+          restaurantAddress2: (confirmedPlace2?.address ?? city2) || undefined,
+          city2: city2 || undefined,
+          walletAddress: null, // fee payer assigned server-side
+        }),
+      })
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sig = await (program as any).methods
-        .initializeProfile(fullName, restaurant)
-        .accounts({ owner: keypair.publicKey })
-        .signers([keypair])
-        .rpc()
-
-      const profilePDA = deriveServerProfilePDA(keypair.publicKey)
-      localStorage.setItem('slate-server-profile', profilePDA.toBase58())
-
-      // Save to Supabase — fire and forget
-      ;(async () => {
-        try {
-          const { data: serverRow, error: serverErr } = await supabase
-            .from('servers')
-            .insert({
-              name: fullName,
-              email,
-              role,
-              wallet_address: keypair.publicKey.toBase58(),
-              is_founding_member: true,
-              notify_mainnet: notifyMainnet,
-              average_rating: 0,
-              total_ratings: 0,
-              follower_count: 0,
-              created_at: new Date().toISOString(),
-            })
-            .select('id')
-            .single()
-
-          if (serverErr) { console.error('[supabase] server insert:', serverErr); return }
-
-          const today = new Date().toISOString().slice(0, 10)
-          // Primary restaurant
-          const restaurants = [
-            {
-              restaurant_name: venue,
-              restaurant_address: confirmedPlace?.address ?? city,
-              city,
-              is_primary: true,
-              currently_working: true,
-              start_date: today,
-            },
-          ]
-          // Second workplace if provided
-          if (venue2 && city2) {
-            restaurants.push({
-              restaurant_name: venue2,
-              restaurant_address: confirmedPlace2?.address ?? city2,
-              city: city2,
-              is_primary: false,
-              currently_working: true,
-              start_date: today,
-            })
-          }
-
-          const { error: restErr } = await supabase
-            .from('server_restaurants')
-            .insert(restaurants.map(r => ({ ...r, server_id: serverRow.id })))
-
-          if (restErr) console.error('[supabase] restaurant insert:', restErr)
-        } catch (e) {
-          console.error('[supabase] unexpected error:', e)
-        }
-      })()
+      const json = await res.json()
+      console.log('API Response:', json)
+      if (!res.ok) {
+        console.log('API Error:', json.error)
+        const errMsg = typeof json.error === 'string'
+          ? json.error
+          : json.error?.message || JSON.stringify(json.error) || 'Signup failed'
+        throw new Error(errMsg)
+      }
 
       // Capture email in Beehiiv — fire and forget
       fetch('/api/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, firstName, lastName, role, venue: `${venue}, ${city}`.trim(), notifyMainnet }),
+        body: JSON.stringify({ email, firstName, lastName, role, venue: `${venue}, ${city}`.trim() }),
       }).catch(() => {})
 
-      setTxSig(sig)
+      setTxSig(json.serverId) // repurpose txSig state to hold serverId for success screen
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
-      setError(msg.includes('already in use') ? 'A profile already exists for this wallet.' : msg)
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -268,12 +222,8 @@ export default function ServerSignupPage() {
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-white">Welcome to Slate! ✓</h1>
             <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>
-              Your founding member profile is live. Portable, permanent, and entirely yours — written to the Solana blockchain forever.
+              Your founding member profile is live. Your reputation is now portable and permanent — yours forever.
             </p>
-            <div className="mt-6 rounded-xl border border-white/10 px-4 py-4 text-left">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>Transaction</p>
-              <p className="break-all font-mono text-xs text-white">{txSig}</p>
-            </div>
             <div className="mt-6 flex items-center justify-center gap-2" style={{ color: '#A0A0A0' }}>
               <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -370,17 +320,6 @@ export default function ServerSignupPage() {
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 212 555 0100"
                     className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40" />
                 </div>
-                <label className="flex cursor-pointer items-start gap-3 pt-1">
-                  <input
-                    type="checkbox"
-                    checked={notifyMainnet}
-                    onChange={e => setNotifyMainnet(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-white"
-                  />
-                  <span className="text-xs leading-5" style={{ color: '#A0A0A0' }}>
-                    Notify me when Slate launches on mainnet — I want to be migrated automatically.
-                  </span>
-                </label>
               </div>
             )}
 
