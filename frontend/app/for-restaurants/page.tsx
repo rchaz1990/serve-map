@@ -19,7 +19,7 @@ const TIERS = [
     tag: 'Verified partner',
     name: '$99 / month',
     price: '$99',
-    body: 'See which staff members drive the most repeat visits. Access shift analytics, guest insights, and recruiting tools to find and attract top rated servers in NYC.',
+    body: 'See which staff members drive the most repeat visits. Access shift analytics, guest insights, and recruiting tools to find and attract top rated servers in NYC. Scheduling and reservations — coming soon. Manage staff schedules and accept reservations directly through Slate.',
     cta: { label: 'Apply to join →', href: '/waitlist' },
   },
 ]

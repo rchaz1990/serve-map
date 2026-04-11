@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
 
@@ -255,6 +256,150 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
   )
 }
 
+// ── Venue search + quick vibe form ────────────────────────────────────────────
+
+function VenueSearch() {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [googleLoaded, setGoogleLoaded] = useState(false)
+  const [selected, setSelected] = useState<{ name: string; address: string } | null>(null)
+  const [vibe, setVibe] = useState<string | null>(null)
+  const [seats, setSeats] = useState<string | null>(null)
+  const [wait, setWait] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+
+  useEffect(() => {
+    if (!googleLoaded || !inputRef.current || selected) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const google = (window as any).google
+    if (!google?.maps?.places) return
+
+    const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
+      types: ['establishment'],
+      componentRestrictions: { country: 'us' },
+    })
+
+    const style = document.createElement('style')
+    style.innerHTML = '.pac-container { z-index: 99999 !important; pointer-events: all !important; }'
+    document.head.appendChild(style)
+
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace()
+      setSelected({ name: place.name ?? '', address: place.formatted_address ?? '' })
+    })
+
+    const input = inputRef.current
+    const suppressEnter = (e: KeyboardEvent) => { if (e.key === 'Enter') e.preventDefault() }
+    input.addEventListener('keydown', suppressEnter)
+    return () => { input.removeEventListener('keydown', suppressEnter); style.remove() }
+  }, [googleLoaded, selected])
+
+  async function handleSubmit() {
+    if (!selected || !vibe) return
+    setSubmitting(true)
+    const { error } = await supabase.from('vibe_reports').insert({
+      venue_name: selected.name,
+      vibe,
+      bar_seats: seats,
+      wait_time: wait,
+      reported_at: new Date().toISOString(),
+      gps_verified: false,
+    })
+    if (error) console.error('[supabase] vibe_report:', error)
+    setSubmitting(false)
+    setSubmitted(true)
+  }
+
+  return (
+    <div
+      className="border-b border-white/10 px-8 py-10 lg:px-16"
+      style={{ backgroundColor: '#050505' }}
+    >
+      <Script
+        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}&libraries=places`}
+        onLoad={() => setGoogleLoaded(true)}
+      />
+      <div className="mx-auto max-w-2xl">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
+          Where are you right now?
+        </p>
+
+        {submitted ? (
+          <div className="rounded-xl border border-white/15 px-5 py-4">
+            <div className="flex items-center gap-2">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 shrink-0 text-white">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+              <p className="text-sm font-medium text-white">
+                Thanks! {selected?.name} is now showing as {vibe?.toLowerCase()} on Slate.
+              </p>
+            </div>
+          </div>
+        ) : selected ? (
+          <div className="rounded-xl border border-white/15 px-5 py-5">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">{selected.name}</p>
+                <p className="text-xs" style={{ color: '#606060' }}>{selected.address}</p>
+              </div>
+              <button
+                onClick={() => { setSelected(null); setVibe(null); setSeats(null); setWait(null); if (inputRef.current) inputRef.current.value = '' }}
+                className="shrink-0 text-xs transition-colors hover:text-white"
+                style={{ color: '#606060' }}
+              >
+                Change
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>What&apos;s the vibe?</p>
+              <div className="flex flex-wrap gap-2">
+                {[{ v: 'CHILL', label: 'Chill' }, { v: 'LIVE', label: 'Live' }, { v: 'PACKED', label: 'Packed' }].map(({ v, label }) => (
+                  <Pill key={v} label={label} selected={vibe === v} onClick={() => setVibe(v)} />
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Bar seats?</p>
+              <div className="flex flex-wrap gap-2">
+                {['Plenty', 'A few', 'None'].map(s => (
+                  <Pill key={s} label={s} selected={seats === s} onClick={() => setSeats(s)} />
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-5">
+              <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Wait time?</p>
+              <div className="flex flex-wrap gap-2">
+                {['No wait', '~15 min', '30+ min'].map(w => (
+                  <Pill key={w} label={w} selected={wait === w} onClick={() => setWait(w)} />
+                ))}
+              </div>
+            </div>
+
+            <button
+              disabled={!vibe || submitting}
+              onClick={handleSubmit}
+              className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
+            >
+              {submitting ? 'Submitting…' : 'Share the vibe — earn 5 $SERVE'}
+            </button>
+          </div>
+        ) : (
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search for a bar or restaurant…"
+            className="w-full border border-white/15 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-white/30 outline-none transition-colors focus:border-white/40"
+            style={{ borderRadius: '4px' }}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function LivePage() {
@@ -266,6 +411,8 @@ export default function LivePage() {
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <Navbar />
       <div className="border-t border-white/10" />
+
+      <VenueSearch />
 
       <main>
 

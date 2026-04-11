@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
 
@@ -14,6 +15,7 @@ const ROLES = ['Owner', 'Manager', 'GM']
 
 export default function WaitlistPage() {
   const [restaurantName, setRestaurantName] = useState('')
+  const [restaurantAddress, setRestaurantAddress] = useState('')
   const [yourName, setYourName] = useState('')
   const [role, setRole] = useState('')
   const [email, setEmail] = useState('')
@@ -22,6 +24,42 @@ export default function WaitlistPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [googleLoaded, setGoogleLoaded] = useState(false)
+  const [confirmedPlace, setConfirmedPlace] = useState<{ name: string; address: string } | null>(null)
+  const venueInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!googleLoaded || !venueInputRef.current || confirmedPlace) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const google = (window as any).google
+    if (!google?.maps?.places) return
+
+    const autocomplete = new google.maps.places.Autocomplete(venueInputRef.current, {
+      types: ['establishment'],
+      componentRestrictions: { country: 'us' },
+    })
+
+    const style = document.createElement('style')
+    style.innerHTML = '.pac-container { z-index: 99999 !important; pointer-events: all !important; }'
+    document.head.appendChild(style)
+
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace()
+      const name = place.name ?? ''
+      const address = place.formatted_address ?? ''
+      setRestaurantName(name)
+      setRestaurantAddress(address)
+      setConfirmedPlace({ name, address })
+    })
+
+    const input = venueInputRef.current
+    const suppressEnter = (e: KeyboardEvent) => { if (e.key === 'Enter') e.preventDefault() }
+    input.addEventListener('keydown', suppressEnter)
+    return () => {
+      input.removeEventListener('keydown', suppressEnter)
+      style.remove()
+    }
+  }, [googleLoaded, confirmedPlace])
 
   const canSubmit = restaurantName && yourName && role && email
 
@@ -33,6 +71,7 @@ export default function WaitlistPage() {
 
     const { error: dbErr } = await supabase.from('restaurant_waitlist').insert({
       restaurant_name: restaurantName,
+      restaurant_address: restaurantAddress || null,
       contact_name: yourName,
       contact_role: role,
       email,
@@ -93,6 +132,10 @@ export default function WaitlistPage() {
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+      <Script
+        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}&libraries=places`}
+        onLoad={() => setGoogleLoaded(true)}
+      />
       <Navbar />
       <div className="border-t border-white/10" />
 
@@ -114,17 +157,35 @@ export default function WaitlistPage() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
-            {/* Restaurant name */}
+            {/* Restaurant name — Google Places autocomplete */}
             <div>
               <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>Restaurant name</label>
-              <input
-                type="text"
-                value={restaurantName}
-                onChange={e => setRestaurantName(e.target.value)}
-                placeholder="Employees Only"
-                required
-                className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
-              />
+              {confirmedPlace ? (
+                <div className="flex items-center justify-between rounded-xl border border-white/30 bg-white/5 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">{confirmedPlace.name}</p>
+                    <p className="text-xs" style={{ color: '#606060' }}>{confirmedPlace.address}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setConfirmedPlace(null); setRestaurantName(''); setRestaurantAddress(''); if (venueInputRef.current) venueInputRef.current.value = '' }}
+                    className="ml-3 shrink-0 text-xs transition-colors hover:text-white"
+                    style={{ color: '#606060' }}
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <input
+                  ref={venueInputRef}
+                  type="text"
+                  defaultValue={restaurantName}
+                  onChange={e => setRestaurantName(e.target.value)}
+                  placeholder="Search for your venue…"
+                  required
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
+                />
+              )}
             </div>
 
             {/* Your name */}

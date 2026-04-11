@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import Script from 'next/script'
 import QRCode from 'react-qr-code'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
@@ -142,6 +143,165 @@ const SERVE_BALANCE = 847
 const SERVE_GOAL = 1000
 const serveProgress = Math.round((SERVE_BALANCE / SERVE_GOAL) * 100)
 const maxWeekly = Math.max(...weeklyEarnings.map(w => w.amount))
+
+// ── Workplace section ──────────────────────────────────────────────────────────
+
+const DEMO_WORKPLACES = [
+  { id: '1', restaurant_name: 'Eleven Madison Park', is_primary: true, currently_working: true },
+]
+
+function WorkplaceSection() {
+  const [open, setOpen] = useState(false)
+  const [googleLoaded, setGoogleLoaded] = useState(false)
+  const [newVenue, setNewVenue] = useState('')
+  const [newAddress, setNewAddress] = useState('')
+  const [confirmedPlace, setConfirmedPlace] = useState<{ name: string; address: string } | null>(null)
+  const [isPrimary, setIsPrimary] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!open || !googleLoaded || !inputRef.current || confirmedPlace) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const google = (window as any).google
+    if (!google?.maps?.places) return
+
+    const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
+      types: ['establishment'],
+      componentRestrictions: { country: 'us' },
+    })
+
+    const style = document.createElement('style')
+    style.innerHTML = '.pac-container { z-index: 99999 !important; pointer-events: all !important; }'
+    document.head.appendChild(style)
+
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace()
+      const name = place.name ?? ''
+      const address = place.formatted_address ?? ''
+      setNewVenue(name)
+      setNewAddress(address)
+      setConfirmedPlace({ name, address })
+    })
+
+    const input = inputRef.current
+    const suppressEnter = (e: KeyboardEvent) => { if (e.key === 'Enter') e.preventDefault() }
+    input.addEventListener('keydown', suppressEnter)
+    return () => { input.removeEventListener('keydown', suppressEnter); style.remove() }
+  }, [open, googleLoaded, confirmedPlace])
+
+  async function handleSave() {
+    if (!confirmedPlace) return
+    setSaving(true)
+    const today = new Date().toISOString().slice(0, 10)
+    const { error } = await supabase.from('server_restaurants').insert({
+      restaurant_name: newVenue,
+      restaurant_address: newAddress,
+      is_primary: isPrimary,
+      currently_working: true,
+      start_date: today,
+    })
+    if (error) console.error('[supabase] workplace insert:', error)
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => { setSaved(false); setOpen(false); setConfirmedPlace(null); setNewVenue(''); setNewAddress(''); setIsPrimary(false) }, 2000)
+  }
+
+  return (
+    <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+      <Script
+        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}&libraries=places`}
+        onLoad={() => setGoogleLoaded(true)}
+      />
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm font-semibold text-white">My workplace</p>
+        <button
+          onClick={() => { setOpen(o => !o); setConfirmedPlace(null); setNewVenue(''); setNewAddress('') }}
+          className="text-xs transition-colors hover:text-white"
+          style={{ color: '#606060' }}
+        >
+          {open ? 'Cancel' : 'Update workplace'}
+        </button>
+      </div>
+
+      {/* Current workplaces */}
+      <div className="mb-4 flex flex-col gap-2">
+        {DEMO_WORKPLACES.map(w => (
+          <div key={w.id} className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-white">{w.restaurant_name}</p>
+              {w.is_primary && (
+                <p className="text-xs" style={{ color: '#606060' }}>Primary workplace</p>
+              )}
+            </div>
+            <button
+              onClick={async () => {
+                await supabase.from('server_restaurants').update({ currently_working: false }).eq('id', w.id)
+              }}
+              className="text-xs transition-colors hover:text-white"
+              style={{ color: '#404040' }}
+            >
+              I no longer work here
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Add new workplace form */}
+      {open && (
+        <div className="border-t border-white/10 pt-5">
+          <p className="mb-3 text-xs font-medium" style={{ color: '#A0A0A0' }}>Add a workplace</p>
+
+          {confirmedPlace ? (
+            <div className="mb-3 flex items-start justify-between rounded-xl border border-white/20 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-white">{confirmedPlace.name}</p>
+                <p className="text-xs" style={{ color: '#606060' }}>{confirmedPlace.address}</p>
+              </div>
+              <button
+                onClick={() => { setConfirmedPlace(null); setNewVenue(''); setNewAddress(''); if (inputRef.current) inputRef.current.value = '' }}
+                className="ml-3 shrink-0 text-xs transition-colors hover:text-white"
+                style={{ color: '#606060' }}
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Search for restaurant or bar…"
+              className="mb-3 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
+            />
+          )}
+
+          <label className="mb-4 flex cursor-pointer items-center gap-2.5">
+            <input
+              type="checkbox"
+              checked={isPrimary}
+              onChange={e => setIsPrimary(e.target.checked)}
+              className="accent-white"
+            />
+            <span className="text-xs font-medium text-white">This is my primary workplace</span>
+          </label>
+
+          {saved ? (
+            <p className="text-xs font-medium text-white">Workplace updated.</p>
+          ) : (
+            <button
+              disabled={!confirmedPlace || saving}
+              onClick={handleSave}
+              className="rounded-full bg-white px-6 py-2.5 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
+            >
+              {saving ? 'Saving…' : 'Save workplace'}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function DashboardPage() {
   const [copied, setCopied] = useState(false)
@@ -430,6 +590,9 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* ── Update workplace ────────────────────────────────────────── */}
+        <WorkplaceSection />
 
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

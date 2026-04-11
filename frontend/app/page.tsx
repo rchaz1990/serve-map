@@ -56,16 +56,16 @@ export default function Home() {
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <a
-                href="/live"
+                href="/servers/signup"
                 className="w-full rounded-full bg-white px-8 py-4 text-center text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:w-auto"
               >
-                See what&apos;s live →
+                I work in hospitality
               </a>
               <a
-                href="/for-servers"
+                href="/get-started"
                 className="w-full rounded-full border border-white/25 px-8 py-4 text-center text-sm font-medium text-white transition-colors hover:border-white sm:w-auto"
               >
-                I work in hospitality
+                I&apos;m a guest
               </a>
             </div>
           </div>

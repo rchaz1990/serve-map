@@ -187,19 +187,38 @@ export default function ServerSignupPage() {
               wallet_address: keypair.publicKey.toBase58(),
               is_founding_member: true,
               notify_mainnet: notifyMainnet,
+              average_rating: 0,
+              total_ratings: 0,
+              follower_count: 0,
+              created_at: new Date().toISOString(),
             })
             .select('id')
             .single()
 
           if (serverErr) { console.error('[supabase] server insert:', serverErr); return }
 
+          const today = new Date().toISOString().slice(0, 10)
           // Primary restaurant
           const restaurants = [
-            { restaurant_name: venue, city, is_primary: true, currently_working: true },
+            {
+              restaurant_name: venue,
+              restaurant_address: confirmedPlace?.address ?? city,
+              city,
+              is_primary: true,
+              currently_working: true,
+              start_date: today,
+            },
           ]
           // Second workplace if provided
           if (venue2 && city2) {
-            restaurants.push({ restaurant_name: venue2, city: city2, is_primary: false, currently_working: true })
+            restaurants.push({
+              restaurant_name: venue2,
+              restaurant_address: confirmedPlace2?.address ?? city2,
+              city: city2,
+              is_primary: false,
+              currently_working: true,
+              start_date: today,
+            })
           }
 
           const { error: restErr } = await supabase
