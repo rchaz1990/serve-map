@@ -1,20 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Navbar from '@/app/components/Navbar'
 
 type Mode = 'signup' | 'signin'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [mode, setMode] = useState<Mode>('signup')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
   async function handleGoogle() {
     setLoading(true)
@@ -51,7 +50,6 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
-      router.push('/live')
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
@@ -59,9 +57,46 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
-      router.push('/live')
     }
+
+    setLoading(false)
+    setSuccess(true)
   }
+
+  // ── Success screen ─────────────────────────────────────────────────────────
+
+  if (success) {
+    return (
+      <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+        <Navbar />
+        <div className="border-t border-white/10" />
+        <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-6 py-20">
+          <div className="w-full max-w-sm text-center">
+            <p
+              className="mb-5 text-[10px] font-semibold uppercase tracking-[0.4em]"
+              style={{ color: 'rgba(255,255,255,0.2)' }}
+            >
+              You&apos;re in
+            </p>
+            <h1 className="mb-3 text-3xl font-bold tracking-tight text-white">
+              Welcome to Slate.
+            </h1>
+            <p className="mb-10 text-sm" style={{ color: '#606060' }}>
+              What would you like to do first?
+            </p>
+            <a
+              href="/live"
+              className="block w-full rounded-full bg-white py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+            >
+              See what&apos;s live tonight →
+            </a>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  // ── Auth form ──────────────────────────────────────────────────────────────
 
   return (
     <div
@@ -83,10 +118,10 @@ export default function LoginPage() {
               Welcome to Slate
             </p>
             <h1 className="mb-2 text-3xl font-bold tracking-tight text-white">
-              Join Slate
+              {mode === 'signup' ? 'Join Slate' : 'Sign in'}
             </h1>
             <p className="text-sm" style={{ color: '#606060' }}>
-              Create your free account
+              {mode === 'signup' ? 'Create your free account' : 'Welcome back'}
             </p>
           </div>
 

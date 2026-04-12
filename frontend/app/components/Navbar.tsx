@@ -98,10 +98,10 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
       <div className="hidden items-center gap-4 md:flex">
         {isServer && (
           <a
-            href={`/server/${serverId}`}
+            href="/dashboard"
             className="text-xs font-medium text-white/50 transition-colors hover:text-white"
           >
-            My Profile
+            Dashboard
           </a>
         )}
         {isGuest && (
@@ -110,14 +110,6 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
             className="text-xs font-medium text-white/50 transition-colors hover:text-white"
           >
             My Account
-          </a>
-        )}
-        {session && (
-          <a
-            href="/dashboard"
-            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-          >
-            Dashboard
           </a>
         )}
         <button
@@ -210,31 +202,22 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
                 {label}
               </a>
             ))}
-            {session && isServer && (
-              <a
-                href={`/server/${serverId}`}
-                onClick={() => setMenuOpen(false)}
-                className="border-b border-white/10 py-5 text-2xl font-semibold text-white"
-              >
-                My Profile
-              </a>
-            )}
-            {session && isGuest && (
-              <a
-                href="/account"
-                onClick={() => setMenuOpen(false)}
-                className="border-b border-white/10 py-5 text-2xl font-semibold text-white"
-              >
-                My Account
-              </a>
-            )}
-            {session && (
+            {isServer && (
               <a
                 href="/dashboard"
                 onClick={() => setMenuOpen(false)}
                 className="border-b border-white/10 py-5 text-2xl font-semibold text-white"
               >
                 Dashboard
+              </a>
+            )}
+            {isGuest && (
+              <a
+                href="/account"
+                onClick={() => setMenuOpen(false)}
+                className="border-b border-white/10 py-5 text-2xl font-semibold text-white"
+              >
+                My Account
               </a>
             )}
           </nav>

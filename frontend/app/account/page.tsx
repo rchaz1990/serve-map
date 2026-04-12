@@ -22,6 +22,13 @@ type FollowedServer = {
   primary_restaurant: string | null
 }
 
+type VibeReport = {
+  id: string
+  venue_name: string
+  vibe: string
+  reported_at: string
+}
+
 type RatingLeft = {
   id: string
   score: number
@@ -31,14 +38,19 @@ type RatingLeft = {
   server_name: string | null
 }
 
-type VibeReport = {
-  id: string
-  venue_name: string
-  vibe: string
-  reported_at: string
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const VIBE_LABEL: Record<string, string> = {
+  CHILL: 'Chill',
+  LIVE: 'Live',
+  PACKED: 'Packed',
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+const VIBE_EMOJI: Record<string, string> = {
+  CHILL: '🧊',
+  LIVE: '🔥',
+  PACKED: '🚀',
+}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -58,8 +70,8 @@ export default function AccountPage() {
   const router = useRouter()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [following, setFollowing] = useState<FollowedServer[]>([])
-  const [ratingsLeft, setRatingsLeft] = useState<RatingLeft[]>([])
   const [vibeReports, setVibeReports] = useState<VibeReport[]>([])
+  const [ratingsLeft, setRatingsLeft] = useState<RatingLeft[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -68,7 +80,6 @@ export default function AccountPage() {
       if (!authUser) { router.push('/login'); return }
       setUser(authUser as AuthUser)
 
-      // Ratings this guest has left (matched by user id or email)
       const [{ data: rats }, { data: vibes }] = await Promise.all([
         supabase
           .from('ratings')
@@ -85,7 +96,7 @@ export default function AccountPage() {
       if (rats) setRatingsLeft(rats as RatingLeft[])
       if (vibes) setVibeReports(vibes as VibeReport[])
 
-      // Follows — join through follows table if it exists, else empty
+      // Follows — join through follows table
       const { data: follows } = await supabase
         .from('follows')
         .select('server_id, servers(id, name, role, average_rating, server_restaurants(restaurant_name, is_primary))')
@@ -123,7 +134,7 @@ export default function AccountPage() {
         <Navbar />
         <div className="border-t border-white/10" />
         <div className="flex min-h-[60vh] items-center justify-center">
-          <p className="text-sm" style={{ color: '#404040' }}>Loading your account…</p>
+          <p className="text-sm" style={{ color: '#404040' }}>Loading your dashboard…</p>
         </div>
       </div>
     )
@@ -142,50 +153,65 @@ export default function AccountPage() {
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="mb-12">
-          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-white text-xl font-bold text-black">
-            {displayName.slice(0, 2).toUpperCase()}
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-lg font-bold text-black">
+              {displayName.slice(0, 2).toUpperCase()}
+            </div>
+            <span className="rounded-full border border-white/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>
+              Guest Member
+            </span>
           </div>
           <h1 className="mb-1 text-3xl font-bold tracking-tight text-white">{displayName}</h1>
           <p className="mb-1 text-sm" style={{ color: '#A0A0A0' }}>{user.email}</p>
-          <p className="text-xs" style={{ color: '#606060' }}>
+          <p className="mb-3 text-xs" style={{ color: '#606060' }}>
             Member since {formatDate(user.created_at)}
           </p>
           {totalServe > 0 && (
-            <p className="mt-3 text-sm font-semibold text-white">{totalServe} $SERVE earned</p>
+            <p className="text-sm font-semibold text-white">{totalServe} $SERVE earned</p>
           )}
         </div>
 
         <div className="border-t border-white/10" />
 
-        {/* ── Following ───────────────────────────────────────────────────── */}
+        {/* ── Section 1: Servers you follow ───────────────────────────────── */}
         <section className="py-12">
           <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
             Servers you follow
           </p>
           {following.length === 0 ? (
-            <p className="text-sm leading-7" style={{ color: '#606060' }}>
-              You&apos;re not following anyone yet.{' '}
-              <a href="/live" className="text-white underline-offset-2 hover:underline">
-                Discover servers at slatenow.xyz/live
+            <div>
+              <p className="mb-5 text-sm leading-7" style={{ color: '#606060' }}>
+                You&apos;re not following anyone yet. Discover servers at what&apos;s live tonight.
+              </p>
+              <a
+                href="/live"
+                className="inline-block rounded-full border border-white/25 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:border-white"
+              >
+                See what&apos;s live →
               </a>
-            </p>
+            </div>
           ) : (
             <div className="flex flex-col divide-y divide-white/10">
               {following.map(s => (
-                <a key={s.id} href={`/server/${s.id}`} className="flex items-center justify-between py-5 transition-opacity hover:opacity-70">
+                <div key={s.id} className="flex items-center justify-between py-5">
                   <div>
                     <p className="text-sm font-semibold text-white">{s.name}</p>
                     <p className="mt-0.5 text-xs" style={{ color: '#606060' }}>
                       {s.role}{s.primary_restaurant ? ` · ${s.primary_restaurant}` : ''}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="flex items-center gap-4">
                     {s.average_rating > 0 && (
-                      <p className="text-sm font-semibold text-white">{s.average_rating.toFixed(1)} ★</p>
+                      <span className="text-sm font-semibold text-white">{s.average_rating.toFixed(1)} ★</span>
                     )}
-                    <p className="text-xs" style={{ color: '#404040' }}>View profile →</p>
+                    <a
+                      href={`/server/${s.id}`}
+                      className="text-xs font-semibold text-white transition-opacity hover:opacity-60"
+                    >
+                      View profile →
+                    </a>
                   </div>
-                </a>
+                </div>
               ))}
             </div>
           )}
@@ -193,7 +219,43 @@ export default function AccountPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── Ratings left ────────────────────────────────────────────────── */}
+        {/* ── Section 2: Venues you've vibed ──────────────────────────────── */}
+        <section className="py-12">
+          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
+            Venues you&apos;ve vibed
+          </p>
+          {vibeReports.length === 0 ? (
+            <div>
+              <p className="mb-5 text-sm leading-7" style={{ color: '#606060' }}>
+                You haven&apos;t reported any vibes yet. Go out tonight and share what&apos;s happening.
+              </p>
+              <a
+                href="/live"
+                className="inline-block rounded-full border border-white/25 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:border-white"
+              >
+                See what&apos;s live →
+              </a>
+            </div>
+          ) : (
+            <div className="flex flex-col divide-y divide-white/10">
+              {vibeReports.map(v => (
+                <div key={v.id} className="flex items-center justify-between py-4">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{v.venue_name}</p>
+                    <p className="mt-0.5 text-xs" style={{ color: '#606060' }}>
+                      {VIBE_EMOJI[v.vibe]} {VIBE_LABEL[v.vibe] ?? v.vibe} · {formatDate(v.reported_at)}
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold" style={{ color: '#A0A0A0' }}>+5 $SERVE</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <div className="border-t border-white/10" />
+
+        {/* ── Section 3: Ratings you've left ──────────────────────────────── */}
         <section className="py-12">
           <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
             Ratings you&apos;ve left
@@ -235,10 +297,10 @@ export default function AccountPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── $SERVE activity ─────────────────────────────────────────────── */}
+        {/* ── Section 4: $SERVE activity ───────────────────────────────────── */}
         <section className="py-12">
           <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-            Your $SERVE activity
+            $SERVE activity
           </p>
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-4">
@@ -260,6 +322,9 @@ export default function AccountPage() {
               <p className="text-base font-bold text-white">{totalServe} $SERVE</p>
             </div>
           </div>
+          <p className="mt-5 text-xs leading-6" style={{ color: '#404040' }}>
+            $SERVE rewards launch when Slate goes live on Solana mainnet.
+          </p>
         </section>
 
       </main>

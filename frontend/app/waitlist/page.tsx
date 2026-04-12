@@ -119,10 +119,10 @@ export default function WaitlistPage() {
               We&apos;ll reach out within 24 hours to get your venue set up. Welcome to Slate.
             </p>
             <a
-              href="/"
-              className="mt-8 inline-block rounded-full border border-white/20 px-6 py-3 text-sm font-medium text-white transition-colors hover:border-white"
+              href="/live"
+              className="mt-8 inline-block rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
             >
-              Back to home
+              Explore Slate →
             </a>
           </div>
         </main>

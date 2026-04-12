@@ -217,18 +217,12 @@ export default function ServerSignupPage() {
             <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>
               Your founding member profile is live. Your reputation is now portable and permanent — yours forever.
             </p>
-            <div className="mt-8 flex flex-col gap-3">
-              <a
-                href={`/server/${txSig}`}
-                className="block w-full rounded-full bg-white py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
-              >
-                View my profile →
-              </a>
+            <div className="mt-8">
               <a
                 href="/dashboard"
-                className="block w-full rounded-full border border-white/25 py-3.5 text-sm font-semibold text-white transition-colors hover:border-white"
+                className="block w-full rounded-full bg-white py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
               >
-                Go to dashboard →
+                Go to your dashboard →
               </a>
             </div>
           </div>
