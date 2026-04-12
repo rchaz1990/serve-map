@@ -1,19 +1,22 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Navbar from '@/app/components/Navbar'
 
-type Mode = 'signup' | 'signin'
+type Mode = 'signin' | 'signup'
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<Mode>('signup')
+  const router = useRouter()
+  const [mode, setMode] = useState<Mode>('signin')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  // signup-only: show success screen after creating guest account
+  const [signupSuccess, setSignupSuccess] = useState(false)
 
   async function handleGoogle() {
     setLoading(true)
@@ -28,61 +31,113 @@ export default function LoginPage() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
+  // After a successful auth, decide where to send the user:
+  // servers → /dashboard, guests → /live
+  async function redirectAfterAuth(userId: string, userEmail: string | null) {
+    // Method 1 — wallet_address (Supabase auth UID)
+    const { data: byId } = await supabase
+      .from('servers')
+      .select('id')
+      .eq('wallet_address', userId)
+      .maybeSingle()
+    if (byId) {
+      localStorage.setItem('slateUserType', 'server')
+      localStorage.setItem('slateServerId', byId.id)
+      router.push('/dashboard')
+      return
+    }
 
-    if (mode === 'signup') {
-      // Email confirmation disabled in Supabase Auth settings:
-      // Authentication > Providers > Email > "Confirm email" = OFF
-      // This avoids rate limit errors on the free tier.
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: name },
-          emailRedirectTo: undefined,
-        },
-      })
-      if (error) {
-        setError(error.message)
-        setLoading(false)
-        return
-      }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) {
-        setError(error.message)
-        setLoading(false)
+    // Method 2 — case-insensitive email
+    if (userEmail) {
+      const { data: byEmail } = await supabase
+        .from('servers')
+        .select('id')
+        .ilike('email', userEmail)
+        .maybeSingle()
+      if (byEmail) {
+        localStorage.setItem('slateUserType', 'server')
+        localStorage.setItem('slateServerId', byEmail.id)
+        router.push('/dashboard')
         return
       }
     }
 
-    setLoading(false)
-    setSuccess(true)
+    // Method 3 — localStorage (set at signup)
+    const storedId = localStorage.getItem('slateServerId')
+    if (storedId) {
+      const { data: byStored } = await supabase
+        .from('servers')
+        .select('id')
+        .eq('id', storedId)
+        .maybeSingle()
+      if (byStored) {
+        localStorage.setItem('slateUserType', 'server')
+        router.push('/dashboard')
+        return
+      }
+    }
+
+    // Guest
+    localStorage.setItem('slateUserType', 'guest')
+    localStorage.removeItem('slateServerId')
+    router.push('/live')
   }
 
-  // ── Success screen ─────────────────────────────────────────────────────────
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
 
-  if (success) {
+    if (mode === 'signin') {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+        return
+      }
+      // Redirect based on server vs guest
+      await redirectAfterAuth(data.user.id, data.user.email ?? null)
+      // redirectAfterAuth calls router.push — no need to setLoading(false)
+      return
+    }
+
+    // signup mode — creates a guest account
+    // Email confirmation disabled in Supabase Auth settings:
+    // Authentication > Providers > Email > "Confirm email" = OFF
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: name },
+        emailRedirectTo: undefined,
+      },
+    })
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+      return
+    }
+    setLoading(false)
+    setSignupSuccess(true)
+  }
+
+  // ── Signup success screen ──────────────────────────────────────────────────
+
+  if (signupSuccess) {
     return (
       <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
         <Navbar />
         <div className="border-t border-white/10" />
         <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-6 py-20">
           <div className="w-full max-w-sm text-center">
-            <p
-              className="mb-5 text-[10px] font-semibold uppercase tracking-[0.4em]"
-              style={{ color: 'rgba(255,255,255,0.2)' }}
-            >
+            <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.4em]" style={{ color: 'rgba(255,255,255,0.2)' }}>
               You&apos;re in
             </p>
             <h1 className="mb-3 text-3xl font-bold tracking-tight text-white">
               Welcome to Slate.
             </h1>
             <p className="mb-10 text-sm" style={{ color: '#606060' }}>
-              What would you like to do first?
+              Your account is ready. What would you like to do first?
             </p>
             <a
               href="/live"
@@ -115,13 +170,13 @@ export default function LoginPage() {
               className="mb-4 text-[10px] font-semibold uppercase tracking-[0.4em]"
               style={{ color: 'rgba(255,255,255,0.2)' }}
             >
-              Welcome to Slate
+              {mode === 'signin' ? 'Welcome back' : 'Join Slate'}
             </p>
             <h1 className="mb-2 text-3xl font-bold tracking-tight text-white">
-              {mode === 'signup' ? 'Join Slate' : 'Sign in'}
+              {mode === 'signin' ? 'Sign in' : 'Create account'}
             </h1>
             <p className="text-sm" style={{ color: '#606060' }}>
-              {mode === 'signup' ? 'Create your free account' : 'Welcome back'}
+              {mode === 'signin' ? 'Enter your email and password to continue' : 'Join free — no crypto knowledge needed'}
             </p>
           </div>
 
@@ -129,12 +184,11 @@ export default function LoginPage() {
           <button
             onClick={handleGoogle}
             disabled={loading}
-            className="mb-6 w-full cursor-pointer text-center disabled:opacity-40"
+            className="mb-6 w-full cursor-pointer rounded text-center disabled:opacity-40"
             style={{
               background: 'white',
               color: '#333333',
               border: '1px solid #dadce0',
-              borderRadius: '4px',
               padding: '12px 24px',
               fontSize: '14px',
             }}
@@ -164,7 +218,7 @@ export default function LoginPage() {
                   onChange={e => setName(e.target.value)}
                   placeholder="Your name"
                   required
-                  className="w-full border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
                 />
               </div>
             )}
@@ -179,7 +233,8 @@ export default function LoginPage() {
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@email.com"
                 required
-                className="w-full border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
+                autoComplete="email"
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
               />
             </div>
 
@@ -191,31 +246,44 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="Min. 6 characters"
+                placeholder={mode === 'signin' ? 'Your password' : 'Min. 6 characters'}
                 minLength={6}
                 required
-                className="w-full border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
+                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
               />
             </div>
 
             {error && (
-              <p className="text-xs text-red-400">{error}</p>
+              <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-400">
+                {error}
+              </p>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="mt-2 w-full bg-white py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-40"
+              className="mt-2 w-full rounded-full bg-white py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-40"
             >
               {loading
-                ? mode === 'signup' ? 'Creating account…' : 'Signing in…'
-                : mode === 'signup' ? 'Create account' : 'Sign in'}
+                ? mode === 'signin' ? 'Signing in…' : 'Creating account…'
+                : mode === 'signin' ? 'Sign in' : 'Create account'}
             </button>
           </form>
 
           {/* Toggle mode */}
           <p className="mt-6 text-center text-xs" style={{ color: '#606060' }}>
-            {mode === 'signup' ? (
+            {mode === 'signin' ? (
+              <>
+                Don&apos;t have an account?{' '}
+                <button
+                  onClick={() => { setMode('signup'); setError(null) }}
+                  className="text-white underline-offset-2 hover:underline"
+                >
+                  Sign up →
+                </button>
+              </>
+            ) : (
               <>
                 Already have an account?{' '}
                 <button
@@ -225,23 +293,17 @@ export default function LoginPage() {
                   Sign in →
                 </button>
               </>
-            ) : (
-              <>
-                New to Slate?{' '}
-                <button
-                  onClick={() => { setMode('signup'); setError(null) }}
-                  className="text-white underline-offset-2 hover:underline"
-                >
-                  Create account →
-                </button>
-              </>
             )}
           </p>
 
-          {/* Bottom note */}
-          <p className="mt-10 text-center text-xs leading-6" style={{ color: '#404040' }}>
-            Guests join free. Your wallet is created automatically — no crypto knowledge needed.
-          </p>
+          {mode === 'signin' && (
+            <p className="mt-4 text-center text-xs" style={{ color: '#404040' }}>
+              Are you a server?{' '}
+              <a href="/servers/signup" className="text-white underline-offset-2 hover:underline">
+                Create a server profile →
+              </a>
+            </p>
+          )}
 
         </div>
       </main>
