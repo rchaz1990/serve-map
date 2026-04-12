@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
+import { supabase } from '@/lib/supabase'
 
 const STEPS = ['Your info', 'Work history', 'Photo & bio']
 
@@ -17,11 +18,13 @@ export default function ServerSignupPage() {
 
   // txSig holds the new server's Supabase ID on success
 
-  // Step 1 fields
+  // Step 0 fields
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   // Step 2 fields
   const [role, setRole] = useState('')
@@ -146,11 +149,30 @@ export default function ServerSignupPage() {
   const canAdvanceStep2 = bio.length >= 20
 
   async function handleClaim() {
+    // Validate passwords match
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.')
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
       const fullName = `${firstName} ${lastName}`.trim()
 
+      // Step 1 — Create Supabase auth account so server can log back in
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: fullName } },
+      })
+      if (authError) throw new Error(authError.message)
+
+      // Step 2 — Create server profile via API route (server-side Supabase insert)
       const res = await fetch('/api/signup-server', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -164,14 +186,13 @@ export default function ServerSignupPage() {
           restaurant2: venue2 || undefined,
           restaurantAddress2: (confirmedPlace2?.address ?? city2) || undefined,
           city2: city2 || undefined,
-          walletAddress: null, // fee payer assigned server-side
+          walletAddress: null,
+          userId: authData.user?.id,
         }),
       })
 
       const json = await res.json()
-      console.log('API Response:', json)
       if (!res.ok) {
-        console.log('API Error:', json.error)
         const errMsg = typeof json.error === 'string'
           ? json.error
           : json.error?.message || JSON.stringify(json.error) || 'Signup failed'
@@ -185,7 +206,8 @@ export default function ServerSignupPage() {
         body: JSON.stringify({ email, firstName, lastName, role, venue: `${venue}, ${city}`.trim() }),
       }).catch(() => {})
 
-      setTxSig(json.serverId) // triggers success screen with profile + dashboard buttons
+      // Redirect to dashboard — auth session is now active
+      window.location.href = '/dashboard'
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
@@ -312,6 +334,16 @@ export default function ServerSignupPage() {
                     Phone <span style={{ color: '#606060' }}>(optional)</span>
                   </label>
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 212 555 0100"
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40" />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>Create a password</label>
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 6 characters" minLength={6}
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40" />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>Confirm password</label>
+                  <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat your password"
                     className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40" />
                 </div>
               </div>

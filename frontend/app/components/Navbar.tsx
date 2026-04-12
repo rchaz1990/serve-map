@@ -109,7 +109,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
             href="/account"
             className="text-xs font-medium text-white/50 transition-colors hover:text-white"
           >
-            My Account
+            My Dashboard
           </a>
         )}
         <button
@@ -217,7 +217,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
                 onClick={() => setMenuOpen(false)}
                 className="border-b border-white/10 py-5 text-2xl font-semibold text-white"
               >
-                My Account
+                My Dashboard
               </a>
             )}
           </nav>

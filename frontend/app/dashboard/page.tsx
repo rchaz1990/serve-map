@@ -511,18 +511,37 @@ export default function DashboardPage() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>('')
   const [showRestaurantPicker, setShowRestaurantPicker] = useState(false)
 
-  // Load server's registered restaurants from Supabase
+  // Load only THIS server's restaurants — scoped by session email
   useEffect(() => {
-    supabase
-      .from('server_restaurants')
-      .select('id, restaurant_name, is_primary')
-      .eq('currently_working', true)
-      .then(({ data }) => {
-        const rows = data ?? DEMO_WORKPLACES.map(w => ({ id: w.id, restaurant_name: w.restaurant_name, is_primary: w.is_primary }))
-        setRestaurants(rows)
-        // Auto-select if only one
-        if (rows.length === 1) setSelectedRestaurant(rows[0].restaurant_name)
-      })
+    async function loadRestaurants() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user?.email) {
+        setRestaurants(DEMO_WORKPLACES.map(w => ({ id: w.id, restaurant_name: w.restaurant_name, is_primary: w.is_primary })))
+        return
+      }
+
+      const { data: serverRow } = await supabase
+        .from('servers')
+        .select('id')
+        .eq('email', session.user.email)
+        .single()
+
+      if (!serverRow) {
+        setRestaurants(DEMO_WORKPLACES.map(w => ({ id: w.id, restaurant_name: w.restaurant_name, is_primary: w.is_primary })))
+        return
+      }
+
+      const { data } = await supabase
+        .from('server_restaurants')
+        .select('id, restaurant_name, is_primary')
+        .eq('server_id', serverRow.id)
+        .eq('currently_working', true)
+
+      const rows = data ?? []
+      setRestaurants(rows)
+      if (rows.length === 1) setSelectedRestaurant(rows[0].restaurant_name)
+    }
+    loadRestaurants()
   }, [])
 
   // Shift state — mirrors QR: shift is on when a QR code is active
@@ -1208,6 +1227,17 @@ export default function DashboardPage() {
             }}
           />
         </div>
+      </div>
+
+      {/* ── Sign out ──────────────────────────────────────────────────────── */}
+      <div className="border-t border-white/10 px-8 py-8 lg:px-16">
+        <button
+          onClick={async () => { await supabase.auth.signOut(); router.push('/') }}
+          className="text-xs font-medium transition-colors hover:text-white"
+          style={{ color: '#404040' }}
+        >
+          Sign out →
+        </button>
       </div>
 
     </div>

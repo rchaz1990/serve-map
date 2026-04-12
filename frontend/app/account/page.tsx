@@ -327,6 +327,16 @@ export default function AccountPage() {
           </p>
         </section>
 
+        <div className="border-t border-white/10 py-8">
+          <button
+            onClick={async () => { await supabase.auth.signOut(); router.push('/') }}
+            className="text-xs font-medium transition-colors hover:text-white"
+            style={{ color: '#404040' }}
+          >
+            Sign out →
+          </button>
+        </div>
+
       </main>
     </div>
   )
