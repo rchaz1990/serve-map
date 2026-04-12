@@ -538,81 +538,55 @@ export default function WhitepaperPage() {
 
           <div className="mb-8 space-y-4 text-base leading-8" style={{ color: '#C0C0C0' }}>
             <p>
-              Slate operates on a freemium model designed to drive maximum adoption before monetization.
+              Slate operates a four-stream revenue model that never charges servers or bartenders.
             </p>
           </div>
 
-          {/* Free for servers */}
-          <div className="mb-8 rounded-xl border border-white/25 bg-white/[0.04] px-6 py-5">
+          {/* Free for servers callout */}
+          <div className="mb-10 rounded-xl border border-white/25 bg-white/[0.04] px-6 py-5">
             <p className="mb-1 text-sm font-bold text-white">For servers and bartenders: Free forever.</p>
             <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>No subscriptions. No fees. No exceptions.</p>
           </div>
 
-          {/* Restaurant tiers */}
-          <h3 className="mb-4 text-base font-semibold text-white">For restaurants — three tiers</h3>
-          <div className="mb-8 space-y-4">
+          {/* Four revenue streams */}
+          <div className="mb-10 space-y-4">
             {[
               {
-                title: 'Ghost listing — Automatic, free',
-                body: 'Any venue reported by guests appears on Slate\'s live map automatically. No signup required. Guests discovering and reporting venues is the core growth loop — zero friction for the restaurant.',
+                stream: 'Stream 1',
+                title: 'Restaurant subscriptions',
+                body: 'Verified Partner at $99/month includes staff analytics, shift visibility, priority placement on the live map, and guest insights. Premium at $299/month adds recruiting tools, featured placement, and Scheduling & Reservations.',
               },
               {
-                title: 'Claimed listing — Free forever',
-                body: 'Restaurants claim their venue page, add photos and a description, and see basic vibe reports from guests. Always free. Claiming creates the relationship and sets up the upgrade path.',
+                stream: 'Stream 2',
+                title: '$SERVE token ecosystem',
+                body: 'Guests earn $SERVE by leaving verified ratings and reporting venue vibes. Servers earn $SERVE through great service and verified ratings. Token value appreciates as platform adoption grows. Nobody needs to visit a crypto exchange — tokens circulate naturally inside the platform.',
               },
               {
-                title: 'Verified partner — $99/month',
-                body: 'Staff performance analytics, see which servers are on shift tonight, scheduling integration, priority placement on the live map, and guest insight data.',
+                stream: 'Stream 3',
+                title: 'Slate Pay cashout fee — 2%',
+                body: 'When servers cash out $SERVE rewards to real money Slate takes 2%. Servers only pay when they get paid. At scale with 10,000 active servers this generates over $500,000 annually from cashouts alone.',
               },
               {
-                title: 'Premium partner — $299/month',
-                body: 'Everything in Verified plus recruitment tools to search and invite high-rated servers, a custom venue profile, featured placement in search results, and Scheduling & Reservations — Coming Soon.',
+                stream: 'Stream 4',
+                title: 'Data insights — launching Year 2',
+                body: 'Slate sits on top of the most granular real-time hospitality data ever built. Anonymized aggregate trend intelligence — which neighborhoods are hottest, which nights are busiest, which venues drive the highest staff ratings — licensed to real estate developers, hotel chains, hospitality publications, and private equity firms. No personal data. Ever. Initial contracts projected at $95,000 in Year 2 growing to over $5,000,000 annually at national scale.',
               },
-            ].map(tier => (
-              <div key={tier.title} className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
-                <p className="mb-2 text-sm font-semibold text-white">{tier.title}</p>
-                <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>{tier.body}</p>
+            ].map(item => (
+              <div key={item.stream} className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
+                <div className="mb-2 flex items-baseline gap-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#404040' }}>{item.stream}</span>
+                  <span className="text-sm font-semibold text-white">{item.title}</span>
+                </div>
+                <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>{item.body}</p>
               </div>
             ))}
           </div>
 
-          {/* Flywheel */}
-          <h3 className="mb-4 text-base font-semibold text-white">Revenue flywheel</h3>
-          <div className="mb-8 rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
-            <div className="flex flex-col gap-2">
-              {[
-                'Guests report venues for free',
-                'Restaurants get discovered',
-                'Restaurants claim their page',
-                'Restaurants see the value and upgrade for staff analytics',
-                'Restaurants recruit top servers',
-                'More servers join',
-                'More guests use Slate',
-              ].map((step, i, arr) => (
-                <div key={step} className="flex items-center gap-3">
-                  <span className="shrink-0 font-mono text-[10px]" style={{ color: '#404040' }}>{String(i + 1).padStart(2, '0')}</span>
-                  <span className="text-sm" style={{ color: '#A0A0A0' }}>{step}</span>
-                  {i < arr.length - 1 && <span className="ml-auto text-xs" style={{ color: '#404040' }}>→</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Token ecosystem */}
-          <h3 className="mb-4 text-base font-semibold text-white">$SERVE token ecosystem</h3>
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
-            <ul className="space-y-2">
-              {[
-                'Guests spend $SERVE for priority notifications when a followed server is working.',
-                'Servers stake $SERVE for profile visibility in search results.',
-                'All platform fees generate automatic buy pressure on $SERVE.',
-              ].map(item => (
-                <li key={item} className="flex items-start gap-3 text-sm leading-6" style={{ color: '#A0A0A0' }}>
-                  <span className="mt-1 shrink-0 text-xs" style={{ color: '#606060' }}>—</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
+          {/* One-liner summary */}
+          <div className="rounded-xl border border-white/15 px-6 py-5">
+            <p className="text-sm leading-7" style={{ color: '#C0C0C0' }}>
+              We never charge the workers. We charge the venues who need them, capture a small fee when workers cash out their rewards, and long term we monetize the most valuable real-time hospitality dataset ever built.
+            </p>
           </div>
         </section>
 
