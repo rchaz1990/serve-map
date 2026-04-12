@@ -77,10 +77,9 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
 
     init()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
-      setSession(s)
-      if (s?.user) {
-        // Re-run detection after sign-in events (e.g. redirected from /login)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, s) => {
+      if (event === 'SIGNED_IN' && s?.user) {
+        setSession(s)
         const found = await detectServer(s.user.id, s.user.email ?? null)
         if (found) {
           setServerRow(found)
@@ -94,7 +93,11 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           localStorage.removeItem('slateServerName')
         }
         setAuthLoaded(true)
-      } else {
+      } else if (event === 'TOKEN_REFRESHED' && s) {
+        // Session silently refreshed — just update the session object, keep UI as-is
+        setSession(s)
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null)
         setServerRow(null)
         setAuthLoaded(true)
         localStorage.removeItem('slateUserType')
