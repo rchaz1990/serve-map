@@ -31,33 +31,42 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   const [authLoaded, setAuthLoaded] = useState(false)
 
   useEffect(() => {
-    // Fast path — seed from localStorage so nav renders immediately
-    const cachedType = localStorage.getItem('slateUserType')
-    const cachedId   = localStorage.getItem('slateServerId')
-    const cachedName = localStorage.getItem('slateServerName')
-    if (cachedType === 'server' && cachedId) {
-      setServerRow({ id: cachedId, name: cachedName })
+    // ── Step 1: Read localStorage synchronously — no async delay ──────────────
+    // This runs before the first paint so the nav never shows a logged-out flash.
+    const storedId   = localStorage.getItem('slateServerId')
+    const storedType = localStorage.getItem('slateUserType')
+    const storedName = localStorage.getItem('slateServerName')
+
+    if (storedId && storedType === 'server') {
+      // We know the user is a server — show Dashboard/Sign out immediately
+      setServerRow({ id: storedId, name: storedName })
+      setAuthLoaded(true)  // ← render auth links right now, no waiting
     }
 
+    // ── Step 2: Verify with Supabase in background ────────────────────────────
     const init = async () => {
       const { data: { session: s } } = await supabase.auth.getSession()
       setSession(s)
 
       if (s?.user) {
-        const found = await detectServer(s.user.id, s.user.email ?? null)
-        if (found) {
-          setServerRow(found)
-          localStorage.setItem('slateServerId', found.id)
-          localStorage.setItem('slateUserType', 'server')
-          if (found.name) localStorage.setItem('slateServerName', found.name)
-        } else {
-          setServerRow(null)
-          localStorage.setItem('slateUserType', 'guest')
-          localStorage.removeItem('slateServerId')
-          localStorage.removeItem('slateServerName')
+        if (!storedId) {
+          // No cached state — need to detect from Supabase
+          const found = await detectServer(s.user.id, s.user.email ?? null)
+          if (found) {
+            setServerRow(found)
+            localStorage.setItem('slateServerId', found.id)
+            localStorage.setItem('slateUserType', 'server')
+            if (found.name) localStorage.setItem('slateServerName', found.name)
+          } else {
+            setServerRow(null)
+            localStorage.setItem('slateUserType', 'guest')
+            localStorage.removeItem('slateServerId')
+            localStorage.removeItem('slateServerName')
+          }
         }
+        // If storedId exists, trust the cache — already set in Step 1
       } else {
-        // No session — clear stale cache
+        // No active session — clear any stale cache
         setServerRow(null)
         localStorage.removeItem('slateUserType')
         localStorage.removeItem('slateServerId')
@@ -71,7 +80,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
       setSession(s)
       if (s?.user) {
-        // Re-run detection on sign-in (e.g. after login page redirect)
+        // Re-run detection after sign-in events (e.g. redirected from /login)
         const found = await detectServer(s.user.id, s.user.email ?? null)
         if (found) {
           setServerRow(found)
