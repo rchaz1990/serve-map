@@ -10,6 +10,8 @@ const supabase = createClient(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    console.log('[signup-server] Request body:', JSON.stringify(body))
+
     const {
       name,
       email: rawEmail,
@@ -24,7 +26,7 @@ export async function POST(request: NextRequest) {
     } = body
 
     const email = rawEmail?.toLowerCase().trim()
-    console.log('[signup-server] Saving server — email:', email, 'userId:', userId)
+    console.log('[signup-server] Saving server — email:', email, 'userId:', userId, 'restaurant:', restaurant)
 
     // Insert server row — wallet_address holds the Supabase auth user ID
     // so every query can do .eq('wallet_address', session.user.id)
@@ -40,46 +42,58 @@ export async function POST(request: NextRequest) {
       .select('id, name')
       .single()
 
+    console.log('[signup-server] Server created:', server, 'Error:', serverError)
     if (serverError) throw serverError
 
     const today = new Date().toISOString().slice(0, 10)
 
-    // Build restaurant rows
-    const restaurantRows: object[] = [
-      {
+    // Primary restaurant
+    const { data: rest1, error: rest1Error } = await supabase
+      .from('server_restaurants')
+      .insert({
         server_id: server.id,
-        restaurant_name: restaurant,
+        restaurant_name: restaurant ?? '',
         restaurant_address: restaurantAddress ?? null,
         city: city ?? 'New York',
         is_primary: true,
         currently_working: true,
         start_date: today,
-      },
-    ]
-
-    if (restaurant2) {
-      restaurantRows.push({
-        server_id: server.id,
-        restaurant_name: restaurant2,
-        restaurant_address: restaurantAddress2 ?? null,
-        city: city2 ?? 'New York',
-        is_primary: false,
-        currently_working: true,
-        start_date: today,
       })
+      .select()
+
+    console.log('[signup-server] Restaurant saved:', rest1)
+    console.log('[signup-server] Restaurant error:', rest1Error)
+    if (rest1Error) {
+      console.error('[signup-server] Failed to save restaurant:', rest1Error.message, rest1Error.details, rest1Error.hint)
     }
 
-    const { error: restError } = await supabase
-      .from('server_restaurants')
-      .insert(restaurantRows)
+    // Second restaurant (optional)
+    if (restaurant2) {
+      const { data: rest2, error: rest2Error } = await supabase
+        .from('server_restaurants')
+        .insert({
+          server_id: server.id,
+          restaurant_name: restaurant2,
+          restaurant_address: restaurantAddress2 ?? null,
+          city: city2 ?? 'New York',
+          is_primary: false,
+          currently_working: true,
+          start_date: today,
+        })
+        .select()
 
-    if (restError) throw restError
+      console.log('[signup-server] Restaurant 2 saved:', rest2)
+      if (rest2Error) {
+        console.error('[signup-server] Failed to save restaurant 2:', rest2Error.message, rest2Error.details, rest2Error.hint)
+      }
+    }
 
     return NextResponse.json({
       success: true,
       message: 'Profile created successfully',
-      serverId: server.id,   // UUID e.g. "550e8400-e29b-41d4-a716-446655440000"
+      serverId: server.id,
       serverName: server.name,
+      restaurantSaved: !rest1Error,
     })
   } catch (error: unknown) {
     console.error('[signup-server] error details:', error)
