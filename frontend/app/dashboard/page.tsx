@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import QRCode from 'react-qr-code'
 import Navbar from '@/app/components/Navbar'
@@ -485,6 +486,15 @@ function WorkerCouncilSection() {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
+
+  // Auth guard — redirect to login if not authenticated
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) router.push('/login')
+    })
+  }, [router])
+
   const [copied, setCopied] = useState(false)
   const [shiftToast, setShiftToast] = useState(false)
   const { qrCode, msLeft, activate, deactivate, formatCountdown } = useQRCode()

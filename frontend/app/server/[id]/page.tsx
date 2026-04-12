@@ -1,532 +1,395 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
+import { useParams, useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
+import { supabase } from '@/lib/supabase'
 
-// Demo data — in production this would be fetched by `id` from the chain.
-const profile = {
-  id: "marcus-johnson",
-  initials: "MJ",
-  name: "Marcus Johnson",
-  role: "Head Bartender",
-  restaurant: "Eleven Madison Park",
-  restaurantOnSlate: false, // toggle to true when restaurant is listed
-  location: "New York, NY",
-  rating: 4.9,
-  totalRatings: 127,
-  followers: 89,
-  totalBookings: 312,
-  yearsExperience: 7,
-  repeatGuestPct: 78,
-  serveTokens: 847,
-  serveTokensGoal: 1000,
-  bio: "Seven years behind the bar and at the table. Known for remembering names, preferences, and making every reservation feel like a regular's.",
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type ServerRow = {
+  id: string
+  name: string
+  email: string
+  role: string
+  wallet_address: string | null
+  average_rating: number
+  total_ratings: number
+  follower_count: number
+  is_founding_member: boolean
+  created_at: string
+  server_restaurants: RestaurantRow[]
+  ratings: RatingRow[]
 }
 
-const reviews = [
-  {
-    guest: "Sarah K.",
-    rating: 5,
-    date: "March 12, 2025",
-    comment:
-      "Marcus remembered my dietary restrictions from a visit six months prior — without me saying a word. That level of attention is rare anywhere, let alone at this scale.",
-  },
-  {
-    guest: "David L.",
-    rating: 5,
-    date: "March 3, 2025",
-    comment:
-      "Effortless pacing, genuinely warm without being performative. He made our anniversary dinner feel personal. Already requested him for our next visit.",
-  },
-  {
-    guest: "Rachel M.",
-    rating: 4,
-    date: "February 22, 2025",
-    comment:
-      "Attentive without hovering. Knew when to engage and when to give us space. The cocktail recommendations were exactly right.",
-  },
-]
+type RestaurantRow = {
+  id: string
+  restaurant_name: string
+  restaurant_address: string | null
+  city: string | null
+  is_primary: boolean
+  currently_working: boolean
+}
 
-const career = [
-  {
-    restaurant: "Eleven Madison Park",
-    location: "New York, NY",
-    role: "Head Bartender",
-    period: "Jan 2023 – Present",
-    current: true,
-  },
-  {
-    restaurant: "Le Bernardin",
-    location: "New York, NY",
-    role: "Senior Server",
-    period: "Aug 2020 – Dec 2022",
-    current: false,
-  },
-  {
-    restaurant: "Nobu Fifty Seven",
-    location: "New York, NY",
-    role: "Server",
-    period: "Mar 2018 – Jul 2020",
-    current: false,
-  },
-]
+type RatingRow = {
+  id: string
+  score: number
+  comment: string | null
+  restaurant_name: string | null
+  created_at: string
+  guest_name: string | null
+}
 
-const stats = [
-  { label: "Avg. rating", value: `${profile.rating}` },
-  { label: "Total bookings", value: profile.totalBookings.toLocaleString() },
-  { label: "Years experience", value: `${profile.yearsExperience}` },
-  { label: "Repeat guests", value: `${profile.repeatGuestPct}%` },
-]
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
-// Placeholder follower initials
-const followerAvatars = ["SK", "DL", "RM"]
+function Stars({ score }: { score: number }) {
+  const full = Math.round(score)
+  return (
+    <span className="text-sm">
+      {'★'.repeat(full)}{'☆'.repeat(5 - full)}
+    </span>
+  )
+}
 
-const QR_DURATION_MS = 8 * 60 * 60 * 1000
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+}
+
+function initials(name: string) {
+  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function ServerProfilePage() {
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+
+  const [server, setServer] = useState<ServerRow | null>(null)
+  const [loading, setLoading] = useState(true)
   const [following, setFollowing] = useState(false)
-  const [followerCount, setFollowerCount] = useState(profile.followers)
-  const [showToast, setShowToast] = useState(false)
-  const [inviteSent, setInviteSent] = useState(false)
-  const [showInviteToast, setShowInviteToast] = useState(false)
-  const [isOnShift, setIsOnShift] = useState(false)
+  const [followLoading, setFollowLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [guestId, setGuestId] = useState<string | null>(null)
 
-  // Check localStorage for active shift QR on mount
+  const profileUrl = typeof window !== 'undefined'
+    ? window.location.href
+    : `slatenow.xyz/server/${id}`
+
+  // Load profile data — single nested query (no auth required)
   useEffect(() => {
-    const ts = localStorage.getItem('slate-qr-activated-at')
-    if (ts) {
-      const remaining = parseInt(ts, 10) + QR_DURATION_MS - Date.now()
-      setIsOnShift(remaining > 0)
+    if (!id) return
+    async function load() {
+      setLoading(true)
+      const { data } = await supabase
+        .from('servers')
+        .select(`
+          *,
+          server_restaurants (
+            id,
+            restaurant_name,
+            restaurant_address,
+            city,
+            is_primary,
+            currently_working
+          ),
+          ratings (
+            id,
+            score,
+            comment,
+            restaurant_name,
+            created_at,
+            guest_name
+          )
+        `)
+        .eq('id', id)
+        .single()
+
+      if (data) {
+        // Sort restaurants: primary first; sort ratings: newest first
+        const sorted = {
+          ...data,
+          server_restaurants: [...(data.server_restaurants ?? [])].sort(
+            (a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0)
+          ),
+          ratings: [...(data.ratings ?? [])].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          ),
+        }
+        setServer(sorted as ServerRow)
+      }
+      setLoading(false)
     }
-  }, [])
+    load()
+  }, [id])
 
+  // Check auth + existing follow state
   useEffect(() => {
-    if (!showToast) return
-    const t = setTimeout(() => setShowToast(false), 3000)
-    return () => clearTimeout(t)
-  }, [showToast])
+    if (!id) return
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) return
+      setGuestId(session.user.id)
+      const { data } = await supabase
+        .from('follows')
+        .select('server_id')
+        .eq('guest_id', session.user.id)
+        .eq('server_id', id)
+        .limit(1)
+        .single()
+      if (data) setFollowing(true)
+    })
+  }, [id])
 
-  useEffect(() => {
-    if (!showInviteToast) return
-    const t = setTimeout(() => setShowInviteToast(false), 4000)
-    return () => clearTimeout(t)
-  }, [showInviteToast])
-
-  function handleInvite() {
-    setInviteSent(true)
-    setShowInviteToast(true)
-  }
-
-  function handleFollow() {
+  async function handleFollow() {
+    if (!guestId) {
+      router.push(`/login?message=${encodeURIComponent('Sign in to follow this server')}`)
+      return
+    }
+    setFollowLoading(true)
     if (following) {
+      await supabase.from('follows').delete().eq('guest_id', guestId).eq('server_id', id)
       setFollowing(false)
-      setFollowerCount(c => c - 1)
     } else {
+      await supabase.from('follows').insert({ guest_id: guestId, server_id: id })
       setFollowing(true)
-      setFollowerCount(c => c + 1)
-      setShowToast(true)
     }
+    setFollowLoading(false)
   }
 
-  const serveProgress = Math.round((profile.serveTokens / profile.serveTokensGoal) * 100)
+  function handleCopy() {
+    navigator.clipboard.writeText(profileUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  // ── Loading ────────────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="min-h-screen" style={{ backgroundColor: '#000000' }}>
+        <Navbar />
+        <div className="border-t border-white/10" />
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <p className="text-sm" style={{ color: '#404040' }}>Loading profile…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!server) {
+    return (
+      <div className="min-h-screen" style={{ backgroundColor: '#000000' }}>
+        <Navbar />
+        <div className="border-t border-white/10" />
+        <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 px-8 text-center">
+          <p className="text-sm" style={{ color: '#606060' }}>This profile doesn&apos;t exist yet.</p>
+          <a
+            href="/live"
+            className="rounded-full border border-white/25 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:border-white"
+          >
+            Discover servers on Slate →
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Derived stats ──────────────────────────────────────────────────────────
+
+  const restaurants = server.server_restaurants ?? []
+  const ratings = server.ratings ?? []
+  const primaryRestaurant = restaurants.find(r => r.is_primary) ?? restaurants[0]
+
+  // Calculate avg rating from actual ratings array (more accurate than stored field)
+  const avgRating = ratings.length > 0
+    ? ratings.reduce((sum, r) => sum + r.score, 0) / ratings.length
+    : server.average_rating
+
+  const totalRatings = ratings.length || server.total_ratings
+  const serveBalance = totalRatings * 10  // servers earn $SERVE when guests rate them
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div
-      className="min-h-screen text-white"
-      style={{ backgroundColor: "#000000", fontFamily: "var(--font-geist-sans)" }}
-    >
-      {/* Navbar overlaid on banner */}
-      <div className="relative z-20">
-        <Navbar overlay />
-      </div>
+    <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+      <Navbar />
+      <div className="border-t border-white/10" />
 
-      {/* ── Banner ──────────────────────────────────────────────────────── */}
-      <div className="relative h-56 w-full overflow-hidden sm:h-72 lg:h-96">
-        <Image
-          src="https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=1920&q=80"
-          alt="Bar background"
-          fill
-          priority
-          className="object-cover"
-        />
-        {/* Gradient overlay — heavier at bottom so avatar pops */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black" />
-      </div>
+      <main className="mx-auto max-w-3xl px-8 py-16 lg:px-16 lg:py-20">
 
-      {/* ── Profile Header ──────────────────────────────────────────────── */}
-      <div className="mx-auto max-w-5xl px-8 lg:px-16">
-
-        {/* Avatar row — pulled up over the banner */}
-        <div className="relative -mt-16 mb-6 flex flex-col gap-6 sm:-mt-20 sm:flex-row sm:items-end sm:justify-between">
-
-          {/* Avatar */}
-          <div
-            className="flex h-32 w-32 shrink-0 items-center justify-center rounded-full border-4 border-black bg-white text-3xl font-bold text-black sm:h-36 sm:w-36"
-            aria-label={`${profile.name} avatar`}
-          >
-            {profile.initials}
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <div className="mb-12">
+          {/* Avatar + founding badge */}
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white text-2xl font-bold text-black">
+              {initials(server.name)}
+            </div>
+            {server.is_founding_member && (
+              <span className="rounded-full border border-white/20 bg-white/[0.05] px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
+                Founding Member
+              </span>
+            )}
           </div>
 
-          {/* Action buttons — stacks on mobile, row on desktop */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:pb-2">
-            {profile.restaurantOnSlate ? (
-              /* Restaurant is on Slate — show reserve */
-              <a
-                href="/book"
-                className="w-full rounded-full bg-white px-8 py-3 text-center text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:w-auto"
-              >
-                Reserve with {profile.name.split(' ')[0]}
-              </a>
-            ) : (
-              /* Restaurant not on Slate — show follow + invite */
-              <>
-                <button
-                  onClick={handleFollow}
-                  className="w-full rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:w-auto"
-                >
-                  {following ? `Following ${profile.name.split(' ')[0]} ✓` : `Follow ${profile.name.split(' ')[0]}`}
-                </button>
-                <button
-                  onClick={handleInvite}
-                  disabled={inviteSent}
-                  className="w-full rounded-full border border-white/30 px-6 py-3 text-sm font-medium text-white transition-colors hover:border-white disabled:opacity-50 sm:w-auto"
-                >
-                  {inviteSent ? 'Invitation sent ✓' : `Invite ${profile.restaurant} to Slate`}
-                </button>
-              </>
+          {/* Name */}
+          <h1 className="mb-1 text-4xl font-bold tracking-tight text-white sm:text-5xl">
+            {server.name}
+          </h1>
+
+          {/* Role + restaurant */}
+          <p className="mb-5 text-base" style={{ color: '#A0A0A0' }}>
+            {server.role}
+            {primaryRestaurant && <> · {primaryRestaurant.restaurant_name}</>}
+          </p>
+
+          {/* Stats row */}
+          <div className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-2">
+            {avgRating > 0 && (
+              <span className="text-lg font-bold text-white">{avgRating.toFixed(1)} ★</span>
             )}
-            {profile.restaurantOnSlate && (
-              <button
-                onClick={handleFollow}
-                className={[
-                  'w-full rounded-full border px-6 py-3 text-sm font-medium transition-colors sm:w-auto',
-                  following
-                    ? 'border-white/40 text-white/60 hover:border-white/60'
-                    : 'border-white/30 text-white hover:border-white',
-                ].join(' ')}
-              >
-                {following ? 'Following ✓' : '+ Follow'}
-              </button>
-            )}
-            <a
-              href="/server/1/card"
-              className="w-full rounded-full border border-white/20 px-5 py-3 text-center text-sm font-medium text-white/60 transition-colors hover:border-white hover:text-white sm:w-auto"
+            <span className="text-sm" style={{ color: '#A0A0A0' }}>
+              {totalRatings} verified {totalRatings === 1 ? 'rating' : 'ratings'}
+            </span>
+            <span style={{ color: '#404040' }}>·</span>
+            <span className="text-sm" style={{ color: '#A0A0A0' }}>
+              {server.follower_count} {server.follower_count === 1 ? 'follower' : 'followers'}
+            </span>
+          </div>
+
+          {/* $SERVE balance */}
+          {serveBalance > 0 && (
+            <p className="mb-5 text-sm font-semibold text-white">{serveBalance} $SERVE earned</p>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleFollow}
+              disabled={followLoading}
+              className={[
+                'rounded-full border px-6 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50',
+                following
+                  ? 'border-white/30 text-white/60 hover:border-white/50'
+                  : 'border-white text-white hover:bg-white hover:text-black',
+              ].join(' ')}
             >
-              Share my card
-            </a>
+              {following ? 'Following ✓' : 'Follow'}
+            </button>
+            <button
+              onClick={handleCopy}
+              className="rounded-full border border-white/20 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:border-white"
+            >
+              {copied ? 'Link copied!' : 'Copy profile link'}
+            </button>
           </div>
         </div>
 
-        {/* Name + verified + meta */}
-        <div className="mb-4 flex flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              {profile.name}
-            </h1>
-            {/* Verified badge */}
-            <span title="Verified on-chain profile" className="flex-shrink-0">
-              <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6">
-                <circle cx="12" cy="12" r="12" fill="white" />
-                <path
-                  d="M7 12.5l3.5 3.5 6.5-7"
-                  stroke="black"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            {/* On-shift badge */}
-            {isOnShift ? (
-              <span className="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/[0.06] px-3 py-1 text-xs font-semibold text-white">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-50" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
-                </span>
-                On shift now
-              </span>
-            ) : (
-              <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-medium" style={{ color: '#606060' }}>
-                Off shift
-              </span>
-            )}
-          </div>
-          <p className="flex flex-wrap items-center gap-2 text-sm" style={{ color: "#A0A0A0" }}>
-            {profile.role} · {profile.restaurant}
-            {!profile.restaurantOnSlate && (
-              <span className="rounded-full border border-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/50">
-                Not yet on Slate
-              </span>
-            )}
-            · {profile.location}
+        <div className="border-t border-white/10" />
+
+        {/* ── Where you'll find me ─────────────────────────────────────────── */}
+        <section className="py-12">
+          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
+            Where you&apos;ll find me
           </p>
-          <div className="mt-1 flex items-center gap-3">
-            <span className="text-lg font-bold text-white">
-              {profile.rating} ★
-            </span>
-            <span className="text-sm" style={{ color: "#A0A0A0" }}>
-              {profile.totalRatings} verified ratings
-            </span>
-            <span style={{ color: "#404040" }}>·</span>
-            <span className="text-sm" style={{ color: "#A0A0A0" }}>
-              {followerCount} followers
-            </span>
-            <span style={{ color: "#404040" }}>·</span>
-            <span className="text-sm" style={{ color: "#A0A0A0" }}>
-              {profile.totalBookings} bookings
-            </span>
-          </div>
-        </div>
 
-        {/* Bio */}
-        <p className="mb-0 max-w-2xl text-sm leading-relaxed" style={{ color: "#A0A0A0" }}>
-          {profile.bio}
-        </p>
-
-      </div>
-
-      {/* ── Divider ─────────────────────────────────────────────────────── */}
-      <div className="mt-10 border-t border-white/10" />
-
-      {/* ── Stats Row ───────────────────────────────────────────────────── */}
-      <section className="px-8 py-12 lg:px-16">
-        <div className="mx-auto max-w-5xl">
-          <div className="grid grid-cols-2 gap-px bg-white/10 sm:grid-cols-4">
-            {stats.map(({ label, value }) => (
-              <div
-                key={label}
-                className="flex flex-col gap-1 px-6 py-8 first:pl-0"
-                style={{ backgroundColor: "#000000" }}
-              >
-                <span className="text-3xl font-bold text-white">{value}</span>
-                <span className="text-xs uppercase tracking-widest" style={{ color: "#A0A0A0" }}>
-                  {label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Divider ─────────────────────────────────────────────────────── */}
-      <div className="border-t border-white/10" />
-
-      {/* ── $SERVE Rewards + Following — two-col on desktop ─────────────── */}
-      <section className="px-8 py-12 lg:px-16">
-        <div className="mx-auto max-w-5xl">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-
-            {/* $SERVE Rewards card */}
-            <div className="rounded-2xl border border-white/10 p-6" style={{ backgroundColor: "#0a0a0a" }}>
-              {/* Header row */}
-              <div className="mb-5 flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5 text-white">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" />
-                    </svg>
-                  </div>
+          {restaurants.length === 0 ? (
+            <p className="text-sm" style={{ color: '#606060' }}>No restaurants listed yet.</p>
+          ) : (
+            <div className="flex flex-col divide-y divide-white/10">
+              {restaurants.map(r => (
+                <div key={r.id} className="flex items-center justify-between py-5">
                   <div>
-                    <p className="text-sm font-semibold text-white">$SERVE Rewards</p>
-                    <p className="text-xs" style={{ color: "#A0A0A0" }}>Earned automatically from verified ratings</p>
-                  </div>
-                </div>
-                {/* Top 1% badge */}
-                <span className="shrink-0 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
-                  Top 1%
-                </span>
-              </div>
-
-              {/* Token amount */}
-              <div className="mb-5">
-                <span className="text-4xl font-bold text-white">{profile.serveTokens.toLocaleString()}</span>
-                <span className="ml-2 text-sm font-medium" style={{ color: "#A0A0A0" }}>$SERVE earned this month</span>
-              </div>
-
-              {/* Progress bar */}
-              <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(255,255,255,0.1)" }}>
-                <div
-                  className="h-full rounded-full bg-white transition-all"
-                  style={{ width: `${serveProgress}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <p className="text-xs" style={{ color: "#606060" }}>
-                  Next tier: {profile.serveTokensGoal.toLocaleString()} $SERVE
-                </p>
-                <p className="text-xs font-medium text-white">
-                  {profile.serveTokensGoal - profile.serveTokens} away
-                </p>
-              </div>
-            </div>
-
-            {/* Following card */}
-            <div className="rounded-2xl border border-white/10 p-6" style={{ backgroundColor: "#0a0a0a" }}>
-              <div className="mb-5 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-white">Followers</p>
-                  <p className="text-xs" style={{ color: "#A0A0A0" }}>People following Marcus's career</p>
-                </div>
-                <span className="text-3xl font-bold text-white">{profile.followers}</span>
-              </div>
-
-              {/* Follower avatars */}
-              <div className="mb-5 flex items-center gap-1">
-                {followerAvatars.map((initials, i) => (
-                  <div
-                    key={i}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-black bg-white text-xs font-bold text-black"
-                    style={{ marginLeft: i > 0 ? '-0.5rem' : '0' }}
-                  >
-                    {initials}
-                  </div>
-                ))}
-                <div
-                  className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-black text-xs font-medium"
-                  style={{ marginLeft: '-0.5rem', backgroundColor: "#1a1a1a", color: "#A0A0A0" }}
-                >
-                  +{profile.followers - followerAvatars.length}
-                </div>
-              </div>
-
-              {/* Follow prompt */}
-              <div className="rounded-xl border border-white/10 px-4 py-3.5">
-                <p className="text-xs leading-relaxed" style={{ color: "#A0A0A0" }}>
-                  Follow Marcus to get notified when he moves to a new restaurant or has availability.
-                </p>
-                <button
-                  onClick={handleFollow}
-                  className={[
-                    'mt-3 inline-block rounded-full px-5 py-2 text-xs font-semibold transition-opacity hover:opacity-80',
-                    following ? 'border border-white/30 text-white' : 'bg-white text-black',
-                  ].join(' ')}
-                >
-                  {following ? 'Following ✓' : 'Follow Marcus'}
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      {/* ── Divider ─────────────────────────────────────────────────────── */}
-      <div className="border-t border-white/10" />
-
-      {/* ── Recent Reviews ──────────────────────────────────────────────── */}
-      <section className="px-8 py-16 lg:px-16 lg:py-24">
-        <div className="mx-auto max-w-5xl">
-          <p className="mb-12 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#A0A0A0" }}>
-            Recent reviews
-          </p>
-
-          <div>
-            {reviews.map(({ guest, rating, date, comment }, i) => (
-              <div key={i}>
-                <div className="py-10">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm font-semibold text-white">{guest}</span>
-                      <span className="text-xs tracking-widest" style={{ color: "#A0A0A0" }}>
-                        {"★".repeat(rating)}{"☆".repeat(5 - rating)}
-                      </span>
-                    </div>
-                    <span className="text-xs" style={{ color: "#A0A0A0" }}>{date}</span>
-                  </div>
-                  <p className="max-w-2xl text-sm leading-relaxed" style={{ color: "#A0A0A0" }}>
-                    &ldquo;{comment}&rdquo;
-                  </p>
-                </div>
-                {i < reviews.length - 1 && <div className="border-t border-white/10" />}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Divider ─────────────────────────────────────────────────────── */}
-      <div className="border-t border-white/10" />
-
-      {/* ── Career History ──────────────────────────────────────────────── */}
-      <section className="px-8 py-16 lg:px-16 lg:py-24" style={{ backgroundColor: "#0a0a0a" }}>
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-12 flex items-end justify-between">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#A0A0A0" }}>
-              Career history
-            </p>
-            <p className="text-xs" style={{ color: "#A0A0A0" }}>
-              Profile is portable · verified on-chain
-            </p>
-          </div>
-
-          <div>
-            {career.map(({ restaurant, location, role, period, current }, i) => (
-              <div key={i}>
-                <div className="flex flex-col gap-1 py-8 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex flex-col gap-0.5">
-                    <div className="flex items-center gap-3">
-                      <span className="text-base font-semibold text-white">{restaurant}</span>
-                      {current && (
-                        <span className="rounded-full border border-white/20 px-2.5 py-0.5 text-xs font-medium text-white">
-                          Current
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-white">{r.restaurant_name}</p>
+                      {r.is_primary && (
+                        <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>
+                          Primary
+                        </span>
+                      )}
+                      {r.currently_working && (
+                        <span className="rounded-full border border-white/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white">
+                          Currently here
                         </span>
                       )}
                     </div>
-                    <span className="text-xs" style={{ color: "#A0A0A0" }}>
-                      {role} · {location}
+                    {(r.city || r.restaurant_address) && (
+                      <p className="mt-0.5 text-xs" style={{ color: '#606060' }}>
+                        {r.city ?? r.restaurant_address}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-xs" style={{ color: '#404040' }}>{server.role}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <div className="border-t border-white/10" />
+
+        {/* ── Ratings ─────────────────────────────────────────────────────── */}
+        <section className="py-12">
+          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
+            What guests are saying
+          </p>
+
+          {ratings.length === 0 ? (
+            <p className="text-sm leading-7" style={{ color: '#606060' }}>
+              No ratings yet. Share your profile link with guests to start building your reputation.
+            </p>
+          ) : (
+            <div className="flex flex-col divide-y divide-white/10">
+              {ratings.map(r => (
+                <div key={r.id} className="py-8">
+                  <div className="mb-3 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-white">
+                        {r.guest_name ?? 'Guest'}
+                      </span>
+                      <Stars score={r.score} />
+                    </div>
+                    <span className="shrink-0 text-xs" style={{ color: '#606060' }}>
+                      {formatDate(r.created_at)}
                     </span>
                   </div>
-                  <span className="text-xs tabular-nums" style={{ color: "#A0A0A0" }}>{period}</span>
+                  {r.comment && (
+                    <p className="mb-2 max-w-2xl text-sm leading-7" style={{ color: '#A0A0A0' }}>
+                      &ldquo;{r.comment}&rdquo;
+                    </p>
+                  )}
+                  {r.restaurant_name && (
+                    <p className="text-xs" style={{ color: '#404040' }}>at {r.restaurant_name}</p>
+                  )}
                 </div>
-                {i < career.length - 1 && <div className="border-t border-white/10" />}
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
+        </section>
+
+        <div className="border-t border-white/10" />
+
+        {/* ── Share your profile ───────────────────────────────────────────── */}
+        <section className="py-12">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
+            Share your profile
+          </p>
+          <p className="mb-5 text-sm leading-7" style={{ color: '#606060' }}>
+            Share this link with guests so they can rate you and follow you.
+          </p>
+          <div className="flex items-center gap-3 rounded-xl border border-white/15 px-4 py-3">
+            <span className="flex-1 truncate font-mono text-sm" style={{ color: '#A0A0A0' }}>
+              {profileUrl}
+            </span>
+            <button
+              onClick={handleCopy}
+              className="shrink-0 text-xs font-semibold text-white transition-opacity hover:opacity-70"
+            >
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ── Divider ─────────────────────────────────────────────────────── */}
-      <div className="border-t border-white/10" />
-
-      {/* ── Footer ──────────────────────────────────────────────────────── */}
-      <footer className="flex items-center justify-between px-8 py-8 lg:px-16">
-        <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Slate</span>
-        <p className="text-xs" style={{ color: "#A0A0A0" }}>
-          © {new Date().getFullYear()} Slate
-        </p>
-      </footer>
-
-      {/* ── Invite toast ────────────────────────────────────────────────── */}
-      <div
-        className={[
-          'fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full border border-white/20 bg-black px-5 py-3 shadow-lg transition-all duration-300 whitespace-nowrap',
-          showInviteToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none',
-        ].join(' ')}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-4 w-4 shrink-0 text-white">
-          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-        </svg>
-        <p className="text-xs font-medium text-white">
-          Invitation sent! We&apos;ll notify you when {profile.restaurant} joins Slate.
-        </p>
-      </div>
-
-      {/* ── Follow toast ────────────────────────────────────────────────── */}
-      <div
-        className={[
-          'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-full border border-white/20 bg-black px-5 py-3 shadow-lg transition-all duration-300',
-          showToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none',
-        ].join(' ')}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-4 w-4 shrink-0 text-white">
-          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-        </svg>
-        <p className="text-xs font-medium text-white">
-          You&apos;re now following Marcus. We&apos;ll notify you when he moves restaurants.
-        </p>
-      </div>
-
+      </main>
     </div>
   )
 }

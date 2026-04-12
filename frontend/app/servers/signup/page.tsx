@@ -2,9 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Script from 'next/script'
-import { useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
-import { supabase } from '@/lib/supabase'
 
 const STEPS = ['Your info', 'Work history', 'Photo & bio']
 
@@ -12,17 +10,12 @@ const STEPS = ['Your info', 'Work history', 'Photo & bio']
 console.log('Google Maps key:', process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY ? 'loaded' : 'missing')
 
 export default function ServerSignupPage() {
-  const router = useRouter()
   const [step, setStep] = useState(0)
   const [txSig, setTxSig] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!txSig) return
-    const t = setTimeout(() => router.push('/dashboard'), 2000)
-    return () => clearTimeout(t)
-  }, [txSig, router])
+  // txSig holds the new server's Supabase ID on success
 
   // Step 1 fields
   const [firstName, setFirstName] = useState('')
@@ -192,7 +185,7 @@ export default function ServerSignupPage() {
         body: JSON.stringify({ email, firstName, lastName, role, venue: `${venue}, ${city}`.trim() }),
       }).catch(() => {})
 
-      setTxSig(json.serverId) // repurpose txSig state to hold serverId for success screen
+      setTxSig(json.serverId) // triggers success screen with profile + dashboard buttons
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
@@ -224,12 +217,19 @@ export default function ServerSignupPage() {
             <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>
               Your founding member profile is live. Your reputation is now portable and permanent — yours forever.
             </p>
-            <div className="mt-6 flex items-center justify-center gap-2" style={{ color: '#A0A0A0' }}>
-              <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-              <p className="text-xs">Taking you to your dashboard…</p>
+            <div className="mt-8 flex flex-col gap-3">
+              <a
+                href={`/server/${txSig}`}
+                className="block w-full rounded-full bg-white py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+              >
+                View my profile →
+              </a>
+              <a
+                href="/dashboard"
+                className="block w-full rounded-full border border-white/25 py-3.5 text-sm font-semibold text-white transition-colors hover:border-white"
+              >
+                Go to dashboard →
+              </a>
             </div>
           </div>
         </main>

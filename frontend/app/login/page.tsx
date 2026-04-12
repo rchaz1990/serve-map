@@ -35,10 +35,16 @@ export default function LoginPage() {
     setError(null)
 
     if (mode === 'signup') {
+      // Email confirmation disabled in Supabase Auth settings:
+      // Authentication > Providers > Email > "Confirm email" = OFF
+      // This avoids rate limit errors on the free tier.
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: name } },
+        options: {
+          data: { full_name: name },
+          emailRedirectTo: undefined,
+        },
       })
       if (error) {
         setError(error.message)

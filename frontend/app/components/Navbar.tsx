@@ -1,6 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+import type { Session } from '@supabase/supabase-js'
 
 const LOGO = (
   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -19,7 +22,113 @@ const NAV_LINKS = [
 ]
 
 export default function Navbar({ overlay = false }: { overlay?: boolean }) {
+  const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [session, setSession] = useState<Session | null>(null)
+  const [serverId, setServerId] = useState<string | null>(null)
+  const [authLoaded, setAuthLoaded] = useState(false)
+
+  useEffect(() => {
+    // Initial session check
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s)
+      if (s?.user?.email) {
+        checkIfServer(s.user.email)
+      } else {
+        setAuthLoaded(true)
+      }
+    })
+
+    // Listen for auth changes (login / logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s)
+      if (s?.user?.email) {
+        checkIfServer(s.user.email)
+      } else {
+        setServerId(null)
+        setAuthLoaded(true)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  async function checkIfServer(email: string) {
+    const { data } = await supabase
+      .from('servers')
+      .select('id')
+      .eq('email', email)
+      .limit(1)
+      .single()
+    setServerId(data?.id ?? null)
+    setAuthLoaded(true)
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    router.push('/')
+    router.refresh()
+  }
+
+  const isServer = authLoaded && session && serverId
+  const isGuest = authLoaded && session && !serverId
+
+  // Desktop authenticated links
+  function DesktopAuthLinks() {
+    if (!authLoaded) return null
+    if (!session) {
+      return (
+        <div className="hidden items-center gap-3 md:flex">
+          <a
+            href="/login"
+            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
+          >
+            Sign in
+          </a>
+          <a
+            href="/get-started"
+            className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
+          >
+            Get Started
+          </a>
+        </div>
+      )
+    }
+    return (
+      <div className="hidden items-center gap-4 md:flex">
+        {isServer && (
+          <a
+            href={`/server/${serverId}`}
+            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
+          >
+            My Profile
+          </a>
+        )}
+        {isGuest && (
+          <a
+            href="/account"
+            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
+          >
+            My Account
+          </a>
+        )}
+        {session && (
+          <a
+            href="/dashboard"
+            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
+          >
+            Dashboard
+          </a>
+        )}
+        <button
+          onClick={handleSignOut}
+          className="rounded-full border border-white/20 px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:border-white"
+        >
+          Sign out
+        </button>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -54,15 +163,8 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           ))}
         </nav>
 
-        {/* Get Started button */}
-        <div className="hidden md:block">
-          <a
-            href="/get-started"
-            className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
-          >
-            Get Started
-          </a>
-        </div>
+        {/* Auth area */}
+        <DesktopAuthLinks />
 
         {/* Hamburger */}
         <button
@@ -108,16 +210,61 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
                 {label}
               </a>
             ))}
+            {session && isServer && (
+              <a
+                href={`/server/${serverId}`}
+                onClick={() => setMenuOpen(false)}
+                className="border-b border-white/10 py-5 text-2xl font-semibold text-white"
+              >
+                My Profile
+              </a>
+            )}
+            {session && isGuest && (
+              <a
+                href="/account"
+                onClick={() => setMenuOpen(false)}
+                className="border-b border-white/10 py-5 text-2xl font-semibold text-white"
+              >
+                My Account
+              </a>
+            )}
+            {session && (
+              <a
+                href="/dashboard"
+                onClick={() => setMenuOpen(false)}
+                className="border-b border-white/10 py-5 text-2xl font-semibold text-white"
+              >
+                Dashboard
+              </a>
+            )}
           </nav>
 
           <div className="shrink-0 px-8 pb-10 pt-6">
-            <a
-              href="/get-started"
-              onClick={() => setMenuOpen(false)}
-              className="block w-full rounded-full bg-white py-4 text-center text-sm font-semibold text-black"
-            >
-              Get Started
-            </a>
+            {session ? (
+              <button
+                onClick={() => { setMenuOpen(false); handleSignOut() }}
+                className="block w-full rounded-full border border-white/25 py-4 text-center text-sm font-semibold text-white"
+              >
+                Sign out
+              </button>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <a
+                  href="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="block w-full rounded-full border border-white/25 py-4 text-center text-sm font-semibold text-white"
+                >
+                  Sign in
+                </a>
+                <a
+                  href="/get-started"
+                  onClick={() => setMenuOpen(false)}
+                  className="block w-full rounded-full bg-white py-4 text-center text-sm font-semibold text-black"
+                >
+                  Get Started
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}

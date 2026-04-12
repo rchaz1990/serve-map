@@ -89,7 +89,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Profile created successfully',
-      serverId: server.id,
+      serverId: server.id,   // UUID e.g. "550e8400-e29b-41d4-a716-446655440000"
+      serverName: server.name,
     })
   } catch (error: unknown) {
     console.error('[signup-server] error details:', error)
