@@ -44,7 +44,8 @@ export default function ServerProfilePage() {
   const [isOwnProfile, setIsOwnProfile] = useState(false)
   const [following, setFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
-  const [guestId, setGuestId] = useState<string | null>(null)
+  const [followerId, setFollowerId] = useState<string | null>(null)
+  const [followerEmail, setFollowerEmail] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -80,7 +81,8 @@ export default function ServerProfilePage() {
       // ── Auth: own-profile check + follow state ────────────────────────────
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
-        setGuestId(session.user.id)
+        setFollowerId(session.user.id)
+        setFollowerEmail(session.user.email ?? null)
 
         // Check if this is the logged-in server's own profile
         const { data: currentServer } = await supabase
@@ -90,11 +92,11 @@ export default function ServerProfilePage() {
           .maybeSingle()
         setIsOwnProfile(currentServer?.id === profileId)
 
-        // Check existing follow
+        // Check existing follow (any logged-in user)
         const { data: followRow } = await supabase
           .from('follows')
-          .select('server_id')
-          .eq('guest_id', session.user.id)
+          .select('id')
+          .eq('follower_id', session.user.id)
           .eq('server_id', profileId)
           .maybeSingle()
         if (followRow) setFollowing(true)
@@ -107,13 +109,18 @@ export default function ServerProfilePage() {
   }, [profileId])
 
   async function handleFollow() {
-    if (!guestId) { window.location.href = '/login'; return }
+    if (!followerId) { window.location.href = '/login'; return }
     setFollowLoading(true)
     if (following) {
-      await supabase.from('follows').delete().eq('guest_id', guestId).eq('server_id', profileId)
+      await supabase.from('follows').delete().eq('follower_id', followerId).eq('server_id', profileId)
       setFollowing(false)
     } else {
-      await supabase.from('follows').insert({ guest_id: guestId, server_id: profileId })
+      await supabase.from('follows').insert({
+        follower_id: followerId,
+        follower_email: followerEmail,
+        server_id: profileId,
+        follower_type: localStorage.getItem('slateUserType') ?? 'guest',
+      })
       setFollowing(true)
     }
     setFollowLoading(false)
