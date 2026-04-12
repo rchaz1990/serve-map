@@ -78,31 +78,37 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
     init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, s) => {
-      if (event === 'SIGNED_IN' && s?.user) {
-        setSession(s)
-        const found = await detectServer(s.user.id, s.user.email ?? null)
-        if (found) {
-          setServerRow(found)
-          localStorage.setItem('slateServerId', found.id)
-          localStorage.setItem('slateUserType', 'server')
-          if (found.name) localStorage.setItem('slateServerName', found.name)
-        } else {
-          setServerRow(null)
-          localStorage.setItem('slateUserType', 'guest')
-          localStorage.removeItem('slateServerId')
-          localStorage.removeItem('slateServerName')
-        }
-        setAuthLoaded(true)
-      } else if (event === 'TOKEN_REFRESHED' && s) {
-        // Session silently refreshed — just update the session object, keep UI as-is
-        setSession(s)
-      } else if (event === 'SIGNED_OUT') {
+      if (event === 'SIGNED_OUT') {
         setSession(null)
         setServerRow(null)
         setAuthLoaded(true)
-        localStorage.removeItem('slateUserType')
         localStorage.removeItem('slateServerId')
+        localStorage.removeItem('slateUserType')
         localStorage.removeItem('slateServerName')
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        if (s?.user) {
+          setSession(s)
+          const storedId = localStorage.getItem('slateServerId')
+          if (storedId) {
+            // Trust cached server ID — already hydrated in Step 1
+            if (!serverRow) {
+              setServerRow({ id: storedId, name: localStorage.getItem('slateServerName') })
+            }
+          } else {
+            const { data } = await supabase
+              .from('servers')
+              .select('id, name')
+              .eq('wallet_address', s.user.id)
+              .maybeSingle()
+            if (data?.id) {
+              setServerRow(data)
+              localStorage.setItem('slateServerId', data.id)
+              localStorage.setItem('slateUserType', 'server')
+              if (data.name) localStorage.setItem('slateServerName', data.name)
+            }
+          }
+          setAuthLoaded(true)
+        }
       }
     })
 
