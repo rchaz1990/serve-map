@@ -179,12 +179,13 @@ export default function ServerSignupPage() {
           name: fullName,
           email,
           role,
-          restaurant: venue,
-          restaurantAddress: confirmedPlace?.address ?? city,
-          city,
-          restaurant2: venue2 || undefined,
-          restaurantAddress2: (confirmedPlace2?.address ?? city2) || undefined,
-          city2: city2 || undefined,
+          // Use confirmedPlace.name as primary source; fall back to venue state then raw input value
+          restaurant: confirmedPlace?.name || venue || venueInputRef.current?.value || '',
+          restaurantAddress: confirmedPlace?.address ?? city ?? '',
+          city: city || confirmedPlace?.address || '',
+          restaurant2: confirmedPlace2?.name || venue2 || undefined,
+          restaurantAddress2: confirmedPlace2?.address ?? city2 ?? undefined,
+          city2: city2 || confirmedPlace2?.address || undefined,
           userId: authData.user?.id,  // Supabase auth UID → saved to wallet_address
         }),
       })
