@@ -1,397 +1,309 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import Navbar from '@/app/components/Navbar'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useParams } from 'next/navigation'
+import Navbar from '@/app/components/Navbar'
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-type ServerRow = {
+type Server = {
   id: string
   name: string
-  email: string
-  role: string
-  wallet_address: string | null
-  average_rating: number
-  total_ratings: number
-  follower_count: number
-  is_founding_member: boolean
-  created_at: string
-  server_restaurants: RestaurantRow[]
-  ratings: RatingRow[]
+  role: string | null
+  average_rating: number | null
+  total_ratings: number | null
+  follower_count: number | null
+  serve_balance: number | null
+  is_founding_member: boolean | null
 }
 
-type RestaurantRow = {
+type Restaurant = {
   id: string
   restaurant_name: string
-  restaurant_address: string | null
   city: string | null
+  restaurant_address: string | null
   is_primary: boolean
   currently_working: boolean
 }
 
-type RatingRow = {
+type Rating = {
   id: string
   score: number
   comment: string | null
+  guest_name: string | null
   restaurant_name: string | null
   created_at: string
-  guest_name: string | null
 }
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-function Stars({ score }: { score: number }) {
-  const full = Math.round(score)
-  return (
-    <span className="text-sm">
-      {'★'.repeat(full)}{'☆'.repeat(5 - full)}
-    </span>
-  )
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-}
-
-function initials(name: string) {
-  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-}
-
-// ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function ServerProfilePage() {
-  const { id } = useParams<{ id: string }>()
-  const router = useRouter()
-
-  const [server, setServer] = useState<ServerRow | null>(null)
+  const params = useParams()
+  const [server, setServer] = useState<Server | null>(null)
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([])
+  const [ratings, setRatings] = useState<Rating[]>([])
   const [loading, setLoading] = useState(true)
   const [following, setFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [guestId, setGuestId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
-  const profileUrl = typeof window !== 'undefined'
-    ? window.location.href
-    : `slatenow.xyz/server/${id}`
+  const profileId = params.id as string
 
-  // Load profile data — single nested query (no auth required)
   useEffect(() => {
-    if (!id) return
-    async function load() {
-      setLoading(true)
-      console.log('[ServerProfile] Looking up server ID:', id)
+    const loadProfile = async () => {
+      console.log('[ServerProfile] Loading profile for ID:', profileId)
+
       const { data, error } = await supabase
         .from('servers')
-        .select(`
-          *,
-          server_restaurants (
-            id,
-            restaurant_name,
-            restaurant_address,
-            city,
-            is_primary,
-            currently_working
-          ),
-          ratings (
-            id,
-            score,
-            comment,
-            restaurant_name,
-            created_at,
-            guest_name
-          )
-        `)
-        .eq('id', id)
+        .select('*')
+        .eq('id', profileId)
         .maybeSingle()
-      console.log('[ServerProfile] Result:', data ? `Found: ${data.name}` : 'Not found', error ?? '')
+
+      console.log('[ServerProfile] Server data:', data, 'Error:', error)
 
       if (data) {
-        // Sort restaurants: primary first; sort ratings: newest first
-        const sorted = {
-          ...data,
-          server_restaurants: [...(data.server_restaurants ?? [])].sort(
-            (a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0)
-          ),
-          ratings: [...(data.ratings ?? [])].sort(
-            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          ),
-        }
-        setServer(sorted as ServerRow)
+        setServer(data as Server)
+
+        const { data: rests } = await supabase
+          .from('server_restaurants')
+          .select('*')
+          .eq('server_id', profileId)
+          .order('is_primary', { ascending: false })
+
+        setRestaurants((rests ?? []) as Restaurant[])
+
+        const { data: rats } = await supabase
+          .from('ratings')
+          .select('*')
+          .eq('server_id', profileId)
+          .order('created_at', { ascending: false })
+          .limit(10)
+
+        setRatings((rats ?? []) as Rating[])
       }
+
       setLoading(false)
     }
-    load()
-  }, [id])
 
-  // Check auth + existing follow state
-  useEffect(() => {
-    if (!id) return
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
       setGuestId(session.user.id)
       const { data } = await supabase
         .from('follows')
         .select('server_id')
         .eq('guest_id', session.user.id)
-        .eq('server_id', id)
-        .limit(1)
+        .eq('server_id', profileId)
         .maybeSingle()
       if (data) setFollowing(true)
-    })
-  }, [id])
+    }
+
+    loadProfile()
+    checkAuth()
+  }, [profileId])
 
   async function handleFollow() {
     if (!guestId) {
-      router.push(`/login?message=${encodeURIComponent('Sign in to follow this server')}`)
+      window.location.href = '/login'
       return
     }
     setFollowLoading(true)
     if (following) {
-      await supabase.from('follows').delete().eq('guest_id', guestId).eq('server_id', id)
+      await supabase.from('follows').delete().eq('guest_id', guestId).eq('server_id', profileId)
       setFollowing(false)
     } else {
-      await supabase.from('follows').insert({ guest_id: guestId, server_id: id })
+      await supabase.from('follows').insert({ guest_id: guestId, server_id: profileId })
       setFollowing(true)
     }
     setFollowLoading(false)
   }
 
   function handleCopy() {
-    navigator.clipboard.writeText(profileUrl)
+    navigator.clipboard.writeText(window.location.href)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // ── Loading ────────────────────────────────────────────────────────────────
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Navbar />
+      <p style={{ color: '#444', fontSize: '14px', letterSpacing: '2px' }}>Loading...</p>
+    </div>
+  )
 
-  if (loading) {
-    return (
-      <div className="min-h-screen" style={{ backgroundColor: '#000000' }}>
-        <Navbar />
-        <div className="border-t border-white/10" />
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <p className="text-sm" style={{ color: '#404040' }}>Loading profile…</p>
-        </div>
+  if (!server) return (
+    <div style={{ minHeight: '100vh', background: '#000' }}>
+      <Navbar />
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', gap: '24px' }}>
+        <p style={{ color: '#444', fontSize: '16px' }}>Profile not found.</p>
+        <a href="/live" style={{ color: 'white', border: '1px solid #333', padding: '12px 24px', textDecoration: 'none', fontSize: '14px' }}>
+          See what&apos;s live tonight
+        </a>
       </div>
-    )
-  }
+    </div>
+  )
 
-  if (!server) {
-    return (
-      <div className="min-h-screen" style={{ backgroundColor: '#000000' }}>
-        <Navbar />
-        <div className="border-t border-white/10" />
-        <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 px-8 text-center">
-          <p className="text-sm" style={{ color: '#606060' }}>This profile doesn&apos;t exist yet.</p>
-          <a
-            href="/live"
-            className="rounded-full border border-white/25 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:border-white"
-          >
-            Discover servers on Slate →
-          </a>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Derived stats ──────────────────────────────────────────────────────────
-
-  const restaurants = server.server_restaurants ?? []
-  const ratings = server.ratings ?? []
-  const primaryRestaurant = restaurants.find(r => r.is_primary) ?? restaurants[0]
-
-  // Calculate avg rating from actual ratings array (more accurate than stored field)
   const avgRating = ratings.length > 0
-    ? ratings.reduce((sum, r) => sum + r.score, 0) / ratings.length
-    : server.average_rating
+    ? (ratings.reduce((sum, r) => sum + r.score, 0) / ratings.length).toFixed(1)
+    : server.average_rating?.toFixed(1) ?? '—'
 
-  const totalRatings = ratings.length || server.total_ratings
-  const serveBalance = totalRatings * 10  // servers earn $SERVE when guests rate them
-
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const totalRatings = ratings.length || server.total_ratings || 0
 
   return (
-    <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+    <div style={{ minHeight: '100vh', background: '#000' }}>
       <Navbar />
-      <div className="border-t border-white/10" />
+      <div style={{ paddingTop: '80px', paddingBottom: '80px' }}>
+        <div style={{ maxWidth: '680px', margin: '0 auto', padding: '0 24px' }}>
 
-      <main className="mx-auto max-w-3xl px-8 py-16 lg:px-16 lg:py-20">
-
-        {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="mb-12">
-          {/* Avatar + founding badge */}
-          <div className="mb-6 flex items-start justify-between gap-4">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white text-2xl font-bold text-black">
-              {initials(server.name)}
-            </div>
+          {/* ── Header ── */}
+          <div style={{ marginBottom: '48px' }}>
             {server.is_founding_member && (
-              <span className="rounded-full border border-white/20 bg-white/[0.05] px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
+              <div style={{ fontSize: '10px', letterSpacing: '4px', color: '#555', marginBottom: '16px', textTransform: 'uppercase' }}>
                 Founding Member
-              </span>
+              </div>
             )}
+            <h1 style={{ fontFamily: 'Georgia, serif', fontSize: '48px', color: 'white', marginBottom: '8px', fontWeight: '400' }}>
+              {server.name}
+            </h1>
+            <p style={{ color: '#555', fontSize: '16px', marginBottom: '24px' }}>{server.role}</p>
+
+            {/* Stats */}
+            <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap', marginBottom: '32px' }}>
+              <div>
+                <div style={{ fontSize: '24px', color: 'white', fontWeight: '600' }}>{avgRating}</div>
+                <div style={{ fontSize: '11px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '4px' }}>Rating</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '24px', color: 'white', fontWeight: '600' }}>{totalRatings}</div>
+                <div style={{ fontSize: '11px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '4px' }}>Reviews</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '24px', color: 'white', fontWeight: '600' }}>{server.follower_count || 0}</div>
+                <div style={{ fontSize: '11px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '4px' }}>Followers</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '24px', color: 'white', fontWeight: '600' }}>{totalRatings * 10}</div>
+                <div style={{ fontSize: '11px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '4px' }}>$SERVE</div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <button
+                onClick={handleFollow}
+                disabled={followLoading}
+                style={{
+                  padding: '12px 28px',
+                  background: following ? 'transparent' : 'white',
+                  color: following ? '#666' : 'black',
+                  border: following ? '1px solid #333' : 'none',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  letterSpacing: '1px',
+                }}
+              >
+                {following ? 'Following ✓' : 'Follow'}
+              </button>
+              <button
+                onClick={handleCopy}
+                style={{
+                  padding: '12px 28px',
+                  background: 'transparent',
+                  color: '#666',
+                  border: '1px solid #222',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  letterSpacing: '1px',
+                }}
+              >
+                {copied ? 'Copied!' : 'Copy profile link'}
+              </button>
+            </div>
           </div>
 
-          {/* Name */}
-          <h1 className="mb-1 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            {server.name}
-          </h1>
-
-          {/* Role + restaurant */}
-          <p className="mb-5 text-base" style={{ color: '#A0A0A0' }}>
-            {server.role}
-            {primaryRestaurant && <> · {primaryRestaurant.restaurant_name}</>}
-          </p>
-
-          {/* Stats row */}
-          <div className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-2">
-            {avgRating > 0 && (
-              <span className="text-lg font-bold text-white">{avgRating.toFixed(1)} ★</span>
-            )}
-            <span className="text-sm" style={{ color: '#A0A0A0' }}>
-              {totalRatings} verified {totalRatings === 1 ? 'rating' : 'ratings'}
-            </span>
-            <span style={{ color: '#404040' }}>·</span>
-            <span className="text-sm" style={{ color: '#A0A0A0' }}>
-              {server.follower_count} {server.follower_count === 1 ? 'follower' : 'followers'}
-            </span>
-          </div>
-
-          {/* $SERVE balance */}
-          {serveBalance > 0 && (
-            <p className="mb-5 text-sm font-semibold text-white">{serveBalance} $SERVE earned</p>
-          )}
-
-          {/* Action buttons */}
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={handleFollow}
-              disabled={followLoading}
-              className={[
-                'rounded-full border px-6 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50',
-                following
-                  ? 'border-white/30 text-white/60 hover:border-white/50'
-                  : 'border-white text-white hover:bg-white hover:text-black',
-              ].join(' ')}
-            >
-              {following ? 'Following ✓' : 'Follow'}
-            </button>
-            <button
-              onClick={handleCopy}
-              className="rounded-full border border-white/20 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:border-white"
-            >
-              {copied ? 'Link copied!' : 'Copy profile link'}
-            </button>
-          </div>
-        </div>
-
-        <div className="border-t border-white/10" />
-
-        {/* ── Where you'll find me ─────────────────────────────────────────── */}
-        <section className="py-12">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-            Where you&apos;ll find me
-          </p>
-
-          {restaurants.length === 0 ? (
-            <p className="text-sm" style={{ color: '#606060' }}>No restaurants listed yet.</p>
-          ) : (
-            <div className="flex flex-col divide-y divide-white/10">
-              {restaurants.map(r => (
-                <div key={r.id} className="flex items-center justify-between py-5">
+          {/* ── Restaurants ── */}
+          <div style={{ borderTop: '1px solid #111', paddingTop: '40px', marginBottom: '40px' }}>
+            <div style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', marginBottom: '24px', textTransform: 'uppercase' }}>
+              Where you&apos;ll find me
+            </div>
+            {restaurants.length === 0 ? (
+              <p style={{ color: '#333', fontSize: '15px' }}>No workplaces listed yet.</p>
+            ) : (
+              restaurants.map(r => (
+                <div key={r.id} style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-white">{r.restaurant_name}</p>
-                      {r.is_primary && (
-                        <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>
-                          Primary
-                        </span>
-                      )}
-                      {r.currently_working && (
-                        <span className="rounded-full border border-white/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white">
-                          Currently here
-                        </span>
-                      )}
-                    </div>
-                    {(r.city || r.restaurant_address) && (
-                      <p className="mt-0.5 text-xs" style={{ color: '#606060' }}>
-                        {r.city ?? r.restaurant_address}
-                      </p>
+                    <div style={{ color: 'white', fontSize: '16px' }}>{r.restaurant_name}</div>
+                    <div style={{ color: '#444', fontSize: '13px', marginTop: '4px' }}>{r.city || r.restaurant_address}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                    {r.is_primary && (
+                      <span style={{ fontSize: '10px', letterSpacing: '2px', color: '#555', border: '1px solid #222', padding: '4px 10px', textTransform: 'uppercase' }}>
+                        Primary
+                      </span>
+                    )}
+                    {r.currently_working && (
+                      <span style={{ fontSize: '10px', letterSpacing: '2px', color: '#666', border: '1px solid #222', padding: '4px 10px', textTransform: 'uppercase' }}>
+                        Currently here
+                      </span>
                     )}
                   </div>
-                  <p className="text-xs" style={{ color: '#404040' }}>{server.role}</p>
                 </div>
-              ))}
+              ))
+            )}
+          </div>
+
+          {/* ── Ratings ── */}
+          <div style={{ borderTop: '1px solid #111', paddingTop: '40px', marginBottom: '40px' }}>
+            <div style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', marginBottom: '24px', textTransform: 'uppercase' }}>
+              What guests are saying
             </div>
-          )}
-        </section>
-
-        <div className="border-t border-white/10" />
-
-        {/* ── Ratings ─────────────────────────────────────────────────────── */}
-        <section className="py-12">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-            What guests are saying
-          </p>
-
-          {ratings.length === 0 ? (
-            <p className="text-sm leading-7" style={{ color: '#606060' }}>
-              No ratings yet. Share your profile link with guests to start building your reputation.
-            </p>
-          ) : (
-            <div className="flex flex-col divide-y divide-white/10">
-              {ratings.map(r => (
-                <div key={r.id} className="py-8">
-                  <div className="mb-3 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-white">
+            {ratings.length === 0 ? (
+              <p style={{ color: '#333', fontSize: '15px' }}>No ratings yet.</p>
+            ) : (
+              ratings.map(r => (
+                <div key={r.id} style={{ marginBottom: '32px', paddingBottom: '32px', borderBottom: '1px solid #111' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>
                         {r.guest_name ?? 'Guest'}
                       </span>
-                      <Stars score={r.score} />
+                      <span style={{ color: '#666', fontSize: '14px' }}>
+                        {'★'.repeat(r.score)}{'☆'.repeat(5 - r.score)}
+                      </span>
                     </div>
-                    <span className="shrink-0 text-xs" style={{ color: '#606060' }}>
-                      {formatDate(r.created_at)}
+                    <span style={{ color: '#333', fontSize: '12px' }}>
+                      {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                   </div>
                   {r.comment && (
-                    <p className="mb-2 max-w-2xl text-sm leading-7" style={{ color: '#A0A0A0' }}>
+                    <p style={{ color: '#666', fontSize: '15px', lineHeight: '1.6', margin: '0 0 8px 0' }}>
                       &ldquo;{r.comment}&rdquo;
                     </p>
                   )}
                   {r.restaurant_name && (
-                    <p className="text-xs" style={{ color: '#404040' }}>at {r.restaurant_name}</p>
+                    <p style={{ color: '#333', fontSize: '12px', letterSpacing: '1px' }}>at {r.restaurant_name}</p>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <div className="border-t border-white/10" />
-
-        {/* ── Share your profile ───────────────────────────────────────────── */}
-        <section className="py-12">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-            Share your profile
-          </p>
-          <p className="mb-5 text-sm leading-7" style={{ color: '#606060' }}>
-            Share this link with guests so they can rate you and follow you.
-          </p>
-          <div className="flex items-center gap-3 rounded-xl border border-white/15 px-4 py-3">
-            <span className="flex-1 truncate font-mono text-sm" style={{ color: '#A0A0A0' }}>
-              {profileUrl}
-            </span>
-            <button
-              onClick={handleCopy}
-              className="shrink-0 text-xs font-semibold text-white transition-opacity hover:opacity-70"
-            >
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
+              ))
+            )}
           </div>
-        </section>
 
-      </main>
+          {/* ── Share ── */}
+          <div style={{ borderTop: '1px solid #111', paddingTop: '40px' }}>
+            <div style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', marginBottom: '16px', textTransform: 'uppercase' }}>
+              Share this profile
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#0a0a0a', border: '1px solid #1a1a1a', padding: '14px 16px' }}>
+              <span style={{ flex: 1, color: '#444', fontSize: '13px', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {typeof window !== 'undefined' ? window.location.href : `slatenow.xyz/server/${profileId}`}
+              </span>
+              <button onClick={handleCopy} style={{ background: 'none', border: 'none', color: 'white', fontSize: '13px', cursor: 'pointer', flexShrink: 0 }}>
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
     </div>
   )
 }
