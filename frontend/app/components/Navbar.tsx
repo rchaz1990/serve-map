@@ -66,21 +66,28 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   }, [])
 
   async function checkIfServer(email: string) {
+    const normalizedEmail = email.toLowerCase().trim()
+    console.log('[Navbar] Checking server status for:', normalizedEmail)
+
     // maybeSingle() returns null (not an error) when no row is found
-    const { data: serverRow } = await supabase
+    const { data: serverRow, error } = await supabase
       .from('servers')
       .select('id, name')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .maybeSingle()
+
+    console.log('[Navbar] Server row found:', serverRow, 'Error:', error)
 
     if (serverRow?.id) {
       setServerId(serverRow.id)
       localStorage.setItem('slateUserType', 'server')
       localStorage.setItem('slateServerId', serverRow.id)
+      if (serverRow.name) localStorage.setItem('slateServerName', serverRow.name)
     } else {
       setServerId(null)
       localStorage.setItem('slateUserType', 'guest')
       localStorage.removeItem('slateServerId')
+      localStorage.removeItem('slateServerName')
     }
     setAuthLoaded(true)
   }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
@@ -11,6 +12,7 @@ const STEPS = ['Your info', 'Work history', 'Photo & bio']
 console.log('Google Maps key:', process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY ? 'loaded' : 'missing')
 
 export default function ServerSignupPage() {
+  const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -206,9 +208,10 @@ export default function ServerSignupPage() {
       // Mark as server in localStorage so Navbar resolves immediately
       localStorage.setItem('slateUserType', 'server')
       localStorage.setItem('slateServerId', json.serverId)
+      localStorage.setItem('slateServerName', json.serverName ?? fullName)
 
       // Redirect to dashboard — auth session is now active
-      window.location.href = '/dashboard'
+      router.push('/dashboard')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)

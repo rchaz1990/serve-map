@@ -462,16 +462,25 @@ export default function DashboardPage() {
   }[]>([])
   const [recentFollowers, setRecentFollowers] = useState<{ id: string; created_at: string }[]>([])
 
+  const [profileLoading, setProfileLoading] = useState(true)
+
   useEffect(() => {
     async function loadServerData() {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user?.email) return
-      const { data: serverRow } = await supabase
+      if (!session?.user?.email) { setProfileLoading(false); return }
+
+      const email = session.user.email.toLowerCase().trim()
+      console.log('[Dashboard] Loading server profile for:', email)
+
+      const { data: serverRow, error } = await supabase
         .from('servers')
         .select('id, name, average_rating, total_ratings')
-        .eq('email', session.user.email)
+        .eq('email', email)
         .maybeSingle()
-      if (!serverRow) return
+
+      console.log('[Dashboard] Server row:', serverRow, 'Error:', error)
+
+      if (!serverRow) { setProfileLoading(false); return }
 
       const { data: followRows } = await supabase
         .from('follows')
@@ -480,13 +489,23 @@ export default function DashboardPage() {
 
       const followerCount = followRows?.length ?? 0
 
+      // Prefer DB name; fall back to localStorage set at signup
+      const resolvedName = serverRow.name
+        || localStorage.getItem('slateServerName')
+        || email
+
       setServerProfile({
         id: serverRow.id,
-        name: serverRow.name ?? '',
+        name: resolvedName,
         total_ratings: serverRow.total_ratings ?? 0,
         avg_rating: serverRow.average_rating ?? 0,
         follower_count: followerCount,
       })
+      // Keep localStorage in sync
+      localStorage.setItem('slateServerName', resolvedName)
+      localStorage.setItem('slateServerId', serverRow.id)
+      localStorage.setItem('slateUserType', 'server')
+
       setRecentFollowers((followRows ?? []).slice(0, 5) as { id: string; created_at: string }[])
 
       const { data: ratingRows } = await supabase
@@ -496,6 +515,8 @@ export default function DashboardPage() {
         .order('created_at', { ascending: false })
         .limit(5)
       if (ratingRows) setRecentRatings(ratingRows as typeof recentRatings)
+
+      setProfileLoading(false)
     }
     loadServerData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -523,10 +544,11 @@ export default function DashboardPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user?.email) return
 
+      const email = session.user.email.toLowerCase().trim()
       const { data: serverRow } = await supabase
         .from('servers')
         .select('id')
-        .eq('email', session.user.email)
+        .eq('email', email)
         .maybeSingle()
 
       if (!serverRow) return
@@ -870,11 +892,23 @@ export default function DashboardPage() {
         <WorkplaceSection serverId={serverProfile?.id ?? null} />
 
         {/* ── Header ──────────────────────────────────────────────────── */}
+        {profileLoading ? (
+          <div className="mb-10">
+            <p className="text-sm" style={{ color: '#606060' }}>Loading your profile…</p>
+          </div>
+        ) : !serverProfile ? (
+          <div className="mb-10 rounded-2xl border border-white/10 p-7" style={{ backgroundColor: '#0a0a0a' }}>
+            <p className="text-sm font-semibold text-white">Setting up your profile…</p>
+            <p className="mt-1 text-xs" style={{ color: '#606060' }}>
+              We&apos;re still saving your info. Try refreshing in a moment. If this persists, sign out and sign back in.
+            </p>
+          </div>
+        ) : (
         <div className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2.5">
               <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Welcome back, {serverProfile?.name ?? '…'}
+                Welcome back, {serverProfile.name.split(' ')[0]}
               </h1>
               {/* Verified badge */}
               <span title="Verified on-chain profile">
@@ -888,15 +922,14 @@ export default function DashboardPage() {
               Your profile is live on Slate ✓
             </p>
           </div>
-          {serverProfile?.id && (
-            <a
-              href={`/server/${serverProfile.id}`}
-              className="self-start rounded-full border border-white/20 px-5 py-2 text-xs font-semibold text-white transition-colors hover:border-white sm:self-auto"
-            >
-              View public profile →
-            </a>
-          )}
+          <a
+            href={`/server/${serverProfile.id}`}
+            className="self-start rounded-full border border-white/20 px-5 py-2 text-xs font-semibold text-white transition-colors hover:border-white sm:self-auto"
+          >
+            View public profile →
+          </a>
         </div>
+        )}
 
         {/* ── Stats row ───────────────────────────────────────────────── */}
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

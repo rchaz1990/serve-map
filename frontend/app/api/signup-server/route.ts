@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       name,
-      email,
+      email: rawEmail,
       role,
       restaurant,
       restaurantAddress,
@@ -23,6 +23,9 @@ export async function POST(request: NextRequest) {
       city2,
       walletAddress,
     } = body
+
+    const email = rawEmail?.toLowerCase().trim()
+    console.log('[signup-server] Saving server with email:', email)
 
     // Resolve fee-payer keypair (used as the on-chain identity when no wallet provided)
     let resolvedWalletAddress = walletAddress
