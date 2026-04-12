@@ -438,13 +438,6 @@ function WorkerCouncilSection() {
 export default function DashboardPage() {
   const router = useRouter()
 
-  // Auth guard — redirect to login if not authenticated
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) router.push('/login')
-    })
-  }, [router])
-
   // Server profile + activity data
   const [serverProfile, setServerProfile] = useState<{
     id: string
@@ -461,53 +454,84 @@ export default function DashboardPage() {
     comment: string | null
   }[]>([])
   const [recentFollowers, setRecentFollowers] = useState<{ id: string; created_at: string }[]>([])
-
   const [profileLoading, setProfileLoading] = useState(true)
 
+  // Restaurant picker — shown before shift starts
+  const [restaurants, setRestaurants] = useState<{ id: string; restaurant_name: string; is_primary: boolean }[]>([])
+  const [selectedRestaurant, setSelectedRestaurant] = useState<string>('')
+  const [showRestaurantPicker, setShowRestaurantPicker] = useState(false)
+
+  // Unified load: auth guard + three-method server detection + restaurants + profile data
   useEffect(() => {
-    async function loadServerData() {
+    async function load() {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user?.email) { setProfileLoading(false); return }
+      if (!session?.user) { router.push('/login'); return }
 
-      const email = session.user.email.toLowerCase().trim()
-      console.log('[Dashboard] Loading server profile for:', email)
+      const userId   = session.user.id
+      const userEmail = session.user.email ?? null
+      console.log('[Dashboard] Detecting server for userId:', userId, 'email:', userEmail)
 
-      const { data: serverRow, error } = await supabase
+      // Method 1 — wallet_address = Supabase auth user ID
+      let serverRow: { id: string; name: string | null; average_rating: number | null; total_ratings: number | null } | null = null
+      const { data: byId } = await supabase
         .from('servers')
         .select('id, name, average_rating, total_ratings')
-        .eq('email', email)
+        .eq('wallet_address', userId)
         .maybeSingle()
+      if (byId) { console.log('[Dashboard] Found by wallet_address'); serverRow = byId }
 
-      console.log('[Dashboard] Server row:', serverRow, 'Error:', error)
+      // Method 2 — case-insensitive email
+      if (!serverRow && userEmail) {
+        const { data: byEmail } = await supabase
+          .from('servers')
+          .select('id, name, average_rating, total_ratings')
+          .ilike('email', userEmail)
+          .maybeSingle()
+        if (byEmail) { console.log('[Dashboard] Found by email'); serverRow = byEmail }
+      }
+
+      // Method 3 — localStorage server ID
+      if (!serverRow) {
+        const storedId = localStorage.getItem('slateServerId')
+        if (storedId) {
+          const { data: byStored } = await supabase
+            .from('servers')
+            .select('id, name, average_rating, total_ratings')
+            .eq('id', storedId)
+            .maybeSingle()
+          if (byStored) { console.log('[Dashboard] Found by localStorage id'); serverRow = byStored }
+        }
+      }
+
+      console.log('[Dashboard] Server row:', serverRow)
 
       if (!serverRow) { setProfileLoading(false); return }
 
+      // Sync localStorage
+      const resolvedName = serverRow.name || localStorage.getItem('slateServerName') || userEmail || ''
+      localStorage.setItem('slateServerId', serverRow.id)
+      localStorage.setItem('slateUserType', 'server')
+      localStorage.setItem('slateServerName', resolvedName)
+
+      // Load restaurants
+      const { data: restRows } = await supabase
+        .from('server_restaurants')
+        .select('id, restaurant_name, is_primary')
+        .eq('server_id', serverRow.id)
+        .eq('currently_working', true)
+      const rows = restRows ?? []
+      setRestaurants(rows)
+      if (rows.length === 1) setSelectedRestaurant(rows[0].restaurant_name)
+
+      // Load followers
       const { data: followRows } = await supabase
         .from('follows')
         .select('id, created_at')
         .eq('server_id', serverRow.id)
-
       const followerCount = followRows?.length ?? 0
-
-      // Prefer DB name; fall back to localStorage set at signup
-      const resolvedName = serverRow.name
-        || localStorage.getItem('slateServerName')
-        || email
-
-      setServerProfile({
-        id: serverRow.id,
-        name: resolvedName,
-        total_ratings: serverRow.total_ratings ?? 0,
-        avg_rating: serverRow.average_rating ?? 0,
-        follower_count: followerCount,
-      })
-      // Keep localStorage in sync
-      localStorage.setItem('slateServerName', resolvedName)
-      localStorage.setItem('slateServerId', serverRow.id)
-      localStorage.setItem('slateUserType', 'server')
-
       setRecentFollowers((followRows ?? []).slice(0, 5) as { id: string; created_at: string }[])
 
+      // Load ratings
       const { data: ratingRows } = await supabase
         .from('ratings')
         .select('id, guest_name, score, created_at, comment')
@@ -516,9 +540,16 @@ export default function DashboardPage() {
         .limit(5)
       if (ratingRows) setRecentRatings(ratingRows as typeof recentRatings)
 
+      setServerProfile({
+        id: serverRow.id,
+        name: resolvedName,
+        total_ratings: serverRow.total_ratings ?? 0,
+        avg_rating: serverRow.average_rating ?? 0,
+        follower_count: followerCount,
+      })
       setProfileLoading(false)
     }
-    loadServerData()
+    load()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -532,39 +563,6 @@ export default function DashboardPage() {
   const [shiftCovers, setShiftCovers] = useState('')
   const [shiftSpecials, setShiftSpecials] = useState('')
   const [shiftDbId, setShiftDbId] = useState<string | null>(null)
-
-  // Restaurant picker — shown before shift starts
-  const [restaurants, setRestaurants] = useState<{ id: string; restaurant_name: string; is_primary: boolean }[]>([])
-  const [selectedRestaurant, setSelectedRestaurant] = useState<string>('')
-  const [showRestaurantPicker, setShowRestaurantPicker] = useState(false)
-
-  // Load only THIS server's restaurants — scoped by session email
-  useEffect(() => {
-    async function loadRestaurants() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user?.email) return
-
-      const email = session.user.email.toLowerCase().trim()
-      const { data: serverRow } = await supabase
-        .from('servers')
-        .select('id')
-        .eq('email', email)
-        .maybeSingle()
-
-      if (!serverRow) return
-
-      const { data } = await supabase
-        .from('server_restaurants')
-        .select('id, restaurant_name, is_primary')
-        .eq('server_id', serverRow.id)
-        .eq('currently_working', true)
-
-      const rows = data ?? []
-      setRestaurants(rows)
-      if (rows.length === 1) setSelectedRestaurant(rows[0].restaurant_name)
-    }
-    loadRestaurants()
-  }, [])
 
   // Shift state — mirrors QR: shift is on when a QR code is active
   const [shiftStartedAt, setShiftStartedAt] = useState<number | null>(null)

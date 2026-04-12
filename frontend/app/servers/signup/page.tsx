@@ -185,8 +185,7 @@ export default function ServerSignupPage() {
           restaurant2: venue2 || undefined,
           restaurantAddress2: (confirmedPlace2?.address ?? city2) || undefined,
           city2: city2 || undefined,
-          walletAddress: null,
-          userId: authData.user?.id,
+          userId: authData.user?.id,  // Supabase auth UID → saved to wallet_address
         }),
       })
 

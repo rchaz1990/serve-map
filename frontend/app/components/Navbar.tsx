@@ -21,87 +21,130 @@ const NAV_LINKS = [
   { href: '/whitepaper',      label: 'Whitepaper',      pulse: false },
 ]
 
+type ServerRow = { id: string; name: string | null }
+
 export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
-  const [serverId, setServerId] = useState<string | null>(null)
+  const [serverRow, setServerRow] = useState<ServerRow | null>(null)
   const [authLoaded, setAuthLoaded] = useState(false)
 
   useEffect(() => {
-    // Fast path — seed from localStorage so nav renders immediately on next load
+    // Fast path — seed from localStorage so nav renders immediately
     const cachedType = localStorage.getItem('slateUserType')
     const cachedId   = localStorage.getItem('slateServerId')
+    const cachedName = localStorage.getItem('slateServerName')
     if (cachedType === 'server' && cachedId) {
-      setServerId(cachedId)
+      setServerRow({ id: cachedId, name: cachedName })
     }
 
-    // Source-of-truth check via Supabase
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    const init = async () => {
+      const { data: { session: s } } = await supabase.auth.getSession()
       setSession(s)
-      if (s?.user?.email) {
-        checkIfServer(s.user.email)
-      } else {
-        // No active session — clear any stale cache
-        localStorage.removeItem('slateUserType')
-        localStorage.removeItem('slateServerId')
-        setServerId(null)
-        setAuthLoaded(true)
-      }
-    })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s)
-      if (s?.user?.email) {
-        checkIfServer(s.user.email)
+      if (s?.user) {
+        const found = await detectServer(s.user.id, s.user.email ?? null)
+        if (found) {
+          setServerRow(found)
+          localStorage.setItem('slateServerId', found.id)
+          localStorage.setItem('slateUserType', 'server')
+          if (found.name) localStorage.setItem('slateServerName', found.name)
+        } else {
+          setServerRow(null)
+          localStorage.setItem('slateUserType', 'guest')
+          localStorage.removeItem('slateServerId')
+          localStorage.removeItem('slateServerName')
+        }
       } else {
+        // No session — clear stale cache
+        setServerRow(null)
         localStorage.removeItem('slateUserType')
         localStorage.removeItem('slateServerId')
-        setServerId(null)
+        localStorage.removeItem('slateServerName')
+      }
+      setAuthLoaded(true)
+    }
+
+    init()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
+      setSession(s)
+      if (s?.user) {
+        // Re-run detection on sign-in (e.g. after login page redirect)
+        const found = await detectServer(s.user.id, s.user.email ?? null)
+        if (found) {
+          setServerRow(found)
+          localStorage.setItem('slateServerId', found.id)
+          localStorage.setItem('slateUserType', 'server')
+          if (found.name) localStorage.setItem('slateServerName', found.name)
+        } else {
+          setServerRow(null)
+          localStorage.setItem('slateUserType', 'guest')
+          localStorage.removeItem('slateServerId')
+          localStorage.removeItem('slateServerName')
+        }
         setAuthLoaded(true)
+      } else {
+        setServerRow(null)
+        setAuthLoaded(true)
+        localStorage.removeItem('slateUserType')
+        localStorage.removeItem('slateServerId')
+        localStorage.removeItem('slateServerName')
       }
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
-  async function checkIfServer(email: string) {
-    const normalizedEmail = email.toLowerCase().trim()
-    console.log('[Navbar] Checking server status for:', normalizedEmail)
+  async function detectServer(userId: string, userEmail: string | null): Promise<ServerRow | null> {
+    console.log('[Navbar] Detecting server for userId:', userId, 'email:', userEmail)
 
-    // maybeSingle() returns null (not an error) when no row is found
-    const { data: serverRow, error } = await supabase
+    // Method 1 — match by Supabase auth user ID stored in wallet_address
+    const { data: byId } = await supabase
       .from('servers')
       .select('id, name')
-      .eq('email', normalizedEmail)
+      .eq('wallet_address', userId)
       .maybeSingle()
+    if (byId) { console.log('[Navbar] Found by wallet_address'); return byId }
 
-    console.log('[Navbar] Server row found:', serverRow, 'Error:', error)
-
-    if (serverRow?.id) {
-      setServerId(serverRow.id)
-      localStorage.setItem('slateUserType', 'server')
-      localStorage.setItem('slateServerId', serverRow.id)
-      if (serverRow.name) localStorage.setItem('slateServerName', serverRow.name)
-    } else {
-      setServerId(null)
-      localStorage.setItem('slateUserType', 'guest')
-      localStorage.removeItem('slateServerId')
-      localStorage.removeItem('slateServerName')
+    // Method 2 — case-insensitive email match
+    if (userEmail) {
+      const { data: byEmail } = await supabase
+        .from('servers')
+        .select('id, name')
+        .ilike('email', userEmail)
+        .maybeSingle()
+      if (byEmail) { console.log('[Navbar] Found by email'); return byEmail }
     }
-    setAuthLoaded(true)
+
+    // Method 3 — localStorage server ID
+    const storedId = localStorage.getItem('slateServerId')
+    if (storedId) {
+      const { data: byStored } = await supabase
+        .from('servers')
+        .select('id, name')
+        .eq('id', storedId)
+        .maybeSingle()
+      if (byStored) { console.log('[Navbar] Found by localStorage id'); return byStored }
+    }
+
+    console.log('[Navbar] No server row found — treating as guest')
+    return null
   }
 
   async function handleSignOut() {
     localStorage.removeItem('slateUserType')
     localStorage.removeItem('slateServerId')
+    localStorage.removeItem('slateServerName')
     await supabase.auth.signOut()
     router.push('/')
     router.refresh()
   }
 
-  const isServer = authLoaded && session && serverId
-  const isGuest  = authLoaded && session && !serverId
+  const serverId = serverRow?.id ?? null
+  const isServer = authLoaded && session && serverRow
+  const isGuest  = authLoaded && session && !serverRow
 
   function DesktopAuthLinks() {
     if (!authLoaded) return null

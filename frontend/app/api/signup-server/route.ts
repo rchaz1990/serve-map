@@ -1,4 +1,3 @@
-import { Connection, Keypair, clusterApiUrl } from '@solana/web3.js'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -21,34 +20,21 @@ export async function POST(request: NextRequest) {
       restaurant2,
       restaurantAddress2,
       city2,
-      walletAddress,
+      userId,  // Supabase auth UID — stored in wallet_address for fast lookup
     } = body
 
     const email = rawEmail?.toLowerCase().trim()
-    console.log('[signup-server] Saving server with email:', email)
+    console.log('[signup-server] Saving server — email:', email, 'userId:', userId)
 
-    // Resolve fee-payer keypair (used as the on-chain identity when no wallet provided)
-    let resolvedWalletAddress = walletAddress
-    if (!resolvedWalletAddress && process.env.FEE_PAYER_PRIVATE_KEY) {
-      try {
-        const privateKeyArray = JSON.parse(process.env.FEE_PAYER_PRIVATE_KEY)
-        const feePayerKeypair = Keypair.fromSecretKey(new Uint8Array(privateKeyArray))
-        // Verify connection is reachable (non-blocking — don't fail signup if devnet is slow)
-        new Connection(clusterApiUrl('devnet'), 'confirmed')
-        resolvedWalletAddress = feePayerKeypair.publicKey.toString()
-      } catch (e) {
-        console.warn('[signup-server] fee payer keypair error:', e)
-      }
-    }
-
-    // Insert server row
+    // Insert server row — wallet_address holds the Supabase auth user ID
+    // so every query can do .eq('wallet_address', session.user.id)
     const { data: server, error: serverError } = await supabase
       .from('servers')
       .insert({
         name,
         email,
         role,
-        wallet_address: resolvedWalletAddress ?? null,
+        wallet_address: userId ?? null,
         is_founding_member: true,
       })
       .select('id, name')
