@@ -12,11 +12,8 @@ console.log('Google Maps key:', process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY ? 'loa
 
 export default function ServerSignupPage() {
   const [step, setStep] = useState(0)
-  const [txSig, setTxSig] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // txSig holds the new server's Supabase ID on success
 
   // Step 0 fields
   const [firstName, setFirstName] = useState('')
@@ -206,6 +203,10 @@ export default function ServerSignupPage() {
         body: JSON.stringify({ email, firstName, lastName, role, venue: `${venue}, ${city}`.trim() }),
       }).catch(() => {})
 
+      // Mark as server in localStorage so Navbar resolves immediately
+      localStorage.setItem('slateUserType', 'server')
+      localStorage.setItem('slateServerId', json.serverId)
+
       // Redirect to dashboard — auth session is now active
       window.location.href = '/dashboard'
     } catch (e: unknown) {
@@ -219,38 +220,6 @@ export default function ServerSignupPage() {
   function handleNext() {
     if (step < 2) setStep(step + 1)
     else handleClaim()
-  }
-
-  // ── Success screen ────────────────────────────────────────────────────────
-
-  if (txSig) {
-    return (
-      <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
-        <Navbar />
-        <div className="border-t border-white/10" />
-        <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-8">
-          <div className="w-full max-w-sm text-center">
-            <div className="mx-auto mb-8 flex h-16 w-16 items-center justify-center rounded-full border border-white/20">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-7 w-7 text-white">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-              </svg>
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight text-white">Welcome to Slate! ✓</h1>
-            <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>
-              Your founding member profile is live. Your reputation is now portable and permanent — yours forever.
-            </p>
-            <div className="mt-8">
-              <a
-                href="/dashboard"
-                className="block w-full rounded-full bg-white py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
-              >
-                Go to your dashboard →
-              </a>
-            </div>
-          </div>
-        </main>
-      </div>
-    )
   }
 
   // ── Form ──────────────────────────────────────────────────────────────────

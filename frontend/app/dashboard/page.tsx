@@ -75,83 +75,11 @@ function useQRCode() {
   return { qrCode, msLeft, activate, deactivate, formatCountdown }
 }
 
-const stats = [
-  { label: 'Total Ratings',    value: '127'   },
-  { label: 'Average Score',    value: '4.9 ★' },
-  { label: 'Followers',        value: '89'    },
-  { label: '$SERVE Earned',    value: '847'   },
-  { label: 'Invitations Sent', value: '3'     },
-]
-
-const weeklyEarnings = [
-  { week: 'Feb 3', amount: 180 },
-  { week: 'Feb 10', amount: 210 },
-  { week: 'Feb 17', amount: 195 },
-  { week: 'Feb 24', amount: 262 },
-]
-
-const reviews = [
-  {
-    guest: 'Sarah K.',
-    rating: 5,
-    date: 'March 12, 2025',
-    comment: 'Marcus remembered my dietary restrictions from a visit six months prior — without me saying a word.',
-  },
-  {
-    guest: 'David L.',
-    rating: 5,
-    date: 'March 3, 2025',
-    comment: 'Effortless pacing, genuinely warm without being performative. Already requested him for our next visit.',
-  },
-  {
-    guest: 'Rachel M.',
-    rating: 4,
-    date: 'February 22, 2025',
-    comment: 'Attentive without hovering. Knew when to engage and when to give us space.',
-  },
-]
-
-const followers = [
-  { initials: 'SK', name: 'Sarah K.', since: 'Mar 12' },
-  { initials: 'DL', name: 'David L.', since: 'Mar 3' },
-  { initials: 'RM', name: 'Rachel M.', since: 'Feb 22' },
-]
-
-const career = [
-  { restaurant: 'Eleven Madison Park', role: 'Head Bartender', period: 'Jan 2023 – Present', current: true },
-  { restaurant: 'Le Bernardin', role: 'Senior Server', period: 'Aug 2020 – Dec 2022', current: false },
-  { restaurant: 'Nobu Fifty Seven', role: 'Server', period: 'Mar 2018 – Jul 2020', current: false },
-]
-
-const reservations = [
-  {
-    guest: 'James T.',
-    date: 'Thursday, April 10',
-    time: '7:30 PM',
-    party: 4,
-    restaurant: 'Eleven Madison Park',
-  },
-  {
-    guest: 'Priya N.',
-    date: 'Saturday, April 12',
-    time: '8:00 PM',
-    party: 2,
-    restaurant: 'Eleven Madison Park',
-  },
-]
-
-const SERVE_BALANCE = 847
-const SERVE_GOAL = 1000
-const serveProgress = Math.round((SERVE_BALANCE / SERVE_GOAL) * 100)
-const maxWeekly = Math.max(...weeklyEarnings.map(w => w.amount))
-
 // ── Workplace section ──────────────────────────────────────────────────────────
 
-const DEMO_WORKPLACES = [
-  { id: '1', restaurant_name: 'Eleven Madison Park', is_primary: true, currently_working: true },
-]
+type Workplace = { id: string; restaurant_name: string; is_primary: boolean; currently_working: boolean }
 
-function WorkplaceSection() {
+function WorkplaceSection({ serverId }: { serverId: string | null }) {
   const [open, setOpen] = useState(false)
   const [googleLoaded, setGoogleLoaded] = useState(false)
   const [newVenue, setNewVenue] = useState('')
@@ -160,7 +88,23 @@ function WorkplaceSection() {
   const [isPrimary, setIsPrimary] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [workplaces, setWorkplaces] = useState<Workplace[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
+
+  async function loadWorkplaces() {
+    if (!serverId) return
+    const { data } = await supabase
+      .from('server_restaurants')
+      .select('id, restaurant_name, is_primary, currently_working')
+      .eq('server_id', serverId)
+      .eq('currently_working', true)
+    if (data) setWorkplaces(data as Workplace[])
+  }
+
+  useEffect(() => {
+    loadWorkplaces()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverId])
 
   useEffect(() => {
     if (!open || !googleLoaded || !inputRef.current || confirmedPlace) return
@@ -193,10 +137,11 @@ function WorkplaceSection() {
   }, [open, googleLoaded, confirmedPlace])
 
   async function handleSave() {
-    if (!confirmedPlace) return
+    if (!confirmedPlace || !serverId) return
     setSaving(true)
     const today = new Date().toISOString().slice(0, 10)
     const { error } = await supabase.from('server_restaurants').insert({
+      server_id: serverId,
       restaurant_name: newVenue,
       restaurant_address: newAddress,
       is_primary: isPrimary,
@@ -206,6 +151,7 @@ function WorkplaceSection() {
     if (error) console.error('[supabase] workplace insert:', error)
     setSaving(false)
     setSaved(true)
+    loadWorkplaces()
     setTimeout(() => { setSaved(false); setOpen(false); setConfirmedPlace(null); setNewVenue(''); setNewAddress(''); setIsPrimary(false) }, 2000)
   }
 
@@ -228,7 +174,10 @@ function WorkplaceSection() {
 
       {/* Current workplaces */}
       <div className="mb-4 flex flex-col gap-2">
-        {DEMO_WORKPLACES.map(w => (
+        {workplaces.length === 0 && (
+          <p className="text-xs" style={{ color: '#606060' }}>No current workplaces. Add one below.</p>
+        )}
+        {workplaces.map(w => (
           <div key={w.id} className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-3">
             <div>
               <p className="text-sm font-medium text-white">{w.restaurant_name}</p>
@@ -239,6 +188,7 @@ function WorkplaceSection() {
             <button
               onClick={async () => {
                 await supabase.from('server_restaurants').update({ currently_working: false }).eq('id', w.id)
+                loadWorkplaces()
               }}
               className="text-xs transition-colors hover:text-white"
               style={{ color: '#404040' }}
@@ -495,6 +445,62 @@ export default function DashboardPage() {
     })
   }, [router])
 
+  // Server profile + activity data
+  const [serverProfile, setServerProfile] = useState<{
+    id: string
+    name: string
+    total_ratings: number
+    avg_rating: number
+    follower_count: number
+  } | null>(null)
+  const [recentRatings, setRecentRatings] = useState<{
+    id: string
+    guest_name: string | null
+    score: number
+    created_at: string
+    comment: string | null
+  }[]>([])
+  const [recentFollowers, setRecentFollowers] = useState<{ id: string; created_at: string }[]>([])
+
+  useEffect(() => {
+    async function loadServerData() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user?.email) return
+      const { data: serverRow } = await supabase
+        .from('servers')
+        .select('id, name, average_rating, total_ratings')
+        .eq('email', session.user.email)
+        .maybeSingle()
+      if (!serverRow) return
+
+      const { data: followRows } = await supabase
+        .from('follows')
+        .select('id, created_at')
+        .eq('server_id', serverRow.id)
+
+      const followerCount = followRows?.length ?? 0
+
+      setServerProfile({
+        id: serverRow.id,
+        name: serverRow.name ?? '',
+        total_ratings: serverRow.total_ratings ?? 0,
+        avg_rating: serverRow.average_rating ?? 0,
+        follower_count: followerCount,
+      })
+      setRecentFollowers((followRows ?? []).slice(0, 5) as { id: string; created_at: string }[])
+
+      const { data: ratingRows } = await supabase
+        .from('ratings')
+        .select('id, guest_name, score, created_at, comment')
+        .eq('server_id', serverRow.id)
+        .order('created_at', { ascending: false })
+        .limit(5)
+      if (ratingRows) setRecentRatings(ratingRows as typeof recentRatings)
+    }
+    loadServerData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [copied, setCopied] = useState(false)
   const [shiftToast, setShiftToast] = useState(false)
   const { qrCode, msLeft, activate, deactivate, formatCountdown } = useQRCode()
@@ -515,21 +521,15 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadRestaurants() {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user?.email) {
-        setRestaurants(DEMO_WORKPLACES.map(w => ({ id: w.id, restaurant_name: w.restaurant_name, is_primary: w.is_primary })))
-        return
-      }
+      if (!session?.user?.email) return
 
       const { data: serverRow } = await supabase
         .from('servers')
         .select('id')
         .eq('email', session.user.email)
-        .single()
+        .maybeSingle()
 
-      if (!serverRow) {
-        setRestaurants(DEMO_WORKPLACES.map(w => ({ id: w.id, restaurant_name: w.restaurant_name, is_primary: w.is_primary })))
-        return
-      }
+      if (!serverRow) return
 
       const { data } = await supabase
         .from('server_restaurants')
@@ -592,7 +592,8 @@ export default function DashboardPage() {
   }
 
   function handleCopy() {
-    navigator.clipboard.writeText('https://slatenow.xyz/server/1')
+    const id = serverProfile?.id ?? ''
+    navigator.clipboard.writeText(`https://slatenow.xyz/server/${id}`)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -866,14 +867,14 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Update workplace ────────────────────────────────────────── */}
-        <WorkplaceSection />
+        <WorkplaceSection serverId={serverProfile?.id ?? null} />
 
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2.5">
               <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Welcome back, Marcus
+                Welcome back, {serverProfile?.name ?? '…'}
               </h1>
               {/* Verified badge */}
               <span title="Verified on-chain profile">
@@ -887,17 +888,25 @@ export default function DashboardPage() {
               Your profile is live on Slate ✓
             </p>
           </div>
-          <a
-            href="/server/1"
-            className="self-start rounded-full border border-white/20 px-5 py-2 text-xs font-semibold text-white transition-colors hover:border-white sm:self-auto"
-          >
-            View public profile →
-          </a>
+          {serverProfile?.id && (
+            <a
+              href={`/server/${serverProfile.id}`}
+              className="self-start rounded-full border border-white/20 px-5 py-2 text-xs font-semibold text-white transition-colors hover:border-white sm:self-auto"
+            >
+              View public profile →
+            </a>
+          )}
         </div>
 
         {/* ── Stats row ───────────────────────────────────────────────── */}
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {stats.map(({ label, value }) => (
+          {[
+            { label: 'Ratings', value: serverProfile?.total_ratings ?? 0 },
+            { label: 'Avg Rating', value: serverProfile?.avg_rating ? serverProfile.avg_rating.toFixed(1) : '—' },
+            { label: 'Followers', value: serverProfile?.follower_count ?? 0 },
+            { label: 'Venues', value: restaurants.length },
+            { label: '$SERVE Earned', value: (serverProfile?.total_ratings ?? 0) * 10 },
+          ].map(({ label, value }) => (
             <div
               key={label}
               className="flex flex-col gap-1.5 rounded-2xl border border-white/10 p-5"
@@ -926,34 +935,17 @@ export default function DashboardPage() {
 
             {/* Balance */}
             <div className="mb-1">
-              <span className="text-3xl font-bold text-white">{SERVE_BALANCE}</span>
+              <span className="text-3xl font-bold text-white">{(serverProfile?.total_ratings ?? 0) * 10}</span>
               <span className="ml-1.5 text-sm font-medium text-white">$SERVE</span>
             </div>
-            <p className="mb-5 text-xs" style={{ color: '#A0A0A0' }}>≈ $47.23 USD</p>
-
-            {/* Progress to next tier */}
-            <div className="mb-1.5 h-1.5 overflow-hidden rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
-              <div className="h-full rounded-full bg-white" style={{ width: `${serveProgress}%` }} />
-            </div>
-            <div className="mb-6 flex justify-between text-xs" style={{ color: '#606060' }}>
-              <span>Next tier: {SERVE_GOAL} $SERVE</span>
-              <span className="text-white">{SERVE_GOAL - SERVE_BALANCE} away</span>
-            </div>
-
-            {/* Weekly bar chart */}
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>
-              Last 4 weeks
+            <p className="mb-5 text-xs" style={{ color: '#A0A0A0' }}>
+              {serverProfile?.total_ratings ?? 0} ratings × 10 $SERVE each
             </p>
-            <div className="flex items-end gap-2" style={{ height: '56px' }}>
-              {weeklyEarnings.map(({ week, amount }) => (
-                <div key={week} className="flex flex-1 flex-col items-center gap-1.5">
-                  <div
-                    className="w-full rounded-sm bg-white"
-                    style={{ height: `${Math.round((amount / maxWeekly) * 100)}%`, opacity: amount === maxWeekly ? 1 : 0.35 }}
-                  />
-                  <span className="text-[9px]" style={{ color: '#606060' }}>{week.split(' ')[1]}</span>
-                </div>
-              ))}
+
+            <div className="rounded-xl border border-white/10 px-4 py-3">
+              <p className="text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
+                $SERVE launches on mainnet soon. Keep earning by collecting ratings from guests.
+              </p>
             </div>
           </div>
 
@@ -961,32 +953,42 @@ export default function DashboardPage() {
           <div className="rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
             <div className="mb-5 flex items-center justify-between">
               <p className="text-sm font-semibold text-white">Recent Reviews</p>
-              <a href="/server/1" className="text-xs transition-colors hover:text-white" style={{ color: '#A0A0A0' }}>
-                View all →
-              </a>
+              {serverProfile?.id && (
+                <a href={`/server/${serverProfile.id}`} className="text-xs transition-colors hover:text-white" style={{ color: '#A0A0A0' }}>
+                  View all →
+                </a>
+              )}
             </div>
 
-            <div className="flex flex-col gap-0">
-              {reviews.map(({ guest, rating, date, comment }, i) => (
-                <div key={i}>
-                  <div className="py-4">
-                    <div className="mb-1.5 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-white">{guest}</span>
-                        <span className="text-xs tracking-wide" style={{ color: '#A0A0A0' }}>
-                          {'★'.repeat(rating)}{'☆'.repeat(5 - rating)}
+            {recentRatings.length === 0 ? (
+              <p className="text-xs" style={{ color: '#606060' }}>No reviews yet. Share your QR code to collect your first rating.</p>
+            ) : (
+              <div className="flex flex-col gap-0">
+                {recentRatings.map((r, i) => (
+                  <div key={r.id}>
+                    <div className="py-4">
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-white">{r.guest_name ?? 'Guest'}</span>
+                          <span className="text-xs tracking-wide" style={{ color: '#A0A0A0' }}>
+                            {'★'.repeat(r.score)}{'☆'.repeat(5 - r.score)}
+                          </span>
+                        </div>
+                        <span className="text-[10px]" style={{ color: '#606060' }}>
+                          {new Date(r.created_at).toLocaleDateString()}
                         </span>
                       </div>
-                      <span className="text-[10px]" style={{ color: '#606060' }}>{date}</span>
+                      {r.comment && (
+                        <p className="line-clamp-2 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
+                          &ldquo;{r.comment}&rdquo;
+                        </p>
+                      )}
                     </div>
-                    <p className="line-clamp-2 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
-                      &ldquo;{comment}&rdquo;
-                    </p>
+                    {i < recentRatings.length - 1 && <div className="border-t border-white/10" />}
                   </div>
-                  {i < reviews.length - 1 && <div className="border-t border-white/10" />}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -996,26 +998,32 @@ export default function DashboardPage() {
           {/* Your Following */}
           <div className="rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
             <div className="mb-5 flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">Your Following</p>
-              <span className="text-2xl font-bold text-white">89</span>
+              <p className="text-sm font-semibold text-white">Your Followers</p>
+              <span className="text-2xl font-bold text-white">{serverProfile?.follower_count ?? 0}</span>
             </div>
 
-            <div className="mb-5 flex flex-col gap-0">
-              {followers.map(({ initials, name, since }, i) => (
-                <div key={i}>
-                  <div className="flex items-center justify-between py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 text-xs font-semibold text-white">
-                        {initials}
+            {recentFollowers.length === 0 ? (
+              <p className="mb-5 text-xs" style={{ color: '#606060' }}>No followers yet. Share your profile link to grow your following.</p>
+            ) : (
+              <div className="mb-5 flex flex-col gap-0">
+                {recentFollowers.map((f, i) => (
+                  <div key={f.id}>
+                    <div className="flex items-center justify-between py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 text-xs font-semibold text-white">
+                          G
+                        </div>
+                        <span className="text-sm text-white">Guest</span>
                       </div>
-                      <span className="text-sm text-white">{name}</span>
+                      <span className="text-xs" style={{ color: '#606060' }}>
+                        {new Date(f.created_at).toLocaleDateString()}
+                      </span>
                     </div>
-                    <span className="text-xs" style={{ color: '#606060' }}>Since {since}</span>
+                    {i < recentFollowers.length - 1 && <div className="border-t border-white/10" />}
                   </div>
-                  {i < followers.length - 1 && <div className="border-t border-white/10" />}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             <div className="rounded-xl border border-white/10 px-4 py-3">
               <p className="text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
@@ -1032,65 +1040,36 @@ export default function DashboardPage() {
             </div>
 
             <div className="mb-5">
-              {career.map(({ restaurant, role, period, current }, i) => (
-                <div key={i}>
-                  <div className="flex flex-col gap-0.5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-white">{restaurant}</span>
-                      {current && (
-                        <span className="rounded-full border border-white/20 px-2 py-0.5 text-[10px] font-medium text-white">
-                          Current
-                        </span>
-                      )}
+              {restaurants.length === 0 ? (
+                <p className="text-xs" style={{ color: '#606060' }}>No venues added yet. Add a workplace above.</p>
+              ) : (
+                restaurants.map((r, i) => (
+                  <div key={r.id}>
+                    <div className="flex flex-col gap-0.5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-white">{r.restaurant_name}</span>
+                        {r.is_primary && (
+                          <span className="rounded-full border border-white/20 px-2 py-0.5 text-[10px] font-medium text-white">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs" style={{ color: '#A0A0A0' }}>Server</span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs" style={{ color: '#A0A0A0' }}>{role}</span>
-                      <span className="text-xs tabular-nums" style={{ color: '#606060' }}>{period}</span>
-                    </div>
+                    {i < restaurants.length - 1 && <div className="border-t border-white/10" />}
                   </div>
-                  {i < career.length - 1 && <div className="border-t border-white/10" />}
-                </div>
-              ))}
+                ))
+              )}
             </div>
 
-            <button className="w-full rounded-xl border border-white/15 py-2.5 text-xs font-medium text-white transition-colors hover:border-white">
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="w-full rounded-xl border border-white/15 py-2.5 text-xs font-medium text-white transition-colors hover:border-white"
+            >
               + Add new restaurant
             </button>
-          </div>
-        </div>
-
-        {/* ── Upcoming Reservations ───────────────────────────────────── */}
-        <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
-          <div className="mb-5 flex items-center justify-between">
-            <p className="text-sm font-semibold text-white">Upcoming Reservations</p>
-            <span
-              className="rounded-full border border-white/15 px-2.5 py-0.5 text-xs font-medium text-white"
-            >
-              {reservations.length} confirmed
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {reservations.map(({ guest, date, time, party, restaurant }, i) => (
-              <div key={i} className="rounded-xl border border-white/10 p-4">
-                <div className="mb-3 flex items-start justify-between">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-xs font-semibold text-white">
-                    {guest.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <span className="rounded-full border border-white/15 px-2.5 py-0.5 text-[10px] font-medium text-white">
-                    {party} guests
-                  </span>
-                </div>
-                <p className="text-sm font-semibold text-white">{guest}</p>
-                <p className="mt-0.5 text-xs" style={{ color: '#A0A0A0' }}>{restaurant}</p>
-                <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: '#A0A0A0' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-3.5 w-3.5 shrink-0">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-                  </svg>
-                  {date} · {time}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
 
@@ -1160,7 +1139,7 @@ export default function DashboardPage() {
           {/* Profile URL */}
           <div className="mb-4 flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-3">
             <span className="flex-1 truncate font-mono text-xs text-white">
-              slatenow.xyz/server/1
+              slatenow.xyz/server/{serverProfile?.id ?? '…'}
             </span>
             <button
               onClick={handleCopy}
@@ -1213,7 +1192,7 @@ export default function DashboardPage() {
           <div>
             <p className="text-sm font-semibold text-white">Shift started</p>
             <p className="mt-0.5 text-xs leading-5" style={{ color: '#A0A0A0' }}>
-              ✓ Your followers have been notified you&apos;re on shift at Eleven Madison Park
+              ✓ Your followers have been notified you&apos;re on shift.
             </p>
           </div>
         </div>

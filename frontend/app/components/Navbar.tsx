@@ -29,22 +29,34 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   const [authLoaded, setAuthLoaded] = useState(false)
 
   useEffect(() => {
-    // Initial session check
+    // Fast path — seed from localStorage so nav renders immediately on next load
+    const cachedType = localStorage.getItem('slateUserType')
+    const cachedId   = localStorage.getItem('slateServerId')
+    if (cachedType === 'server' && cachedId) {
+      setServerId(cachedId)
+    }
+
+    // Source-of-truth check via Supabase
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s)
       if (s?.user?.email) {
         checkIfServer(s.user.email)
       } else {
+        // No active session — clear any stale cache
+        localStorage.removeItem('slateUserType')
+        localStorage.removeItem('slateServerId')
+        setServerId(null)
         setAuthLoaded(true)
       }
     })
 
-    // Listen for auth changes (login / logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s)
       if (s?.user?.email) {
         checkIfServer(s.user.email)
       } else {
+        localStorage.removeItem('slateUserType')
+        localStorage.removeItem('slateServerId')
         setServerId(null)
         setAuthLoaded(true)
       }
@@ -54,41 +66,45 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   }, [])
 
   async function checkIfServer(email: string) {
-    const { data } = await supabase
+    // maybeSingle() returns null (not an error) when no row is found
+    const { data: serverRow } = await supabase
       .from('servers')
-      .select('id')
+      .select('id, name')
       .eq('email', email)
-      .limit(1)
-      .single()
-    setServerId(data?.id ?? null)
+      .maybeSingle()
+
+    if (serverRow?.id) {
+      setServerId(serverRow.id)
+      localStorage.setItem('slateUserType', 'server')
+      localStorage.setItem('slateServerId', serverRow.id)
+    } else {
+      setServerId(null)
+      localStorage.setItem('slateUserType', 'guest')
+      localStorage.removeItem('slateServerId')
+    }
     setAuthLoaded(true)
   }
 
   async function handleSignOut() {
+    localStorage.removeItem('slateUserType')
+    localStorage.removeItem('slateServerId')
     await supabase.auth.signOut()
     router.push('/')
     router.refresh()
   }
 
   const isServer = authLoaded && session && serverId
-  const isGuest = authLoaded && session && !serverId
+  const isGuest  = authLoaded && session && !serverId
 
-  // Desktop authenticated links
   function DesktopAuthLinks() {
     if (!authLoaded) return null
     if (!session) {
       return (
         <div className="hidden items-center gap-3 md:flex">
-          <a
-            href="/login"
-            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-          >
+          <a href="/login" className="text-xs font-medium text-white/50 transition-colors hover:text-white">
             Sign in
           </a>
-          <a
-            href="/get-started"
-            className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80"
-          >
+          <a href="/get-started" className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80">
             Get Started
           </a>
         </div>
@@ -97,18 +113,17 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
     return (
       <div className="hidden items-center gap-4 md:flex">
         {isServer && (
-          <a
-            href="/dashboard"
-            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-          >
-            Dashboard
-          </a>
+          <>
+            <a href={`/server/${serverId}`} className="text-xs font-medium text-white/50 transition-colors hover:text-white">
+              My Profile
+            </a>
+            <a href="/dashboard" className="text-xs font-medium text-white/50 transition-colors hover:text-white">
+              Dashboard
+            </a>
+          </>
         )}
         {isGuest && (
-          <a
-            href="/account"
-            className="text-xs font-medium text-white/50 transition-colors hover:text-white"
-          >
+          <a href="/account" className="text-xs font-medium text-white/50 transition-colors hover:text-white">
             My Dashboard
           </a>
         )}
@@ -130,20 +145,14 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           overlay ? 'absolute left-0 right-0 top-0 z-20' : '',
         ].filter(Boolean).join(' ')}
       >
-        {/* Logo */}
         <a href="/" className="flex items-center gap-2.5">
           {LOGO}
           <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Slate</span>
         </a>
 
-        {/* Middle nav */}
         <nav className="hidden items-center gap-8 md:flex">
           {NAV_LINKS.map(({ href, label, pulse }) => (
-            <a
-              key={href}
-              href={href}
-              className="flex items-center gap-2 text-xs font-medium text-white/50 transition-colors hover:text-white"
-            >
+            <a key={href} href={href} className="flex items-center gap-2 text-xs font-medium text-white/50 transition-colors hover:text-white">
               {pulse && (
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40" />
@@ -155,10 +164,8 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           ))}
         </nav>
 
-        {/* Auth area */}
         <DesktopAuthLinks />
 
-        {/* Hamburger */}
         <button
           className="flex items-center justify-center text-white md:hidden"
           onClick={() => setMenuOpen(true)}
@@ -170,7 +177,6 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
         </button>
       </header>
 
-      {/* Mobile full-screen overlay */}
       {menuOpen && (
         <div className="fixed inset-0 z-50 flex flex-col bg-black md:hidden">
           <div className="flex h-16 shrink-0 items-center justify-between px-8">
@@ -178,11 +184,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
               {LOGO}
               <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Slate</span>
             </a>
-            <button
-              onClick={() => setMenuOpen(false)}
-              aria-label="Close menu"
-              className="flex h-10 w-10 items-center justify-center text-white"
-            >
+            <button onClick={() => setMenuOpen(false)} aria-label="Close menu" className="flex h-10 w-10 items-center justify-center text-white">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-6 w-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
@@ -193,30 +195,22 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
 
           <nav className="flex flex-1 flex-col overflow-y-auto px-8 pt-6">
             {NAV_LINKS.map(({ href, label }) => (
-              <a
-                key={href}
-                href={href}
-                onClick={() => setMenuOpen(false)}
-                className="border-b border-white/10 py-5 text-2xl font-semibold text-white"
-              >
+              <a key={href} href={href} onClick={() => setMenuOpen(false)} className="border-b border-white/10 py-5 text-2xl font-semibold text-white">
                 {label}
               </a>
             ))}
             {isServer && (
-              <a
-                href="/dashboard"
-                onClick={() => setMenuOpen(false)}
-                className="border-b border-white/10 py-5 text-2xl font-semibold text-white"
-              >
-                Dashboard
-              </a>
+              <>
+                <a href={`/server/${serverId}`} onClick={() => setMenuOpen(false)} className="border-b border-white/10 py-5 text-2xl font-semibold text-white">
+                  My Profile
+                </a>
+                <a href="/dashboard" onClick={() => setMenuOpen(false)} className="border-b border-white/10 py-5 text-2xl font-semibold text-white">
+                  Dashboard
+                </a>
+              </>
             )}
             {isGuest && (
-              <a
-                href="/account"
-                onClick={() => setMenuOpen(false)}
-                className="border-b border-white/10 py-5 text-2xl font-semibold text-white"
-              >
+              <a href="/account" onClick={() => setMenuOpen(false)} className="border-b border-white/10 py-5 text-2xl font-semibold text-white">
                 My Dashboard
               </a>
             )}
@@ -232,18 +226,10 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
               </button>
             ) : (
               <div className="flex flex-col gap-3">
-                <a
-                  href="/login"
-                  onClick={() => setMenuOpen(false)}
-                  className="block w-full rounded-full border border-white/25 py-4 text-center text-sm font-semibold text-white"
-                >
+                <a href="/login" onClick={() => setMenuOpen(false)} className="block w-full rounded-full border border-white/25 py-4 text-center text-sm font-semibold text-white">
                   Sign in
                 </a>
-                <a
-                  href="/get-started"
-                  onClick={() => setMenuOpen(false)}
-                  className="block w-full rounded-full bg-white py-4 text-center text-sm font-semibold text-black"
-                >
+                <a href="/get-started" onClick={() => setMenuOpen(false)} className="block w-full rounded-full bg-white py-4 text-center text-sm font-semibold text-black">
                   Get Started
                 </a>
               </div>
