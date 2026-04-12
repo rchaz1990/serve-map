@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
         wallet_address: resolvedWalletAddress ?? null,
         is_founding_member: true,
       })
-      .select('id')
+      .select('id, name')
       .single()
 
     if (serverError) throw serverError
