@@ -81,7 +81,8 @@ export default function ServerProfilePage() {
     if (!id) return
     async function load() {
       setLoading(true)
-      const { data } = await supabase
+      console.log('[ServerProfile] Looking up server ID:', id)
+      const { data, error } = await supabase
         .from('servers')
         .select(`
           *,
@@ -103,7 +104,8 @@ export default function ServerProfilePage() {
           )
         `)
         .eq('id', id)
-        .single()
+        .maybeSingle()
+      console.log('[ServerProfile] Result:', data ? `Found: ${data.name}` : 'Not found', error ?? '')
 
       if (data) {
         // Sort restaurants: primary first; sort ratings: newest first
@@ -135,7 +137,7 @@ export default function ServerProfilePage() {
         .eq('guest_id', session.user.id)
         .eq('server_id', id)
         .limit(1)
-        .single()
+        .maybeSingle()
       if (data) setFollowing(true)
     })
   }, [id])

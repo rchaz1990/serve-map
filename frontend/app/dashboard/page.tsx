@@ -461,95 +461,91 @@ export default function DashboardPage() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>('')
   const [showRestaurantPicker, setShowRestaurantPicker] = useState(false)
 
-  // Unified load: auth guard + three-method server detection + restaurants + profile data
+  // Load all dashboard data scoped to the logged-in server
   useEffect(() => {
-    async function load() {
+    async function loadDashboardData() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) { router.push('/login'); return }
 
-      const userId   = session.user.id
-      const userEmail = session.user.email ?? null
-      console.log('[Dashboard] Detecting server for userId:', userId, 'email:', userEmail)
+      console.log('[Dashboard] Loading for auth user:', session.user.id)
 
-      // Method 1 — wallet_address = Supabase auth user ID
-      let serverRow: { id: string; name: string | null; average_rating: number | null; total_ratings: number | null } | null = null
-      const { data: byId } = await supabase
+      // Primary lookup: wallet_address = Supabase auth UID (set at signup)
+      const { data: serverData, error } = await supabase
         .from('servers')
-        .select('id, name, average_rating, total_ratings')
-        .eq('wallet_address', userId)
+        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member')
+        .eq('wallet_address', session.user.id)
         .maybeSingle()
-      if (byId) { console.log('[Dashboard] Found by wallet_address'); serverRow = byId }
 
-      // Method 2 — case-insensitive email
-      if (!serverRow && userEmail) {
+      console.log('[Dashboard] Server data:', serverData, error ?? '')
+
+      if (!serverData) {
+        // Fallback: email match for accounts created before wallet_address was wired up
         const { data: byEmail } = await supabase
           .from('servers')
-          .select('id, name, average_rating, total_ratings')
-          .ilike('email', userEmail)
+          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member')
+          .ilike('email', session.user.email ?? '')
           .maybeSingle()
-        if (byEmail) { console.log('[Dashboard] Found by email'); serverRow = byEmail }
+        if (!byEmail) { setProfileLoading(false); return }
+        console.log('[Dashboard] Found by email fallback')
+        await hydrateFromServerRow(byEmail, session.user.id)
+        return
       }
 
-      // Method 3 — localStorage server ID
-      if (!serverRow) {
-        const storedId = localStorage.getItem('slateServerId')
-        if (storedId) {
-          const { data: byStored } = await supabase
-            .from('servers')
-            .select('id, name, average_rating, total_ratings')
-            .eq('id', storedId)
-            .maybeSingle()
-          if (byStored) { console.log('[Dashboard] Found by localStorage id'); serverRow = byStored }
-        }
-      }
+      await hydrateFromServerRow(serverData, session.user.id)
+    }
 
-      console.log('[Dashboard] Server row:', serverRow)
+    // Separate helper so both lookup paths share the same data-loading logic
+    async function hydrateFromServerRow(
+      row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null },
+      authUserId: string
+    ) {
+      // Keep wallet_address in sync for future logins
+      await supabase.from('servers').update({ wallet_address: authUserId }).eq('id', row.id).eq('wallet_address', null as unknown as string)
 
-      if (!serverRow) { setProfileLoading(false); return }
-
-      // Sync localStorage
-      const resolvedName = serverRow.name || localStorage.getItem('slateServerName') || userEmail || ''
-      localStorage.setItem('slateServerId', serverRow.id)
+      const resolvedName = row.name || localStorage.getItem('slateServerName') || ''
+      localStorage.setItem('slateServerId', row.id)
       localStorage.setItem('slateUserType', 'server')
-      localStorage.setItem('slateServerName', resolvedName)
+      if (resolvedName) localStorage.setItem('slateServerName', resolvedName)
 
-      // Load restaurants
+      // Restaurants — use row.id (servers UUID), NOT the auth UID
       const { data: restRows } = await supabase
         .from('server_restaurants')
         .select('id, restaurant_name, is_primary')
-        .eq('server_id', serverRow.id)
+        .eq('server_id', row.id)
         .eq('currently_working', true)
       const rows = restRows ?? []
+      console.log('[Dashboard] Restaurants found:', rows.length)
       setRestaurants(rows)
       if (rows.length === 1) setSelectedRestaurant(rows[0].restaurant_name)
 
-      // Load followers
+      // Followers
       const { data: followRows } = await supabase
         .from('follows')
         .select('id, created_at')
-        .eq('server_id', serverRow.id)
-      const followerCount = followRows?.length ?? 0
+        .eq('server_id', row.id)
+      const followerCount = followRows?.length ?? (row.follower_count ?? 0)
       setRecentFollowers((followRows ?? []).slice(0, 5) as { id: string; created_at: string }[])
 
-      // Load ratings
+      // Ratings
       const { data: ratingRows } = await supabase
         .from('ratings')
         .select('id, guest_name, score, created_at, comment')
-        .eq('server_id', serverRow.id)
+        .eq('server_id', row.id)
         .order('created_at', { ascending: false })
         .limit(5)
       if (ratingRows) setRecentRatings(ratingRows as typeof recentRatings)
 
       setServerProfile({
-        id: serverRow.id,
+        id: row.id,
         name: resolvedName,
-        total_ratings: serverRow.total_ratings ?? 0,
-        avg_rating: serverRow.average_rating ?? 0,
+        total_ratings: row.total_ratings ?? 0,
+        avg_rating: row.average_rating ?? 0,
         follower_count: followerCount,
       })
       setProfileLoading(false)
     }
-    load()
+
+    loadDashboardData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
