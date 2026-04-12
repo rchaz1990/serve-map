@@ -12,7 +12,6 @@ type Server = {
   average_rating: number | null
   total_ratings: number | null
   follower_count: number | null
-  serve_balance: number | null
   is_founding_member: boolean | null
 }
 
@@ -36,27 +35,27 @@ type Rating = {
 
 export default function ServerProfilePage() {
   const params = useParams()
+  const profileId = params.id as string
+
   const [server, setServer] = useState<Server | null>(null)
   const [restaurants, setRestaurants] = useState<Restaurant[]>([])
   const [ratings, setRatings] = useState<Rating[]>([])
   const [loading, setLoading] = useState(true)
+  const [isOwnProfile, setIsOwnProfile] = useState(false)
   const [following, setFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
   const [guestId, setGuestId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const profileId = params.id as string
-
   useEffect(() => {
-    const loadProfile = async () => {
+    const loadAll = async () => {
+      // ── Profile data ──────────────────────────────────────────────────────
       console.log('[ServerProfile] Loading profile for ID:', profileId)
-
       const { data, error } = await supabase
         .from('servers')
         .select('*')
         .eq('id', profileId)
         .maybeSingle()
-
       console.log('[ServerProfile] Server data:', data, 'Error:', error)
 
       if (data) {
@@ -67,7 +66,6 @@ export default function ServerProfilePage() {
           .select('*')
           .eq('server_id', profileId)
           .order('is_primary', { ascending: false })
-
         setRestaurants((rests ?? []) as Restaurant[])
 
         const { data: rats } = await supabase
@@ -76,35 +74,40 @@ export default function ServerProfilePage() {
           .eq('server_id', profileId)
           .order('created_at', { ascending: false })
           .limit(10)
-
         setRatings((rats ?? []) as Rating[])
+      }
+
+      // ── Auth: own-profile check + follow state ────────────────────────────
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        setGuestId(session.user.id)
+
+        // Check if this is the logged-in server's own profile
+        const { data: currentServer } = await supabase
+          .from('servers')
+          .select('id')
+          .eq('wallet_address', session.user.id)
+          .maybeSingle()
+        setIsOwnProfile(currentServer?.id === profileId)
+
+        // Check existing follow
+        const { data: followRow } = await supabase
+          .from('follows')
+          .select('server_id')
+          .eq('guest_id', session.user.id)
+          .eq('server_id', profileId)
+          .maybeSingle()
+        if (followRow) setFollowing(true)
       }
 
       setLoading(false)
     }
 
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-      setGuestId(session.user.id)
-      const { data } = await supabase
-        .from('follows')
-        .select('server_id')
-        .eq('guest_id', session.user.id)
-        .eq('server_id', profileId)
-        .maybeSingle()
-      if (data) setFollowing(true)
-    }
-
-    loadProfile()
-    checkAuth()
+    loadAll()
   }, [profileId])
 
   async function handleFollow() {
-    if (!guestId) {
-      window.location.href = '/login'
-      return
-    }
+    if (!guestId) { window.location.href = '/login'; return }
     setFollowLoading(true)
     if (following) {
       await supabase.from('follows').delete().eq('guest_id', guestId).eq('server_id', profileId)
@@ -122,188 +125,233 @@ export default function ServerProfilePage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  // ── Loading ───────────────────────────────────────────────────────────────
+
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: '#000' }}>
       <Navbar />
-      <p style={{ color: '#444', fontSize: '14px', letterSpacing: '2px' }}>Loading...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' }}>
+        <p style={{ color: '#333', fontSize: '13px', letterSpacing: '3px', textTransform: 'uppercase' }}>Loading</p>
+      </div>
     </div>
   )
 
   if (!server) return (
     <div style={{ minHeight: '100vh', background: '#000' }}>
       <Navbar />
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', gap: '24px' }}>
-        <p style={{ color: '#444', fontSize: '16px' }}>Profile not found.</p>
-        <a href="/live" style={{ color: 'white', border: '1px solid #333', padding: '12px 24px', textDecoration: 'none', fontSize: '14px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', gap: '32px' }}>
+        <p style={{ color: '#333', fontSize: '15px' }}>This profile doesn&apos;t exist yet.</p>
+        <a href="/live" style={{ color: 'white', borderBottom: '1px solid #333', paddingBottom: '4px', textDecoration: 'none', fontSize: '13px', letterSpacing: '2px', textTransform: 'uppercase' }}>
           See what&apos;s live tonight
         </a>
       </div>
     </div>
   )
 
-  const avgRating = ratings.length > 0
-    ? (ratings.reduce((sum, r) => sum + r.score, 0) / ratings.length).toFixed(1)
-    : server.average_rating?.toFixed(1) ?? '—'
+  // ── Derived values ────────────────────────────────────────────────────────
 
+  const avgRating = ratings.length > 0
+    ? (ratings.reduce((s, r) => s + r.score, 0) / ratings.length).toFixed(1)
+    : server.average_rating?.toFixed(1) ?? '—'
   const totalRatings = ratings.length || server.total_ratings || 0
+  const serveBalance = totalRatings * 10
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ minHeight: '100vh', background: '#000' }}>
+    <div style={{ minHeight: '100vh', background: '#000000', color: 'white', fontFamily: 'var(--font-geist-sans, system-ui, sans-serif)' }}>
       <Navbar />
-      <div style={{ paddingTop: '80px', paddingBottom: '80px' }}>
-        <div style={{ maxWidth: '680px', margin: '0 auto', padding: '0 24px' }}>
 
-          {/* ── Header ── */}
-          <div style={{ marginBottom: '48px' }}>
-            {server.is_founding_member && (
-              <div style={{ fontSize: '10px', letterSpacing: '4px', color: '#555', marginBottom: '16px', textTransform: 'uppercase' }}>
-                Founding Member
-              </div>
-            )}
-            <h1 style={{ fontFamily: 'Georgia, serif', fontSize: '48px', color: 'white', marginBottom: '8px', fontWeight: '400' }}>
-              {server.name}
-            </h1>
-            <p style={{ color: '#555', fontSize: '16px', marginBottom: '24px' }}>{server.role}</p>
+      <main style={{ maxWidth: '680px', margin: '0 auto', padding: '80px 32px 120px' }}>
 
-            {/* Stats */}
-            <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap', marginBottom: '32px' }}>
-              <div>
-                <div style={{ fontSize: '24px', color: 'white', fontWeight: '600' }}>{avgRating}</div>
-                <div style={{ fontSize: '11px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '4px' }}>Rating</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '24px', color: 'white', fontWeight: '600' }}>{totalRatings}</div>
-                <div style={{ fontSize: '11px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '4px' }}>Reviews</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '24px', color: 'white', fontWeight: '600' }}>{server.follower_count || 0}</div>
-                <div style={{ fontSize: '11px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '4px' }}>Followers</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '24px', color: 'white', fontWeight: '600' }}>{totalRatings * 10}</div>
-                <div style={{ fontSize: '11px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '4px' }}>$SERVE</div>
-              </div>
-            </div>
+        {/* ── Header ── */}
+        <section style={{ marginBottom: '64px' }}>
 
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {server.is_founding_member && (
+            <p style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', marginBottom: '20px', textTransform: 'uppercase' }}>
+              Founding Member
+            </p>
+          )}
+
+          <h1 style={{
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontSize: 'clamp(40px, 8vw, 64px)',
+            fontWeight: '400',
+            color: 'white',
+            lineHeight: '1.1',
+            marginBottom: '12px',
+            letterSpacing: '-0.5px',
+          }}>
+            {server.name}
+          </h1>
+
+          <p style={{ fontSize: '16px', color: '#555', marginBottom: '40px', letterSpacing: '0.2px' }}>
+            {server.role}
+          </p>
+
+          {/* Stats row */}
+          <div style={{ display: 'flex', gap: '48px', flexWrap: 'wrap', marginBottom: '40px', borderTop: '1px solid #111', paddingTop: '32px' }}>
+            {[
+              { value: avgRating, label: 'Rating' },
+              { value: totalRatings, label: 'Reviews' },
+              { value: server.follower_count ?? 0, label: 'Followers' },
+              { value: serveBalance, label: '$SERVE' },
+            ].map(({ value, label }) => (
+              <div key={label}>
+                <div style={{ fontSize: '28px', fontWeight: '600', color: 'white', lineHeight: '1', marginBottom: '6px', fontVariantNumeric: 'tabular-nums' }}>
+                  {value}
+                </div>
+                <div style={{ fontSize: '10px', letterSpacing: '3px', color: '#444', textTransform: 'uppercase' }}>
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Action buttons — hidden on own profile */}
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            {!isOwnProfile && (
               <button
                 onClick={handleFollow}
                 disabled={followLoading}
                 style={{
-                  padding: '12px 28px',
+                  padding: '11px 28px',
                   background: following ? 'transparent' : 'white',
-                  color: following ? '#666' : 'black',
-                  border: following ? '1px solid #333' : 'none',
-                  fontSize: '14px',
-                  fontWeight: '500',
+                  color: following ? '#555' : '#000',
+                  border: following ? '1px solid #2a2a2a' : '1px solid white',
+                  fontSize: '13px',
+                  letterSpacing: '1.5px',
+                  textTransform: 'uppercase',
                   cursor: 'pointer',
-                  letterSpacing: '1px',
+                  transition: 'opacity 0.15s',
+                  opacity: followLoading ? 0.5 : 1,
                 }}
               >
                 {following ? 'Following ✓' : 'Follow'}
               </button>
-              <button
-                onClick={handleCopy}
-                style={{
-                  padding: '12px 28px',
-                  background: 'transparent',
-                  color: '#666',
-                  border: '1px solid #222',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  letterSpacing: '1px',
-                }}
-              >
-                {copied ? 'Copied!' : 'Copy profile link'}
-              </button>
-            </div>
-          </div>
-
-          {/* ── Restaurants ── */}
-          <div style={{ borderTop: '1px solid #111', paddingTop: '40px', marginBottom: '40px' }}>
-            <div style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', marginBottom: '24px', textTransform: 'uppercase' }}>
-              Where you&apos;ll find me
-            </div>
-            {restaurants.length === 0 ? (
-              <p style={{ color: '#333', fontSize: '15px' }}>No workplaces listed yet.</p>
-            ) : (
-              restaurants.map(r => (
-                <div key={r.id} style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ color: 'white', fontSize: '16px' }}>{r.restaurant_name}</div>
-                    <div style={{ color: '#444', fontSize: '13px', marginTop: '4px' }}>{r.city || r.restaurant_address}</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                    {r.is_primary && (
-                      <span style={{ fontSize: '10px', letterSpacing: '2px', color: '#555', border: '1px solid #222', padding: '4px 10px', textTransform: 'uppercase' }}>
-                        Primary
-                      </span>
-                    )}
-                    {r.currently_working && (
-                      <span style={{ fontSize: '10px', letterSpacing: '2px', color: '#666', border: '1px solid #222', padding: '4px 10px', textTransform: 'uppercase' }}>
-                        Currently here
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))
             )}
+            <button
+              onClick={handleCopy}
+              style={{
+                padding: '11px 28px',
+                background: 'transparent',
+                color: '#555',
+                border: '1px solid #1e1e1e',
+                fontSize: '13px',
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              {copied ? 'Copied' : 'Share profile'}
+            </button>
           </div>
+        </section>
 
-          {/* ── Ratings ── */}
-          <div style={{ borderTop: '1px solid #111', paddingTop: '40px', marginBottom: '40px' }}>
-            <div style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', marginBottom: '24px', textTransform: 'uppercase' }}>
-              What guests are saying
+        {/* ── Where you'll find me ── */}
+        <section style={{ borderTop: '1px solid #111', paddingTop: '48px', marginBottom: '48px' }}>
+          <p style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', textTransform: 'uppercase', marginBottom: '32px' }}>
+            Where you&apos;ll find me
+          </p>
+
+          {restaurants.length === 0 ? (
+            <p style={{ color: '#2a2a2a', fontSize: '15px' }}>No workplaces listed yet.</p>
+          ) : restaurants.map((r, i) => (
+            <div
+              key={r.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                paddingTop: i === 0 ? 0 : '20px',
+                paddingBottom: '20px',
+                borderBottom: '1px solid #0f0f0f',
+              }}
+            >
+              <div>
+                <p style={{ color: 'white', fontSize: '16px', marginBottom: '4px' }}>{r.restaurant_name}</p>
+                <p style={{ color: '#444', fontSize: '13px' }}>{r.city || r.restaurant_address}</p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexShrink: 0, marginTop: '2px' }}>
+                {r.is_primary && (
+                  <span style={{ fontSize: '9px', letterSpacing: '2px', color: '#444', border: '1px solid #1e1e1e', padding: '4px 10px', textTransform: 'uppercase' }}>
+                    Primary
+                  </span>
+                )}
+                {r.currently_working && (
+                  <span style={{ fontSize: '9px', letterSpacing: '2px', color: '#777', border: '1px solid #222', padding: '4px 10px', textTransform: 'uppercase' }}>
+                    Here now
+                  </span>
+                )}
+              </div>
             </div>
-            {ratings.length === 0 ? (
-              <p style={{ color: '#333', fontSize: '15px' }}>No ratings yet.</p>
-            ) : (
-              ratings.map(r => (
-                <div key={r.id} style={{ marginBottom: '32px', paddingBottom: '32px', borderBottom: '1px solid #111' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>
-                        {r.guest_name ?? 'Guest'}
-                      </span>
-                      <span style={{ color: '#666', fontSize: '14px' }}>
-                        {'★'.repeat(r.score)}{'☆'.repeat(5 - r.score)}
-                      </span>
-                    </div>
-                    <span style={{ color: '#333', fontSize: '12px' }}>
-                      {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </span>
-                  </div>
-                  {r.comment && (
-                    <p style={{ color: '#666', fontSize: '15px', lineHeight: '1.6', margin: '0 0 8px 0' }}>
-                      &ldquo;{r.comment}&rdquo;
-                    </p>
-                  )}
-                  {r.restaurant_name && (
-                    <p style={{ color: '#333', fontSize: '12px', letterSpacing: '1px' }}>at {r.restaurant_name}</p>
-                  )}
+          ))}
+        </section>
+
+        {/* ── Guest ratings ── */}
+        <section style={{ borderTop: '1px solid #111', paddingTop: '48px', marginBottom: '48px' }}>
+          <p style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', textTransform: 'uppercase', marginBottom: '32px' }}>
+            What guests are saying
+          </p>
+
+          {ratings.length === 0 ? (
+            <p style={{ color: '#2a2a2a', fontSize: '15px', lineHeight: '1.7' }}>
+              No ratings yet.{' '}
+              {isOwnProfile && 'Share your profile link with guests to start collecting reviews.'}
+            </p>
+          ) : ratings.map((r, i) => (
+            <div
+              key={r.id}
+              style={{
+                paddingTop: i === 0 ? 0 : '32px',
+                paddingBottom: '32px',
+                borderBottom: '1px solid #0f0f0f',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <span style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>
+                    {r.guest_name ?? 'Guest'}
+                  </span>
+                  <span style={{ color: '#444', fontSize: '13px', letterSpacing: '2px' }}>
+                    {'★'.repeat(r.score)}{'☆'.repeat(5 - r.score)}
+                  </span>
                 </div>
-              ))
-            )}
-          </div>
-
-          {/* ── Share ── */}
-          <div style={{ borderTop: '1px solid #111', paddingTop: '40px' }}>
-            <div style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', marginBottom: '16px', textTransform: 'uppercase' }}>
-              Share this profile
+                <span style={{ color: '#333', fontSize: '12px', flexShrink: 0, marginLeft: '16px' }}>
+                  {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              </div>
+              {r.comment && (
+                <p style={{ color: '#666', fontSize: '15px', lineHeight: '1.75', marginBottom: '8px', fontStyle: 'italic' }}>
+                  &ldquo;{r.comment}&rdquo;
+                </p>
+              )}
+              {r.restaurant_name && (
+                <p style={{ color: '#333', fontSize: '12px', letterSpacing: '1px' }}>at {r.restaurant_name}</p>
+              )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#0a0a0a', border: '1px solid #1a1a1a', padding: '14px 16px' }}>
-              <span style={{ flex: 1, color: '#444', fontSize: '13px', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {typeof window !== 'undefined' ? window.location.href : `slatenow.xyz/server/${profileId}`}
-              </span>
-              <button onClick={handleCopy} style={{ background: 'none', border: 'none', color: 'white', fontSize: '13px', cursor: 'pointer', flexShrink: 0 }}>
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-          </div>
+          ))}
+        </section>
 
-        </div>
-      </div>
+        {/* ── Share ── */}
+        <section style={{ borderTop: '1px solid #111', paddingTop: '48px' }}>
+          <p style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', textTransform: 'uppercase', marginBottom: '20px' }}>
+            Share this profile
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1a1a1a', paddingBottom: '16px' }}>
+            <span style={{ color: '#333', fontSize: '13px', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '16px' }}>
+              {typeof window !== 'undefined' ? window.location.href : `slatenow.xyz/server/${profileId}`}
+            </span>
+            <button
+              onClick={handleCopy}
+              style={{ background: 'none', border: 'none', color: copied ? '#666' : 'white', fontSize: '13px', letterSpacing: '1px', cursor: 'pointer', flexShrink: 0, textTransform: 'uppercase' }}
+            >
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+        </section>
+
+      </main>
     </div>
   )
 }
