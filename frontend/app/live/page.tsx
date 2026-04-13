@@ -206,29 +206,22 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
       return
     }
 
-    // Step 2 — geocode venue name to get coordinates
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const google = (window as any).google
-    if (!google?.maps?.Geocoder) {
-      // Maps not loaded yet — allow without distance check
-      setGpsState('ok')
-      setGpsVerifiedForSubmit(false)
-      setShowForm(true)
-      return
-    }
+    // Step 2 — geocode via REST API (no SDK callback failures)
+    try {
+      const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name + ' New York')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
+      const res = await fetch(geocodeUrl)
+      const data = await res.json()
 
-    const geocoder = new google.maps.Geocoder()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    geocoder.geocode({ address: venue.name + ' New York' }, (results: any[], status: string) => {
-      if (status !== 'OK' || !results[0]) {
+      if (data.status !== 'OK' || !data.results[0]) {
+        // Geocoding failed — allow without distance check
         setGpsState('ok')
         setGpsVerifiedForSubmit(false)
         setShowForm(true)
         return
       }
 
-      const venueLat = results[0].geometry.location.lat()
-      const venueLng = results[0].geometry.location.lng()
+      const venueLat = data.results[0].geometry.location.lat
+      const venueLng = data.results[0].geometry.location.lng
 
       // Step 3 — Haversine distance
       const R = 6371000
@@ -246,9 +239,14 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
       } else {
         setGpsState('far')
         setGpsVerifiedForSubmit(false)
-        // Don't show form yet — wait for user to confirm
+        // Form stays hidden — user must confirm
       }
-    })
+    } catch {
+      // Fetch failed — allow without distance check
+      setGpsState('ok')
+      setGpsVerifiedForSubmit(false)
+      setShowForm(true)
+    }
   }
 
   async function handleSubmit() {
@@ -341,21 +339,28 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
               </div>
             )}
 
-            {/* Too far — warning with confirm/cancel */}
+            {/* Too far — prominent red block */}
             {gpsState === 'far' && (
-              <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-4">
-                <p className="mb-1 text-sm font-semibold text-white">
-                  You appear to be {gpsDistanceM}m away from {venue.name}.
-                </p>
-                <p className="mb-4 text-xs leading-5" style={{ color: '#fbbf24' }}>
-                  Vibe reports are most useful when submitted on location.
-                </p>
+              <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-4">
+                <div className="mb-3 flex items-start gap-2">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-red-400">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: '#fca5a5' }}>
+                      You are {gpsDistanceM}m away from {venue.name}.
+                    </p>
+                    <p className="mt-1 text-xs leading-5" style={{ color: '#f87171' }}>
+                      Your report will not be GPS verified if submitted from this distance.
+                    </p>
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => { setGpsVerifiedForSubmit(false); setShowForm(true) }}
-                    className="flex-1 rounded-full border border-yellow-500/40 py-2.5 text-xs font-semibold text-yellow-400 transition-opacity hover:opacity-80"
+                    className="flex-1 rounded-full border border-red-500/30 py-2.5 text-xs font-semibold text-red-400 transition-opacity hover:opacity-80"
                   >
-                    I&apos;m here anyway
+                    I&apos;m actually here — submit anyway
                   </button>
                   <button
                     onClick={handleImHere}
@@ -645,21 +650,28 @@ function VenueSearch() {
               </div>
             )}
 
-            {/* Too far — warning with confirm/cancel */}
+            {/* Too far — prominent red block */}
             {gpsState === 'far' && (
-              <div className="mb-5 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-4">
-                <p className="mb-1 text-sm font-semibold text-white">
-                  You appear to be {gpsDistanceM}m away from {selected.name}.
-                </p>
-                <p className="mb-4 text-xs leading-5" style={{ color: '#fbbf24' }}>
-                  Vibe reports are most useful when submitted on location.
-                </p>
+              <div className="mb-5 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-4">
+                <div className="mb-3 flex items-start gap-2">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-red-400">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: '#fca5a5' }}>
+                      You are {gpsDistanceM}m away from {selected.name}.
+                    </p>
+                    <p className="mt-1 text-xs leading-5" style={{ color: '#f87171' }}>
+                      Your report will not be GPS verified if submitted from this distance.
+                    </p>
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => { setGpsVerifiedForSubmit(false); setShowForm(true) }}
-                    className="flex-1 rounded-full border border-yellow-500/40 py-2.5 text-xs font-semibold text-yellow-400 transition-opacity hover:opacity-80"
+                    className="flex-1 rounded-full border border-red-500/30 py-2.5 text-xs font-semibold text-red-400 transition-opacity hover:opacity-80"
                   >
-                    I&apos;m here anyway
+                    I&apos;m actually here — submit anyway
                   </button>
                   <button
                     onClick={handleChange}
