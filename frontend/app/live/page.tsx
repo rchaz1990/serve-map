@@ -206,46 +206,44 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
       return
     }
 
-    // Step 2 — geocode via REST API (no SDK callback failures)
+    // Step 2 — geocode venue name to get coordinates
+    let venueLat: number | null = null
+    let venueLng: number | null = null
     try {
-      const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name + ' New York')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
-      const res = await fetch(geocodeUrl)
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name + ' New York NY')}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`
+      const res = await fetch(url)
       const data = await res.json()
-
-      if (data.status !== 'OK' || !data.results[0]) {
-        // Geocoding failed — allow without distance check
-        setGpsState('ok')
-        setGpsVerifiedForSubmit(false)
-        setShowForm(true)
-        return
-      }
-
-      const venueLat = data.results[0].geometry.location.lat
-      const venueLng = data.results[0].geometry.location.lng
-
-      // Step 3 — Haversine distance
-      const R = 6371000
-      const dLat = (venueLat - userLat) * Math.PI / 180
-      const dLon = (venueLng - userLng) * Math.PI / 180
-      const a = Math.sin(dLat / 2) ** 2 +
-        Math.cos(userLat * Math.PI / 180) * Math.cos(venueLat * Math.PI / 180) * Math.sin(dLon / 2) ** 2
-      const distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
-      setGpsDistanceM(distance)
-
-      if (distance <= 500) {
-        setGpsState('ok')
-        setGpsVerifiedForSubmit(true)
-        setShowForm(true)
-      } else {
-        setGpsState('far')
-        setGpsVerifiedForSubmit(false)
-        // Form stays hidden — user must confirm
-      }
+      venueLat = data.results[0]?.geometry?.location?.lat ?? null
+      venueLng = data.results[0]?.geometry?.location?.lng ?? null
     } catch {
-      // Fetch failed — allow without distance check
+      // fetch failed
+    }
+
+    if (venueLat === null || venueLng === null) {
+      // Geocoding failed — show form unverified
       setGpsState('ok')
       setGpsVerifiedForSubmit(false)
       setShowForm(true)
+      return
+    }
+
+    // Step 3 — Haversine distance
+    const R = 6371000
+    const dLat = (venueLat - userLat) * Math.PI / 180
+    const dLon = (venueLng - userLng) * Math.PI / 180
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(userLat * Math.PI / 180) * Math.cos(venueLat * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+    const distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
+    setGpsDistanceM(distance)
+
+    if (distance <= 500) {
+      setGpsState('ok')
+      setGpsVerifiedForSubmit(true)
+      setShowForm(true)
+    } else {
+      setGpsState('far')
+      setGpsVerifiedForSubmit(false)
+      // Form stays hidden — user must confirm via warning buttons
     }
   }
 

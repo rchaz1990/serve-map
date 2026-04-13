@@ -643,10 +643,9 @@ export default function DashboardPage() {
     setShiftGpsLoading(true)
     setPendingShiftRestaurant(restaurantName)
 
-    // Step 1 — request GPS
+    // Step 1 — request GPS; BLOCK if denied
     let userLat: number
     let userLng: number
-
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
         navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 })
@@ -654,31 +653,28 @@ export default function DashboardPage() {
       userLat = pos.coords.latitude
       userLng = pos.coords.longitude
     } catch {
-      // GPS denied or unavailable — allow shift without verification
       setShiftGpsLoading(false)
-      await doStartShift(restaurantName, false, null, null, null)
+      setShiftGpsError('Please enable location access to start your shift.')
       return
     }
 
-    // Step 2 — geocode via REST API (avoids silent SDK callback failures)
+    // Step 2 — geocode restaurant to get venue coordinates
     let venueLat: number | null = null
     let venueLng: number | null = null
-
     try {
-      const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(restaurantName + ' New York')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
-      const res = await fetch(geocodeUrl)
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(restaurantName + ' New York NY')}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`
+      const res = await fetch(url)
       const data = await res.json()
-      if (data.status === 'OK' && data.results[0]) {
-        venueLat = data.results[0].geometry.location.lat
-        venueLng = data.results[0].geometry.location.lng
-      }
+      venueLat = data.results[0]?.geometry?.location?.lat ?? null
+      venueLng = data.results[0]?.geometry?.location?.lng ?? null
     } catch {
-      // Geocoding fetch failed — proceed without distance check
+      // fetch failed — allow shift but unverified
     }
 
+    setShiftGpsLoading(false)
+
     if (venueLat === null || venueLng === null) {
-      // Couldn't get venue coordinates — allow without blocking
-      setShiftGpsLoading(false)
+      // Geocoding failed — allow shift, mark unverified
       await doStartShift(restaurantName, false, null, userLat, userLng)
       return
     }
@@ -691,17 +687,15 @@ export default function DashboardPage() {
       Math.cos(userLat * Math.PI / 180) * Math.cos(venueLat * Math.PI / 180) * Math.sin(dLon / 2) ** 2
     const distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
 
-    setShiftGpsLoading(false)
-
     // Step 4 — hard block if too far
     if (distance > 500) {
       setShiftGpsError(
-        `You must be at ${restaurantName} to start your shift. You are ${distance}m away.`
+        `You are ${distance} meters from ${restaurantName}. You must be on location to start your shift.`
       )
       return
     }
 
-    // Step 5 — within range, start shift
+    // Step 5 — within range, activate shift
     await doStartShift(restaurantName, true, distance, userLat, userLng)
   }
 
