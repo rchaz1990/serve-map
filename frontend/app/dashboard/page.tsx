@@ -461,8 +461,8 @@ export default function DashboardPage() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>('')
   const [showRestaurantPicker, setShowRestaurantPicker] = useState(false)
 
-  // GPS shift verification
-  const [shiftGpsWarning, setShiftGpsWarning] = useState<{ restaurantName: string; userLat: number; userLng: number } | null>(null)
+  // GPS shift verification — error string blocks shift, null means clear
+  const [shiftGpsError, setShiftGpsError] = useState<string | null>(null)
 
   // Load all dashboard data scoped to the logged-in server
   useEffect(() => {
@@ -617,11 +617,11 @@ export default function DashboardPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  async function confirmStartShift(restaurantName: string, gpsVerified: boolean, distanceMeters: number | null, userLat: number | null, userLng: number | null) {
+  async function doStartShift(restaurantName: string, gpsVerified: boolean, distanceMeters: number | null, userLat: number | null, userLng: number | null) {
     activate()
     setShiftToast(true)
     setShowRestaurantPicker(false)
-    setShiftGpsWarning(null)
+    setShiftGpsError(null)
     const { data, error } = await supabase.from('shifts').insert({
       restaurant_name: restaurantName,
       started_at: new Date().toISOString(),
@@ -637,8 +637,9 @@ export default function DashboardPage() {
 
   async function startShift(restaurantName: string) {
     setShowRestaurantPicker(false)
+    setShiftGpsError(null)
 
-    // Request GPS location
+    // Step 1 — request GPS
     let userLat: number | null = null
     let userLng: number | null = null
 
@@ -649,44 +650,51 @@ export default function DashboardPage() {
       userLat = pos.coords.latitude
       userLng = pos.coords.longitude
     } catch {
-      // GPS unavailable — start shift without verification
-      await confirmStartShift(restaurantName, false, null, null, null)
+      // GPS denied or unavailable — allow shift without verification
+      await doStartShift(restaurantName, false, null, null, null)
       return
     }
 
-    // Geocode the restaurant address to get coordinates
+    // Step 2 — geocode restaurant name to get venue coordinates
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const google = (window as any).google
-    const restaurant = restaurants.find(r => r.restaurant_name === restaurantName)
-
-    if (google?.maps?.Geocoder && restaurant?.restaurant_address) {
-      const geocoder = new google.maps.Geocoder()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      geocoder.geocode({ address: restaurant.restaurant_address }, async (results: any[], status: string) => {
-        if (status === 'OK' && results[0]) {
-          const venueLat = results[0].geometry.location.lat()
-          const venueLng = results[0].geometry.location.lng()
-          const R = 6371000
-          const dLat = (venueLat - userLat!) * Math.PI / 180
-          const dLon = (venueLng - userLng!) * Math.PI / 180
-          const a = Math.sin(dLat / 2) ** 2 +
-            Math.cos(userLat! * Math.PI / 180) * Math.cos(venueLat * Math.PI / 180) * Math.sin(dLon / 2) ** 2
-          const distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
-
-          if (distance > 500) {
-            setShiftGpsWarning({ restaurantName, userLat: userLat!, userLng: userLng! })
-            return
-          }
-          await confirmStartShift(restaurantName, true, distance, userLat, userLng)
-        } else {
-          // Geocoding failed — start without distance check
-          await confirmStartShift(restaurantName, false, null, userLat, userLng)
-        }
-      })
-    } else {
-      // No geocoder or no address — start with GPS coords but unverified
-      await confirmStartShift(restaurantName, false, null, userLat, userLng)
+    if (!google?.maps?.Geocoder) {
+      // Maps not loaded — allow without distance check
+      await doStartShift(restaurantName, false, null, userLat, userLng)
+      return
     }
+
+    const geocoder = new google.maps.Geocoder()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    geocoder.geocode({ address: restaurantName + ' New York' }, async (results: any[], status: string) => {
+      if (status !== 'OK' || !results[0]) {
+        // Geocoding failed — allow without distance check
+        await doStartShift(restaurantName, false, null, userLat, userLng)
+        return
+      }
+
+      const venueLat = results[0].geometry.location.lat()
+      const venueLng = results[0].geometry.location.lng()
+
+      // Step 3 — Haversine distance
+      const R = 6371000
+      const dLat = (venueLat - userLat!) * Math.PI / 180
+      const dLon = (venueLng - userLng!) * Math.PI / 180
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(userLat! * Math.PI / 180) * Math.cos(venueLat * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+      const distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
+
+      // Step 4 — hard block if too far
+      if (distance > 500) {
+        setShiftGpsError(
+          `You must be at ${restaurantName} to start your shift. You appear to be ${distance}m away.`
+        )
+        return
+      }
+
+      // Step 5 — within range, start shift
+      await doStartShift(restaurantName, true, distance, userLat, userLng)
+    })
   }
 
   return (
@@ -827,30 +835,23 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* GPS shift warning — shown when server appears far from workplace */}
-          {shiftGpsWarning && !isOnShift && (
+          {/* GPS shift error — hard block when server is too far from workplace */}
+          {shiftGpsError && !isOnShift && (
             <div className="mt-7 border-t border-white/10 pt-7">
-              <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-5 py-4">
-                <p className="mb-1 text-sm font-semibold text-white">
-                  You appear to be away from your workplace.
-                </p>
-                <p className="mb-4 text-xs leading-5" style={{ color: '#fbbf24' }}>
-                  Are you at {shiftGpsWarning.restaurantName} right now?
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => confirmStartShift(shiftGpsWarning.restaurantName, false, null, shiftGpsWarning.userLat, shiftGpsWarning.userLng)}
-                    className="flex-1 rounded-full border border-yellow-500/40 py-2.5 text-xs font-semibold text-yellow-400 transition-opacity hover:opacity-80"
-                  >
-                    Yes, I&apos;m here — start shift
-                  </button>
-                  <button
-                    onClick={() => setShiftGpsWarning(null)}
-                    className="flex-1 rounded-full border border-white/20 py-2.5 text-xs font-semibold text-white transition-opacity hover:opacity-80"
-                  >
-                    Cancel
-                  </button>
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-4">
+                <div className="mb-3 flex items-start gap-3">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-red-400">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                  </svg>
+                  <p className="text-sm leading-5" style={{ color: '#fca5a5' }}>{shiftGpsError}</p>
                 </div>
+                <button
+                  onClick={() => setShiftGpsError(null)}
+                  className="text-xs transition-colors hover:text-white"
+                  style={{ color: '#606060' }}
+                >
+                  Dismiss
+                </button>
               </div>
             </div>
           )}
