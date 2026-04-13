@@ -205,6 +205,13 @@ export default function ServerSignupPage() {
         body: JSON.stringify({ email, firstName, lastName, role, venue: `${venue}, ${city}`.trim() }),
       }).catch(() => {})
 
+      // Send welcome email — fire and forget
+      fetch('/api/welcome-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name: fullName, type: 'server' }),
+      }).catch(() => {})
+
       // Mark as server in localStorage so Navbar resolves immediately
       localStorage.setItem('slateUserType', 'server')
       localStorage.setItem('slateServerId', json.serverId)

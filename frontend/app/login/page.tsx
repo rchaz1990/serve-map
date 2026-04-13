@@ -39,6 +39,12 @@ function LoginForm() {
     const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
     if (error) { setError(error.message); setLoading(false); return }
     localStorage.setItem('slateUserType', 'guest')
+    // Send welcome email — fire and forget
+    fetch('/api/welcome-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name: name || email, type: 'guest' }),
+    }).catch(() => {})
     router.push('/live')
   }
 
