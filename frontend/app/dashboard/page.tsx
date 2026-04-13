@@ -457,9 +457,12 @@ export default function DashboardPage() {
   const [profileLoading, setProfileLoading] = useState(true)
 
   // Restaurant picker — shown before shift starts
-  const [restaurants, setRestaurants] = useState<{ id: string; restaurant_name: string; is_primary: boolean }[]>([])
+  const [restaurants, setRestaurants] = useState<{ id: string; restaurant_name: string; is_primary: boolean; restaurant_address: string | null }[]>([])
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>('')
   const [showRestaurantPicker, setShowRestaurantPicker] = useState(false)
+
+  // GPS shift verification
+  const [shiftGpsWarning, setShiftGpsWarning] = useState<{ restaurantName: string; userLat: number; userLng: number } | null>(null)
 
   // Load all dashboard data scoped to the logged-in server
   useEffect(() => {
@@ -510,7 +513,7 @@ export default function DashboardPage() {
       // Restaurants — use row.id (servers UUID), NOT the auth UID
       const { data: restRows } = await supabase
         .from('server_restaurants')
-        .select('id, restaurant_name, is_primary')
+        .select('id, restaurant_name, is_primary, restaurant_address')
         .eq('server_id', row.id)
         .eq('currently_working', true)
       const rows = restRows ?? []
@@ -614,17 +617,76 @@ export default function DashboardPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  async function startShift(restaurantName: string) {
+  async function confirmStartShift(restaurantName: string, gpsVerified: boolean, distanceMeters: number | null, userLat: number | null, userLng: number | null) {
     activate()
     setShiftToast(true)
     setShowRestaurantPicker(false)
+    setShiftGpsWarning(null)
     const { data, error } = await supabase.from('shifts').insert({
       restaurant_name: restaurantName,
       started_at: new Date().toISOString(),
       is_active: true,
+      gps_verified: gpsVerified,
+      distance_meters: distanceMeters,
+      user_lat: userLat,
+      user_lng: userLng,
     }).select('id').single()
     if (error) console.error('[supabase] shift start:', error)
     else setShiftDbId(data.id)
+  }
+
+  async function startShift(restaurantName: string) {
+    setShowRestaurantPicker(false)
+
+    // Request GPS location
+    let userLat: number | null = null
+    let userLng: number | null = null
+
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 })
+      )
+      userLat = pos.coords.latitude
+      userLng = pos.coords.longitude
+    } catch {
+      // GPS unavailable — start shift without verification
+      await confirmStartShift(restaurantName, false, null, null, null)
+      return
+    }
+
+    // Geocode the restaurant address to get coordinates
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const google = (window as any).google
+    const restaurant = restaurants.find(r => r.restaurant_name === restaurantName)
+
+    if (google?.maps?.Geocoder && restaurant?.restaurant_address) {
+      const geocoder = new google.maps.Geocoder()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      geocoder.geocode({ address: restaurant.restaurant_address }, async (results: any[], status: string) => {
+        if (status === 'OK' && results[0]) {
+          const venueLat = results[0].geometry.location.lat()
+          const venueLng = results[0].geometry.location.lng()
+          const R = 6371000
+          const dLat = (venueLat - userLat!) * Math.PI / 180
+          const dLon = (venueLng - userLng!) * Math.PI / 180
+          const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(userLat! * Math.PI / 180) * Math.cos(venueLat * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+          const distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
+
+          if (distance > 500) {
+            setShiftGpsWarning({ restaurantName, userLat: userLat!, userLng: userLng! })
+            return
+          }
+          await confirmStartShift(restaurantName, true, distance, userLat, userLng)
+        } else {
+          // Geocoding failed — start without distance check
+          await confirmStartShift(restaurantName, false, null, userLat, userLng)
+        }
+      })
+    } else {
+      // No geocoder or no address — start with GPS coords but unverified
+      await confirmStartShift(restaurantName, false, null, userLat, userLng)
+    }
   }
 
   return (
@@ -762,6 +824,34 @@ export default function DashboardPage() {
               >
                 Cancel
               </button>
+            </div>
+          )}
+
+          {/* GPS shift warning — shown when server appears far from workplace */}
+          {shiftGpsWarning && !isOnShift && (
+            <div className="mt-7 border-t border-white/10 pt-7">
+              <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-5 py-4">
+                <p className="mb-1 text-sm font-semibold text-white">
+                  You appear to be away from your workplace.
+                </p>
+                <p className="mb-4 text-xs leading-5" style={{ color: '#fbbf24' }}>
+                  Are you at {shiftGpsWarning.restaurantName} right now?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => confirmStartShift(shiftGpsWarning.restaurantName, false, null, shiftGpsWarning.userLat, shiftGpsWarning.userLng)}
+                    className="flex-1 rounded-full border border-yellow-500/40 py-2.5 text-xs font-semibold text-yellow-400 transition-opacity hover:opacity-80"
+                  >
+                    Yes, I&apos;m here — start shift
+                  </button>
+                  <button
+                    onClick={() => setShiftGpsWarning(null)}
+                    className="flex-1 rounded-full border border-white/20 py-2.5 text-xs font-semibold text-white transition-opacity hover:opacity-80"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

@@ -553,23 +553,23 @@ export default function WhitepaperPage() {
             {[
               {
                 stream: 'Stream 1',
-                title: 'Restaurant subscriptions',
-                body: 'Verified Partner at $99/month includes staff analytics, shift visibility, priority placement on the live map, and guest insights. Premium at $299/month adds recruiting tools, featured placement, and Scheduling & Reservations.',
+                title: 'Restaurant Subscriptions',
+                body: '$99/month for Verified Partner tier and $299/month for Premium — includes advanced analytics, scheduling tools, and Scheduling & Reservations. Predictable recurring revenue from restaurants that benefit from better staff retention and performance data.',
               },
               {
                 stream: 'Stream 2',
-                title: '$SERVE token ecosystem',
-                body: 'Guests earn $SERVE by leaving verified ratings and reporting venue vibes. Servers earn $SERVE through great service and verified ratings. Token value appreciates as platform adoption grows. Nobody needs to visit a crypto exchange — tokens circulate naturally inside the platform.',
+                title: '$SERVE Token Ecosystem',
+                body: 'Guests earn small amounts of $SERVE by leaving verified ratings and reporting live vibes. Servers earn the majority by delivering great service and building loyal followings. The token circulates naturally within the platform. No one needs to buy crypto — they earn it by participating.',
               },
               {
                 stream: 'Stream 3',
-                title: 'Slate Pay cashout fee — 2%',
-                body: 'When servers cash out $SERVE rewards to real money Slate takes 2%. Servers only pay when they get paid. At scale with 10,000 active servers this generates over $500,000 annually from cashouts alone.',
+                title: '2% Cashout Fee on Slate Pay',
+                body: 'When servers convert their earned $SERVE into real money Slate takes a small 2% fee. Servers only pay when they actually receive money — fairer than most gig platforms.',
               },
               {
                 stream: 'Stream 4',
-                title: 'Data insights — launching Year 2',
-                body: 'Slate sits on top of the most granular real-time hospitality data ever built. Anonymized aggregate trend intelligence — which neighborhoods are hottest, which nights are busiest, which venues drive the highest staff ratings — licensed to real estate developers, hotel chains, hospitality publications, and private equity firms. No personal data. Ever. Initial contracts projected at $95,000 in Year 2 growing to over $5,000,000 annually at national scale.',
+                title: 'Anonymized Data Insights — Year 2–3 Vision',
+                body: 'Long-term Slate will license aggregated anonymized trend data — vibe patterns, peak times, staff performance correlations — to real estate developers, hospitality publications, hotel chains, and tourism boards. No personal data is ever sold.',
               },
             ].map(item => (
               <div key={item.stream} className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
@@ -585,7 +585,7 @@ export default function WhitepaperPage() {
           {/* One-liner summary */}
           <div className="rounded-xl border border-white/15 px-6 py-5">
             <p className="text-sm leading-7" style={{ color: '#C0C0C0' }}>
-              We never charge the workers. We charge the venues who need them, capture a small fee when workers cash out their rewards, and long term we monetize the most valuable real-time hospitality dataset ever built.
+              &ldquo;We never charge the workers. We charge the venues who need them, capture a small fee when workers cash out their rewards, and long term we monetize the most valuable real-time hospitality dataset ever built — without touching a single piece of personal data.&rdquo;
             </p>
           </div>
         </section>

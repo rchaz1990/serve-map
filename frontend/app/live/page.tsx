@@ -17,6 +17,20 @@ interface Venue {
   minutesAgo: number
   servers: number
   energy: number
+  gpsVerified?: boolean
+}
+
+// ── Haversine distance ────────────────────────────────────────────────────────
+
+function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -135,6 +149,8 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
   const [wait, setWait] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [gpsWarning, setGpsWarning] = useState(false)
+  const [pendingSubmit, setPendingSubmit] = useState(false)
 
   useEffect(() => {
     const el = ref.current
@@ -147,20 +163,39 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
     return () => obs.disconnect()
   }, [])
 
-  async function handleSubmit() {
+  async function handleSubmit(forceSubmit = false) {
     if (!vibe) return
     setSubmitting(true)
+
+    // Request GPS — venue cards have no restaurant coordinates so we can't
+    // compute distance; we record the user's location for audit only.
+    let userLat: number | null = null
+    let userLng: number | null = null
+
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 })
+      )
+      userLat = pos.coords.latitude
+      userLng = pos.coords.longitude
+    } catch {
+      // GPS unavailable — proceed without location
+    }
+
     const { error } = await supabase.from('vibe_reports').insert({
-      venue_name: venue.name,
-      neighborhood: venue.neighborhood,
+      restaurant_name: venue.name,
       vibe,
       bar_seats: seats,
       wait_time: wait,
-      reported_at: new Date().toISOString(),
+      gps_verified: forceSubmit ? false : (userLat !== null),
+      user_lat: userLat,
+      user_lng: userLng,
     })
     if (error) console.error('[supabase] vibe_report:', error)
     setSubmitting(false)
     setSubmitted(true)
+    setGpsWarning(false)
+    setPendingSubmit(false)
   }
 
   return (
@@ -175,12 +210,19 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
           {/* Top row */}
           <div className="mb-3 flex items-start justify-between gap-3">
             <h3 className="text-base font-bold text-white">{venue.name}</h3>
-            <span
-              className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white ${animClass}`}
-              style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}
-            >
-              {venue.vibe}
-            </span>
+            <div className="flex shrink-0 items-center gap-2">
+              {venue.gpsVerified && (
+                <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
+                  GPS ✓
+                </span>
+              )}
+              <span
+                className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white ${animClass}`}
+                style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}
+              >
+                {venue.vibe}
+              </span>
+            </div>
           </div>
 
           <p className="mb-2 text-3xl">{VIBE_META[venue.vibe].emoji}</p>
@@ -251,13 +293,37 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
               </div>
             </div>
 
-            <button
-              disabled={!vibe || submitting}
-              onClick={handleSubmit}
-              className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
-            >
-              {submitting ? 'Submitting…' : 'Share the vibe — earn 5 $SERVE 🍸'}
-            </button>
+            {gpsWarning && (
+              <div className="mb-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3">
+                <p className="mb-3 text-xs leading-5" style={{ color: '#fbbf24' }}>
+                  You appear to be more than 500m from this venue. Are you sure you want to submit?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleSubmit(true)}
+                    className="flex-1 rounded-full border border-yellow-500/40 py-2 text-xs font-semibold text-yellow-400 transition-opacity hover:opacity-80"
+                  >
+                    Yes, submit anyway
+                  </button>
+                  <button
+                    onClick={() => { setGpsWarning(false); setPendingSubmit(false); setSubmitting(false) }}
+                    className="flex-1 rounded-full border border-white/20 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-80"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!gpsWarning && (
+              <button
+                disabled={!vibe || submitting || pendingSubmit}
+                onClick={() => handleSubmit(false)}
+                className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
+              >
+                {submitting ? 'Verifying location…' : 'Share the vibe — earn 5 $SERVE 🍸'}
+              </button>
+            )}
           </div>
         )}
 
@@ -287,12 +353,15 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
 function VenueSearch() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [googleLoaded, setGoogleLoaded] = useState(false)
-  const [selected, setSelected] = useState<{ name: string; address: string } | null>(null)
+  const [selected, setSelected] = useState<{ name: string; address: string; lat: number | null; lng: number | null } | null>(null)
   const [vibe, setVibe] = useState<string | null>(null)
   const [seats, setSeats] = useState<string | null>(null)
   const [wait, setWait] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [gpsWarning, setGpsWarning] = useState(false)
+  const [pendingCoords, setPendingCoords] = useState<{ userLat: number; userLng: number } | null>(null)
+  const [submitResult, setSubmitResult] = useState<{ gpsVerified: boolean; distance: number } | null>(null)
 
   useEffect(() => {
     if (!googleLoaded || !inputRef.current || selected) return
@@ -303,6 +372,7 @@ function VenueSearch() {
     const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
       types: ['establishment'],
       componentRestrictions: { country: 'us' },
+      fields: ['name', 'formatted_address', 'geometry'],
     })
 
     const style = document.createElement('style')
@@ -311,7 +381,9 @@ function VenueSearch() {
 
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace()
-      setSelected({ name: place.name ?? '', address: place.formatted_address ?? '' })
+      const lat = place.geometry?.location?.lat() ?? null
+      const lng = place.geometry?.location?.lng() ?? null
+      setSelected({ name: place.name ?? '', address: place.formatted_address ?? '', lat, lng })
     })
 
     const input = inputRef.current
@@ -320,20 +392,81 @@ function VenueSearch() {
     return () => { input.removeEventListener('keydown', suppressEnter); style.remove() }
   }, [googleLoaded, selected])
 
-  async function handleSubmit() {
+  async function doSubmit(userLat: number | null, userLng: number | null) {
     if (!selected || !vibe) return
     setSubmitting(true)
-    const { error } = await supabase.from('vibe_reports').insert({
-      venue_name: selected.name,
-      vibe,
-      bar_seats: seats,
-      wait_time: wait,
-      reported_at: new Date().toISOString(),
-      gps_verified: false,
-    })
-    if (error) console.error('[supabase] vibe_report:', error)
+
+    const reporterEmail = localStorage.getItem('slateUserEmail') ?? undefined
+
+    // If we have both user and venue coordinates, use the verified API route
+    if (userLat !== null && userLng !== null && selected.lat !== null && selected.lng !== null) {
+      const res = await fetch('/api/verify-vibe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userLat, userLng,
+          restaurantLat: selected.lat,
+          restaurantLng: selected.lng,
+          restaurantName: selected.name,
+          vibe, barSeats: seats, waitTime: wait,
+          reporterEmail,
+        }),
+      })
+      const json = await res.json()
+      if (res.status === 429) {
+        setSubmitting(false)
+        console.warn('[verify-vibe]', json.error)
+        setSubmitted(true) // treat as done — show success to avoid UX confusion
+        return
+      }
+      if (res.ok) {
+        setSubmitResult({ gpsVerified: json.gpsVerified, distance: json.distance })
+      }
+    } else {
+      // No GPS or no venue coordinates — fall back to direct insert
+      await supabase.from('vibe_reports').insert({
+        restaurant_name: selected.name,
+        vibe,
+        bar_seats: seats,
+        wait_time: wait,
+        gps_verified: false,
+        reporter_email: reporterEmail,
+      })
+    }
+
     setSubmitting(false)
     setSubmitted(true)
+    setGpsWarning(false)
+    setPendingCoords(null)
+  }
+
+  async function handleSubmit() {
+    if (!selected || !vibe) return
+
+    // Request GPS location
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 })
+      )
+      const userLat = pos.coords.latitude
+      const userLng = pos.coords.longitude
+
+      // Check distance client-side if we have venue coordinates
+      if (selected.lat !== null && selected.lng !== null) {
+        const distance = getDistanceMeters(userLat, userLng, selected.lat, selected.lng)
+        if (distance > 500) {
+          // Show warning — user must confirm
+          setPendingCoords({ userLat, userLng })
+          setGpsWarning(true)
+          return
+        }
+      }
+
+      await doSubmit(userLat, userLng)
+    } catch {
+      // GPS denied or unavailable — submit without verification
+      await doSubmit(null, null)
+    }
   }
 
   return (
@@ -352,13 +485,22 @@ function VenueSearch() {
 
         {submitted ? (
           <div className="rounded-xl border border-white/15 px-5 py-4">
-            <div className="flex items-center gap-2">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 shrink-0 text-white">
+            <div className="flex items-start gap-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="mt-0.5 h-4 w-4 shrink-0 text-white">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
-              <p className="text-sm font-medium text-white">
-                Thanks! {selected?.name} is now showing as {vibe?.toLowerCase()} on Slate.
-              </p>
+              <div>
+                <p className="text-sm font-medium text-white">
+                  Thanks! {selected?.name} is now showing as {vibe?.toLowerCase()} on Slate.
+                </p>
+                {submitResult && (
+                  <p className="mt-1 text-xs" style={{ color: submitResult.gpsVerified ? '#4ade80' : '#9ca3af' }}>
+                    {submitResult.gpsVerified
+                      ? `GPS verified · ${submitResult.distance}m from venue`
+                      : `Not GPS verified · ${submitResult.distance}m from venue`}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         ) : selected ? (
@@ -404,13 +546,37 @@ function VenueSearch() {
               </div>
             </div>
 
-            <button
-              disabled={!vibe || submitting}
-              onClick={handleSubmit}
-              className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
-            >
-              {submitting ? 'Submitting…' : 'Share the vibe — earn 5 $SERVE'}
-            </button>
+            {gpsWarning && (
+              <div className="mb-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3">
+                <p className="mb-3 text-xs leading-5" style={{ color: '#fbbf24' }}>
+                  You appear to be more than 500m from this venue. Are you sure you want to submit?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => doSubmit(pendingCoords!.userLat, pendingCoords!.userLng)}
+                    className="flex-1 rounded-full border border-yellow-500/40 py-2 text-xs font-semibold text-yellow-400 transition-opacity hover:opacity-80"
+                  >
+                    Yes, submit anyway
+                  </button>
+                  <button
+                    onClick={() => { setGpsWarning(false); setPendingCoords(null) }}
+                    className="flex-1 rounded-full border border-white/20 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-80"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!gpsWarning && (
+              <button
+                disabled={!vibe || submitting}
+                onClick={handleSubmit}
+                className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
+              >
+                {submitting ? 'Verifying location…' : 'Share the vibe — earn 5 $SERVE'}
+              </button>
+            )}
           </div>
         ) : (
           <input
