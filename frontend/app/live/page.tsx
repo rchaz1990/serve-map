@@ -145,16 +145,9 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
   // Check-in flow state
   const [checkInOpen, setCheckInOpen] = useState(false)
 
-  // GPS check — runs immediately when "I'm here" is clicked
-  type GpsState = 'idle' | 'loading' | 'ok' | 'far' | 'denied'
-  const [gpsState, setGpsState] = useState<GpsState>('idle')
-  const [gpsDistanceM, setGpsDistanceM] = useState<number | null>(null)
+  // GPS — silent background tracking
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [gpsVerifiedForSubmit, setGpsVerifiedForSubmit] = useState(false)
-
-  const [locationChecking, setLocationChecking] = useState(false)
-  const [locationError, setLocationError] = useState('')
-  const [showConfirmFarAway, setShowConfirmFarAway] = useState(false)
 
   // Vibe form state — shown only after GPS check passes or is overridden
   const [showForm, setShowForm] = useState(false)
@@ -163,6 +156,9 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
   const [wait, setWait] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [serveEarned, setServeEarned] = useState<number | null>(null)
+  const [submitMessage, setSubmitMessage] = useState('')
+  const [submitError, setSubmitError] = useState('')
 
   useEffect(() => {
     const el = ref.current
@@ -179,84 +175,51 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
     if (checkInOpen) {
       // Cancel — reset everything
       setCheckInOpen(false)
-      setGpsState('idle')
-      setGpsDistanceM(null)
       setUserCoords(null)
       setShowForm(false)
       setVibe(null)
       setSeats(null)
       setWait(null)
-      setLocationError('')
-      setShowConfirmFarAway(false)
-      setLocationChecking(false)
       return
     }
 
+    // Show form immediately — GPS captured silently in background
     setCheckInOpen(true)
-    setLocationChecking(true)
-    setLocationError('')
-    setShowConfirmFarAway(false)
-    setGpsState('loading')
+    setShowForm(true)
+    setGpsVerifiedForSubmit(false)
 
-    if (!navigator.geolocation) {
-      setLocationError('Location not available on this device.')
-      setLocationChecking(false)
-      setGpsState('idle')
-      return
-    }
+    if (!navigator.geolocation) return
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const userLat = pos.coords.latitude
         const userLng = pos.coords.longitude
         setUserCoords({ lat: userLat, lng: userLng })
-        setLocationChecking(false)
 
-        // Geocode venue name — try plain first, then NYC fallback
-        let venueLat: number | null = null
-        let venueLng: number | null = null
         try {
-          const url1 = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name)}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`
-          const res1 = await fetch(url1)
+          let venueLat: number | null = null
+          let venueLng: number | null = null
+          const res1 = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name)}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`)
           const data1 = await res1.json()
           venueLat = data1.results?.[0]?.geometry?.location?.lat ?? null
           venueLng = data1.results?.[0]?.geometry?.location?.lng ?? null
 
           if (venueLat === null) {
-            const url2 = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name + ' NYC')}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`
-            const res2 = await fetch(url2)
+            const res2 = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name + ' NYC')}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`)
             const data2 = await res2.json()
             venueLat = data2.results?.[0]?.geometry?.location?.lat ?? null
             venueLng = data2.results?.[0]?.geometry?.location?.lng ?? null
           }
+
+          if (venueLat !== null && venueLng !== null) {
+            const distance = Math.round(getDistanceMeters(userLat, userLng, venueLat, venueLng))
+            if (distance <= 500) setGpsVerifiedForSubmit(true)
+          }
         } catch {
-          // network error
-        }
-
-        if (venueLat === null || venueLng === null) {
-          setLocationError('Could not verify your location. Please try again.')
-          setGpsState('idle')
-          return
-        }
-
-        const distance = Math.round(getDistanceMeters(userLat, userLng, venueLat, venueLng))
-        setGpsDistanceM(distance)
-
-        if (distance > 500) {
-          setGpsState('far')
-          setGpsVerifiedForSubmit(false)
-          setShowConfirmFarAway(true)
-        } else {
-          setGpsState('ok')
-          setGpsVerifiedForSubmit(true)
-          setShowForm(true)
+          // silent — GPS data quality, not a blocker
         }
       },
-      () => {
-        setLocationError('Please enable location to report vibes.')
-        setLocationChecking(false)
-        setGpsState('idle')
-      },
+      () => { /* denied — form already shown, just no GPS badge */ },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     )
   }
@@ -264,17 +227,41 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
   async function handleSubmit() {
     if (!vibe) return
     setSubmitting(true)
-    const { error } = await supabase.from('vibe_reports').insert({
-      restaurant_name: venue.name,
-      vibe,
-      bar_seats: seats,
-      wait_time: wait,
-      gps_verified: gpsVerifiedForSubmit,
-      user_lat: userCoords?.lat ?? null,
-      user_lng: userCoords?.lng ?? null,
+    setSubmitError('')
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const reporterEmail = session?.user?.email ?? localStorage.getItem('slateUserEmail') ?? undefined
+    const coords = userCoords
+
+    const res = await fetch('/api/verify-vibe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: session?.user?.id ?? null,
+        reporterEmail,
+        restaurantName: venue.name,
+        vibe, barSeats: seats, waitTime: wait,
+        userLat: coords?.lat ?? null,
+        userLng: coords?.lng ?? null,
+        restaurantLat: null,
+        restaurantLng: null,
+        gpsVerified: gpsVerifiedForSubmit,
+        distanceMeters: null,
+      }),
     })
-    if (error) console.error('[supabase] vibe_report:', error)
+    const json = await res.json()
     setSubmitting(false)
+
+    if (res.status === 429) {
+      setSubmitError(json.error)
+      return
+    }
+    if (!res.ok) {
+      setSubmitError('Something went wrong. Please try again.')
+      return
+    }
+    setServeEarned(json.serveReward ?? null)
+    setSubmitMessage(json.message ?? '')
     setSubmitted(true)
   }
 
@@ -340,58 +327,7 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
         {checkInOpen && !submitted && (
           <div className="border-t border-white/10 px-6 pb-6 pt-5">
 
-            {/* GPS loading */}
-            {(gpsState === 'loading' || locationChecking) && (
-              <div className="flex items-center gap-3 py-4">
-                <svg className="h-4 w-4 animate-spin text-white/40" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                <p className="text-sm" style={{ color: '#A0A0A0' }}>Getting your location…</p>
-              </div>
-            )}
-
-            {/* Location error — GPS denied or geocoding failed */}
-            {locationError && (
-              <div style={{ color: 'red', padding: '12px', border: '1px solid red', borderRadius: '8px', fontSize: '13px', marginBottom: '8px' }}>
-                {locationError}
-              </div>
-            )}
-
-            {/* Too far — confirm modal */}
-            {showConfirmFarAway && (
-              <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-4">
-                <div className="mb-3 flex items-start gap-2">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-red-400">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-semibold" style={{ color: '#fca5a5' }}>
-                      You are {gpsDistanceM}m from {venue.name}.
-                    </p>
-                    <p className="mt-1 text-xs leading-5" style={{ color: '#f87171' }}>
-                      You must be on location to report the vibe. Submit anyway as unverified?
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { setGpsVerifiedForSubmit(false); setShowForm(true); setShowConfirmFarAway(false) }}
-                    className="flex-1 rounded-full border border-red-500/30 py-2.5 text-xs font-semibold text-red-400 transition-opacity hover:opacity-80"
-                  >
-                    Submit anyway
-                  </button>
-                  <button
-                    onClick={() => { setShowConfirmFarAway(false); setLocationError('') }}
-                    className="flex-1 rounded-full border border-white/20 py-2.5 text-xs font-semibold text-white transition-opacity hover:opacity-80"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Vibe form — shown after GPS ok, denied, or user confirms anyway */}
+            {/* Vibe form — shown immediately on check-in, GPS verified badge appears asynchronously */}
             {showForm && (
               <>
                 <p className="mb-5 text-sm font-semibold text-white">
@@ -430,12 +366,15 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
                   </div>
                 </div>
 
+                {submitError && (
+                  <p className="mb-3 text-xs" style={{ color: '#f87171' }}>{submitError}</p>
+                )}
                 <button
                   disabled={!vibe || submitting}
                   onClick={handleSubmit}
                   className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
                 >
-                  {submitting ? 'Submitting…' : 'Share the vibe — earn 5 $SERVE 🍸'}
+                  {submitting ? 'Submitting…' : gpsVerifiedForSubmit ? 'Share the vibe — earn 5 $SERVE 🍸' : 'Share the vibe — earn 1 $SERVE 🍸'}
                 </button>
               </>
             )}
@@ -449,9 +388,14 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
               {VIBE_META[vibe as Vibe]?.emoji ?? VIBE_EMOJI[vibe]}
             </div>
             <p className="mb-1 text-sm font-semibold text-white capitalize">{vibe.toLowerCase()}</p>
-            <p className="mb-3 text-xs" style={{ color: '#606060' }}>Reported just now</p>
+            <p className="mb-1 text-xs" style={{ color: '#606060' }}>Reported just now</p>
+            {submitMessage && (
+              <p className="mb-1 text-xs font-semibold" style={{ color: (serveEarned ?? 0) > 0 ? '#4ade80' : '#9ca3af' }}>
+                {submitMessage}
+              </p>
+            )}
             {(seats || wait) && (
-              <div className="flex flex-wrap gap-3 text-xs" style={{ color: '#A0A0A0' }}>
+              <div className="mt-2 flex flex-wrap gap-3 text-xs" style={{ color: '#A0A0A0' }}>
                 {seats && <span>Bar seats: {seats}</span>}
                 {wait && <span>Wait: {wait}</span>}
               </div>
@@ -471,11 +415,7 @@ function VenueSearch() {
   const [selected, setSelected] = useState<{ name: string; address: string; lat: number | null; lng: number | null } | null>(null)
 
   // GPS state — triggered immediately on venue selection
-  type GpsState = 'idle' | 'loading' | 'ok' | 'far' | 'denied'
-  const [gpsState, setGpsState] = useState<GpsState>('idle')
-  const [gpsDistanceM, setGpsDistanceM] = useState<number | null>(null)
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
-  const [gpsVerifiedForSubmit, setGpsVerifiedForSubmit] = useState(false)
   const [showForm, setShowForm] = useState(false)
 
   const [vibe, setVibe] = useState<string | null>(null)
@@ -483,46 +423,28 @@ function VenueSearch() {
   const [wait, setWait] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const [submitResult, setSubmitResult] = useState<{ gpsVerified: boolean; distance: number } | null>(null)
+  const [submitResult, setSubmitResult] = useState<{ serveReward: number; message: string; error: string | null } | null>(null)
 
-  async function checkGpsForVenue(venueLat: number | null, venueLng: number | null) {
-    setGpsState('loading')
-    let userLat: number
-    let userLng: number
+  function checkGpsForVenue(venueLat: number | null, venueLng: number | null) {
+    // Show form immediately — GPS captured silently
+    setShowForm(true)
 
-    try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 })
-      )
-      userLat = pos.coords.latitude
-      userLng = pos.coords.longitude
-      setUserCoords({ lat: userLat, lng: userLng })
-    } catch {
-      // GPS denied — allow form without verification
-      setGpsState('denied')
-      setGpsVerifiedForSubmit(false)
-      setShowForm(true)
-      return
-    }
+    if (!navigator.geolocation) return
 
-    if (venueLat !== null && venueLng !== null) {
-      const distance = getDistanceMeters(userLat, userLng, venueLat, venueLng)
-      setGpsDistanceM(Math.round(distance))
-      if (distance <= 500) {
-        setGpsState('ok')
-        setGpsVerifiedForSubmit(true)
-        setShowForm(true)
-      } else {
-        setGpsState('far')
-        setGpsVerifiedForSubmit(false)
-        // Don't show form yet — wait for user to confirm
-      }
-    } else {
-      // No venue coordinates — allow without distance check
-      setGpsState('ok')
-      setGpsVerifiedForSubmit(false)
-      setShowForm(true)
-    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const userLat = pos.coords.latitude
+        const userLng = pos.coords.longitude
+        setUserCoords({ lat: userLat, lng: userLng })
+
+        if (venueLat !== null && venueLng !== null) {
+          const distance = getDistanceMeters(userLat, userLng, venueLat, venueLng)
+          console.log('[GPS] VenueSearch distance:', Math.round(distance), 'm')
+        }
+      },
+      () => { /* denied — form already shown */ },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
   }
 
   useEffect(() => {
@@ -559,10 +481,7 @@ function VenueSearch() {
 
   function handleChange() {
     setSelected(null)
-    setGpsState('idle')
-    setGpsDistanceM(null)
     setUserCoords(null)
-    setGpsVerifiedForSubmit(false)
     setShowForm(false)
     setVibe(null)
     setSeats(null)
@@ -574,41 +493,35 @@ function VenueSearch() {
     if (!selected || !vibe) return
     setSubmitting(true)
 
-    const reporterEmail = localStorage.getItem('slateUserEmail') ?? undefined
+    const { data: { session } } = await supabase.auth.getSession()
+    const reporterEmail = session?.user?.email ?? localStorage.getItem('slateUserEmail') ?? undefined
     const coords = userCoords
 
-    if (coords && selected.lat !== null && selected.lng !== null) {
-      const res = await fetch('/api/verify-vibe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userLat: coords.lat, userLng: coords.lng,
-          restaurantLat: selected.lat,
-          restaurantLng: selected.lng,
-          restaurantName: selected.name,
-          vibe, barSeats: seats, waitTime: wait,
-          reporterEmail,
-        }),
-      })
-      const json = await res.json()
-      if (res.status === 429) {
-        console.warn('[verify-vibe]', json.error)
-      } else if (res.ok) {
-        setSubmitResult({ gpsVerified: json.gpsVerified, distance: json.distance })
-      }
-    } else {
-      await supabase.from('vibe_reports').insert({
-        restaurant_name: selected.name,
-        vibe,
-        bar_seats: seats,
-        wait_time: wait,
-        gps_verified: gpsVerifiedForSubmit,
-        user_lat: coords?.lat ?? null,
-        user_lng: coords?.lng ?? null,
-      })
-    }
-
+    const res = await fetch('/api/verify-vibe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: session?.user?.id ?? null,
+        reporterEmail,
+        restaurantName: selected.name,
+        vibe, barSeats: seats, waitTime: wait,
+        userLat: coords?.lat ?? null,
+        userLng: coords?.lng ?? null,
+        restaurantLat: selected.lat,
+        restaurantLng: selected.lng,
+      }),
+    })
+    const json = await res.json()
     setSubmitting(false)
+
+    if (res.status === 429) {
+      setSubmitResult({ serveReward: 0, message: json.error, error: json.error })
+      setSubmitted(true)
+      return
+    }
+    if (res.ok) {
+      setSubmitResult({ serveReward: json.serveReward ?? 0, message: json.message ?? '', error: null })
+    }
     setSubmitted(true)
   }
 
@@ -634,13 +547,11 @@ function VenueSearch() {
               </svg>
               <div>
                 <p className="text-sm font-medium text-white">
-                  Thanks! {selected?.name} is now showing as {vibe?.toLowerCase()} on Slate.
+                  {selected?.name} is now showing as {vibe?.toLowerCase()} on Slate.
                 </p>
-                {submitResult && (
-                  <p className="mt-1 text-xs" style={{ color: submitResult.gpsVerified ? '#4ade80' : '#9ca3af' }}>
-                    {submitResult.gpsVerified
-                      ? `GPS verified · ${submitResult.distance}m from venue`
-                      : `Not GPS verified · ${submitResult.distance}m from venue`}
+                {submitResult?.message && (
+                  <p className="mt-1 text-xs font-semibold" style={{ color: (submitResult.serveReward ?? 0) > 0 ? '#4ade80' : '#9ca3af' }}>
+                    {submitResult.message}
                   </p>
                 )}
               </div>
@@ -658,51 +569,7 @@ function VenueSearch() {
               </button>
             </div>
 
-            {/* GPS loading */}
-            {gpsState === 'loading' && (
-              <div className="mb-5 flex items-center gap-3">
-                <svg className="h-4 w-4 animate-spin text-white/40" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-                <p className="text-sm" style={{ color: '#A0A0A0' }}>Getting your location…</p>
-              </div>
-            )}
-
-            {/* Too far — prominent red block */}
-            {gpsState === 'far' && (
-              <div className="mb-5 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-4">
-                <div className="mb-3 flex items-start gap-2">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-red-400">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-semibold" style={{ color: '#fca5a5' }}>
-                      You are {gpsDistanceM}m away from {selected.name}.
-                    </p>
-                    <p className="mt-1 text-xs leading-5" style={{ color: '#f87171' }}>
-                      Your report will not be GPS verified if submitted from this distance.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { setGpsVerifiedForSubmit(false); setShowForm(true) }}
-                    className="flex-1 rounded-full border border-red-500/30 py-2.5 text-xs font-semibold text-red-400 transition-opacity hover:opacity-80"
-                  >
-                    I&apos;m actually here — submit anyway
-                  </button>
-                  <button
-                    onClick={handleChange}
-                    className="flex-1 rounded-full border border-white/20 py-2.5 text-xs font-semibold text-white transition-opacity hover:opacity-80"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Vibe form — shown after GPS ok, denied, or user confirms anyway */}
+            {/* Vibe form — shown immediately, GPS verified badge appears asynchronously */}
             {showForm && (
               <>
                 <div className="mb-4">

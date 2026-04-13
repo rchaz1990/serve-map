@@ -18,42 +18,97 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 export async function POST(request: Request) {
+  const body = await request.json()
   const {
-    userLat, userLng,
-    restaurantLat, restaurantLng,
+    userId,
+    reporterEmail,
     restaurantName,
     vibe, barSeats, waitTime,
-    reporterEmail,
-  } = await request.json()
+    userLat, userLng,
+    restaurantLat, restaurantLng,
+    qrCode,
+    distanceMeters,
+  } = body
 
-  // Server-side distance calculation
-  const distance = getDistanceMeters(userLat, userLng, restaurantLat, restaurantLng)
-  const withinRange = distance <= 500
+  // ── CHECK 1 — Account age (server-authoritative via admin API) ──────────────
+  let isNewAccount = true
+  if (userId) {
+    const { data: authData } = await supabase.auth.admin.getUserById(userId)
+    if (authData?.user?.created_at) {
+      const ageHours = (Date.now() - new Date(authData.user.created_at).getTime()) / (1000 * 60 * 60)
+      isNewAccount = ageHours < 24
+    }
+  }
 
-  // Anomaly detection — coordinates are suspiciously identical to venue
-  const isSuspicious =
-    Math.abs(userLat - restaurantLat) < 0.00001 &&
-    Math.abs(userLng - restaurantLng) < 0.00001
-
-  const gpsVerified = withinRange && !isSuspicious
-
-  // Rate limiting — one report per venue per hour per reporter
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-  const { data: recentReport } = await supabase
+  // ── CHECK 2 — Per-restaurant 2hr cooldown ─────────────────────────────────
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+  const { data: recentSameRestaurant } = await supabase
     .from('vibe_reports')
     .select('id')
     .eq('reported_by', reporterEmail)
     .eq('restaurant_name', restaurantName)
-    .gte('created_at', oneHourAgo)
+    .gte('created_at', twoHoursAgo)
     .maybeSingle()
 
-  if (recentReport) {
+  if (recentSameRestaurant) {
     return NextResponse.json(
-      { success: false, error: 'You already reported a vibe for this venue in the last hour.' },
+      { success: false, error: 'You already reported a vibe here recently. Come back in 2 hours.' },
       { status: 429 }
     )
   }
 
+  // ── CHECK 3 — Daily limit across all restaurants ───────────────────────────
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const { count: dailyCount } = await supabase
+    .from('vibe_reports')
+    .select('id', { count: 'exact' })
+    .eq('reported_by', reporterEmail)
+    .gte('created_at', todayStart.toISOString())
+
+  if ((dailyCount ?? 0) >= 5) {
+    return NextResponse.json(
+      { success: false, error: 'Daily limit reached. You can submit 5 vibe reports per day.' },
+      { status: 429 }
+    )
+  }
+
+  // ── CHECK 4 — Anomaly detection (volume in last hour) ─────────────────────
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { count: hourlyCount } = await supabase
+    .from('vibe_reports')
+    .select('id', { count: 'exact' })
+    .eq('reported_by', reporterEmail)
+    .gte('created_at', oneHourAgo)
+  const isSuspicious = (hourlyCount ?? 0) >= 3
+
+  // ── CHECK 5 — GPS verification (server-side wins when coords available) ────
+  let gpsVerified: boolean = body.gpsVerified ?? false
+  let distance: number | null = distanceMeters ?? null
+
+  if (userLat != null && userLng != null && restaurantLat != null && restaurantLng != null) {
+    const dist = getDistanceMeters(userLat, userLng, restaurantLat, restaurantLng)
+    distance = Math.round(dist)
+    gpsVerified = dist <= 500
+  }
+
+  const qrVerified = !!qrCode
+
+  // ── CHECK 5 — Integrity score ──────────────────────────────────────────────
+  const integrityScore =
+    (gpsVerified ? 40 : 0) +
+    (qrVerified ? 40 : 0) +
+    (!isNewAccount ? 10 : 0) +
+    (!isSuspicious ? 10 : 0)
+
+  // ── CHECK 6 — $SERVE reward ────────────────────────────────────────────────
+  const serveReward =
+    integrityScore >= 80 ? 5 :
+    integrityScore >= 60 ? 3 :
+    integrityScore >= 40 ? 2 :
+    integrityScore >= 20 ? 1 : 0
+
+  // ── CHECK 7 — Persist ─────────────────────────────────────────────────────
   const { error } = await supabase
     .from('vibe_reports')
     .insert({
@@ -63,10 +118,13 @@ export async function POST(request: Request) {
       wait_time: waitTime,
       reported_by: reporterEmail,
       gps_verified: gpsVerified,
-      distance_meters: Math.round(distance),
+      qr_verified: qrVerified,
+      integrity_score: integrityScore,
+      serve_reward: serveReward,
       is_flagged: isSuspicious,
-      user_lat: userLat,
-      user_lng: userLng,
+      distance_meters: distance,
+      user_lat: userLat ?? null,
+      user_lng: userLng ?? null,
     })
 
   if (error) {
@@ -74,5 +132,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, gpsVerified, distance: Math.round(distance) })
+  // ── CHECK 8 — Return reward ────────────────────────────────────────────────
+  const message = serveReward > 0
+    ? `Thanks! You earned ${serveReward} $SERVE`
+    : 'Report submitted. Enable location and scan server QR codes to earn $SERVE rewards.'
+
+  return NextResponse.json({ success: true, serveReward, integrityScore, gpsVerified, distance, message })
 }
