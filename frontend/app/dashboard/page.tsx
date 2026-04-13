@@ -662,6 +662,9 @@ export default function DashboardPage() {
             const rLat = geoData.results[0].geometry.location.lat
             const rLng = geoData.results[0].geometry.location.lng
 
+            console.log('Restaurant coordinates:', rLat, rLng)
+            console.log('User coordinates:', userLat, userLng)
+
             const R = 6371000
             const dLat = (rLat - userLat) * Math.PI / 180
             const dLon = (rLng - userLng) * Math.PI / 180
@@ -670,7 +673,7 @@ export default function DashboardPage() {
               Math.sin(dLon / 2) * Math.sin(dLon / 2)
             const distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
 
-            console.log('[GPS] Distance to restaurant:', distance, 'meters')
+            console.log('Distance calculated:', distance, 'meters')
 
             if (distance > 500) {
               setGpsError(`You must be at ${restaurantName} to start your shift. You are ${distance} meters away.`)
@@ -680,12 +683,15 @@ export default function DashboardPage() {
 
             await activateShift(restaurantName, true, distance, userLat, userLng)
           } else {
-            // Geocoding failed — allow shift but mark unverified
-            await activateShift(restaurantName, false, null, userLat, userLng)
+            setGpsError('Could not find your restaurant location. Please try again.')
+            setShiftLoading(false)
+            return
           }
         } catch (err) {
           console.error('[GPS] Geocoding error:', err)
-          await activateShift(restaurantName, false, null, userLat, userLng)
+          setGpsError('Could not verify your location. Please try again.')
+          setShiftLoading(false)
+          return
         }
       },
       () => {
