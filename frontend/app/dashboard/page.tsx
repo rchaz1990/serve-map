@@ -653,10 +653,18 @@ export default function DashboardPage() {
         const userLng = position.coords.longitude
 
         try {
-          const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(restaurantName + ' New York NY')}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`
-          const res = await fetch(geocodeUrl)
-          const geoData = await res.json()
-          console.log('[GPS] Geocode status:', geoData.status, 'results:', geoData.results?.length)
+          let geoData: { results: { geometry: { location: { lat: number; lng: number } } }[]; status: string }
+          const url1 = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(restaurantName)}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`
+          const res1 = await fetch(url1)
+          geoData = await res1.json()
+          console.log('[GPS] Geocode (plain) status:', geoData.status, 'results:', geoData.results?.length)
+
+          if (!geoData.results || geoData.results.length === 0) {
+            const url2 = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(restaurantName + ' NYC')}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`
+            const res2 = await fetch(url2)
+            geoData = await res2.json()
+            console.log('[GPS] Geocode (NYC fallback) status:', geoData.status, 'results:', geoData.results?.length)
+          }
 
           if (geoData.results && geoData.results.length > 0) {
             const rLat = geoData.results[0].geometry.location.lat

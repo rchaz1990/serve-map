@@ -152,6 +152,10 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [gpsVerifiedForSubmit, setGpsVerifiedForSubmit] = useState(false)
 
+  const [locationChecking, setLocationChecking] = useState(false)
+  const [locationError, setLocationError] = useState('')
+  const [showConfirmFarAway, setShowConfirmFarAway] = useState(false)
+
   // Vibe form state — shown only after GPS check passes or is overridden
   const [showForm, setShowForm] = useState(false)
   const [vibe, setVibe] = useState<string | null>(null)
@@ -171,7 +175,7 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
     return () => obs.disconnect()
   }, [])
 
-  async function handleImHere() {
+  function handleImHere() {
     if (checkInOpen) {
       // Cancel — reset everything
       setCheckInOpen(false)
@@ -182,69 +186,79 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
       setVibe(null)
       setSeats(null)
       setWait(null)
+      setLocationError('')
+      setShowConfirmFarAway(false)
+      setLocationChecking(false)
       return
     }
 
     setCheckInOpen(true)
+    setLocationChecking(true)
+    setLocationError('')
+    setShowConfirmFarAway(false)
     setGpsState('loading')
 
-    // Step 1 — request GPS immediately
-    let userLat: number
-    let userLng: number
-    try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 })
-      )
-      userLat = pos.coords.latitude
-      userLng = pos.coords.longitude
-      setUserCoords({ lat: userLat, lng: userLng })
-    } catch {
-      // GPS denied or unavailable — allow check-in without verification
-      setGpsState('denied')
-      setGpsVerifiedForSubmit(false)
-      setShowForm(true)
+    if (!navigator.geolocation) {
+      setLocationError('Location not available on this device.')
+      setLocationChecking(false)
+      setGpsState('idle')
       return
     }
 
-    // Step 2 — geocode venue name to get coordinates
-    let venueLat: number | null = null
-    let venueLng: number | null = null
-    try {
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name + ' New York NY')}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`
-      const res = await fetch(url)
-      const data = await res.json()
-      venueLat = data.results[0]?.geometry?.location?.lat ?? null
-      venueLng = data.results[0]?.geometry?.location?.lng ?? null
-    } catch {
-      // fetch failed
-    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const userLat = pos.coords.latitude
+        const userLng = pos.coords.longitude
+        setUserCoords({ lat: userLat, lng: userLng })
+        setLocationChecking(false)
 
-    if (venueLat === null || venueLng === null) {
-      // Geocoding failed — show form unverified
-      setGpsState('ok')
-      setGpsVerifiedForSubmit(false)
-      setShowForm(true)
-      return
-    }
+        // Geocode venue name — try plain first, then NYC fallback
+        let venueLat: number | null = null
+        let venueLng: number | null = null
+        try {
+          const url1 = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name)}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`
+          const res1 = await fetch(url1)
+          const data1 = await res1.json()
+          venueLat = data1.results?.[0]?.geometry?.location?.lat ?? null
+          venueLng = data1.results?.[0]?.geometry?.location?.lng ?? null
 
-    // Step 3 — Haversine distance
-    const R = 6371000
-    const dLat = (venueLat - userLat) * Math.PI / 180
-    const dLon = (venueLng - userLng) * Math.PI / 180
-    const a = Math.sin(dLat / 2) ** 2 +
-      Math.cos(userLat * Math.PI / 180) * Math.cos(venueLat * Math.PI / 180) * Math.sin(dLon / 2) ** 2
-    const distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
-    setGpsDistanceM(distance)
+          if (venueLat === null) {
+            const url2 = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name + ' NYC')}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`
+            const res2 = await fetch(url2)
+            const data2 = await res2.json()
+            venueLat = data2.results?.[0]?.geometry?.location?.lat ?? null
+            venueLng = data2.results?.[0]?.geometry?.location?.lng ?? null
+          }
+        } catch {
+          // network error
+        }
 
-    if (distance <= 500) {
-      setGpsState('ok')
-      setGpsVerifiedForSubmit(true)
-      setShowForm(true)
-    } else {
-      setGpsState('far')
-      setGpsVerifiedForSubmit(false)
-      // Form stays hidden — user must confirm via warning buttons
-    }
+        if (venueLat === null || venueLng === null) {
+          setLocationError('Could not verify your location. Please try again.')
+          setGpsState('idle')
+          return
+        }
+
+        const distance = Math.round(getDistanceMeters(userLat, userLng, venueLat, venueLng))
+        setGpsDistanceM(distance)
+
+        if (distance > 500) {
+          setGpsState('far')
+          setGpsVerifiedForSubmit(false)
+          setShowConfirmFarAway(true)
+        } else {
+          setGpsState('ok')
+          setGpsVerifiedForSubmit(true)
+          setShowForm(true)
+        }
+      },
+      () => {
+        setLocationError('Please enable location to report vibes.')
+        setLocationChecking(false)
+        setGpsState('idle')
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
   }
 
   async function handleSubmit() {
@@ -327,7 +341,7 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
           <div className="border-t border-white/10 px-6 pb-6 pt-5">
 
             {/* GPS loading */}
-            {gpsState === 'loading' && (
+            {(gpsState === 'loading' || locationChecking) && (
               <div className="flex items-center gap-3 py-4">
                 <svg className="h-4 w-4 animate-spin text-white/40" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -337,8 +351,15 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
               </div>
             )}
 
-            {/* Too far — prominent red block */}
-            {gpsState === 'far' && (
+            {/* Location error — GPS denied or geocoding failed */}
+            {locationError && (
+              <div style={{ color: 'red', padding: '12px', border: '1px solid red', borderRadius: '8px', fontSize: '13px', marginBottom: '8px' }}>
+                {locationError}
+              </div>
+            )}
+
+            {/* Too far — confirm modal */}
+            {showConfirmFarAway && (
               <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-4">
                 <div className="mb-3 flex items-start gap-2">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-red-400">
@@ -346,22 +367,22 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
                   </svg>
                   <div>
                     <p className="text-sm font-semibold" style={{ color: '#fca5a5' }}>
-                      You are {gpsDistanceM}m away from {venue.name}.
+                      You are {gpsDistanceM}m from {venue.name}.
                     </p>
                     <p className="mt-1 text-xs leading-5" style={{ color: '#f87171' }}>
-                      Your report will not be GPS verified if submitted from this distance.
+                      You must be on location to report the vibe. Submit anyway as unverified?
                     </p>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => { setGpsVerifiedForSubmit(false); setShowForm(true) }}
+                    onClick={() => { setGpsVerifiedForSubmit(false); setShowForm(true); setShowConfirmFarAway(false) }}
                     className="flex-1 rounded-full border border-red-500/30 py-2.5 text-xs font-semibold text-red-400 transition-opacity hover:opacity-80"
                   >
-                    I&apos;m actually here — submit anyway
+                    Submit anyway
                   </button>
                   <button
-                    onClick={handleImHere}
+                    onClick={() => { setShowConfirmFarAway(false); setLocationError('') }}
                     className="flex-1 rounded-full border border-white/20 py-2.5 text-xs font-semibold text-white transition-opacity hover:opacity-80"
                   >
                     Cancel
