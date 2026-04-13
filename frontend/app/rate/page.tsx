@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { PublicKey } from '@solana/web3.js'
 import Navbar from '@/app/components/Navbar'
 import { getOrCreateDemoKeypair, keypairToWallet, getProgram } from '@/lib/solana'
+import { supabase } from '@/lib/supabase'
 
 // ── Geofencing ───────────────────────────────────────────────────────────────
 
@@ -132,6 +133,36 @@ export default function RatePage() {
         .accounts({ serverProfile, rater: keypair.publicKey })
         .signers([keypair])
         .rpc()
+
+      // ── $SERVE rewards (fire-and-forget, non-blocking) ─────────────────────
+      // Guest earns 10 $SERVE for a verified rating
+      if (verified) {
+        const { data: { session } } = await supabase.auth.getSession()
+        const guestEmail = session?.user?.email
+        if (guestEmail) {
+          supabase.rpc('increment_serve_balance', {
+            user_email: guestEmail,
+            amount: 10,
+            user_type: 'guest',
+          }).then(({ error }) => { if (error) console.error('[rate] guest reward error:', error) })
+        }
+
+        // Server earns 25 $SERVE — look up by Supabase server ID stored during scan
+        const serverId = typeof window !== 'undefined'
+          ? localStorage.getItem('slateRatingServerId')
+          : null
+        if (serverId) {
+          supabase.rpc('increment_serve_balance_by_id', {
+            server_id: serverId,
+            amount: 25,
+          }).then(({ error }) => { if (error) {
+            // Fallback: direct update if RPC not available
+            supabase.from('servers')
+              .update({ serve_balance: supabase.rpc('serve_balance') })
+              .eq('id', serverId)
+          }})
+        }
+      }
 
       setTxSig(sig)
     } catch (e: unknown) {

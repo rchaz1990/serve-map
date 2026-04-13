@@ -72,6 +72,7 @@ export default function AccountPage() {
   const [following, setFollowing] = useState<FollowedServer[]>([])
   const [vibeReports, setVibeReports] = useState<VibeReport[]>([])
   const [ratingsLeft, setRatingsLeft] = useState<RatingLeft[]>([])
+  const [serveBalance, setServeBalance] = useState<number>(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -80,7 +81,7 @@ export default function AccountPage() {
       if (!authUser) { router.push('/login'); return }
       setUser(authUser as AuthUser)
 
-      const [{ data: rats }, { data: vibes }] = await Promise.all([
+      const [{ data: rats }, { data: vibes }, { data: rewards }] = await Promise.all([
         supabase
           .from('ratings')
           .select('id, score, comment, restaurant_name, created_at, server_name')
@@ -91,7 +92,14 @@ export default function AccountPage() {
           .select('id, venue_name, vibe, reported_at')
           .eq('guest_id', authUser.id)
           .order('reported_at', { ascending: false }),
+        supabase
+          .from('guest_rewards')
+          .select('serve_balance')
+          .eq('email', authUser.email)
+          .maybeSingle(),
       ])
+
+      if (rewards?.serve_balance != null) setServeBalance(rewards.serve_balance)
 
       if (rats) setRatingsLeft(rats as RatingLeft[])
       if (vibes) setVibeReports(vibes as VibeReport[])
@@ -123,10 +131,6 @@ export default function AccountPage() {
     }
     load()
   }, [router])
-
-  const serveFromRatings = ratingsLeft.length * 10
-  const serveFromVibes = vibeReports.length * 5
-  const totalServe = serveFromRatings + serveFromVibes
 
   if (loading) {
     return (
@@ -166,8 +170,8 @@ export default function AccountPage() {
           <p className="mb-3 text-xs" style={{ color: '#606060' }}>
             Member since {formatDate(user.created_at)}
           </p>
-          {totalServe > 0 && (
-            <p className="text-sm font-semibold text-white">{totalServe} $SERVE earned</p>
+          {serveBalance > 0 && (
+            <p className="text-sm font-semibold text-white">{serveBalance} $SERVE earned</p>
           )}
         </div>
 
@@ -308,22 +312,22 @@ export default function AccountPage() {
                 <p className="text-sm font-medium text-white">Ratings left</p>
                 <p className="text-xs" style={{ color: '#606060' }}>10 $SERVE per verified rating</p>
               </div>
-              <p className="text-sm font-bold text-white">+{serveFromRatings} $SERVE</p>
+              <p className="text-sm font-bold text-white">+{ratingsLeft.length * 10} $SERVE</p>
             </div>
             <div className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-4">
               <div>
                 <p className="text-sm font-medium text-white">Vibe reports</p>
-                <p className="text-xs" style={{ color: '#606060' }}>5 $SERVE per vibe report</p>
+                <p className="text-xs" style={{ color: '#606060' }}>1–5 $SERVE per report</p>
               </div>
-              <p className="text-sm font-bold text-white">+{serveFromVibes} $SERVE</p>
+              <p className="text-sm font-bold text-white">+{vibeReports.length > 0 ? `~${vibeReports.length * 3}` : 0} $SERVE</p>
             </div>
             <div className="flex items-center justify-between rounded-xl border border-white/25 px-4 py-4">
               <p className="text-sm font-semibold text-white">Total earned</p>
-              <p className="text-base font-bold text-white">{totalServe} $SERVE</p>
+              <p className="text-base font-bold text-white">{serveBalance} $SERVE</p>
             </div>
           </div>
           <p className="mt-5 text-xs leading-6" style={{ color: '#404040' }}>
-            $SERVE rewards launch when Slate goes live on Solana mainnet.
+            Redeemable when Slate launches on mainnet.
           </p>
         </section>
 

@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
         role,
         wallet_address: userId ?? null,
         is_founding_member: true,
+        serve_balance: 50,  // Founding member bonus
       })
       .select('id, name')
       .single()

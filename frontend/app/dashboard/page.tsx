@@ -445,6 +445,7 @@ export default function DashboardPage() {
     total_ratings: number
     avg_rating: number
     follower_count: number
+    serve_balance: number
   } | null>(null)
   const [recentRatings, setRecentRatings] = useState<{
     id: string
@@ -473,7 +474,7 @@ export default function DashboardPage() {
       // Primary lookup: wallet_address = Supabase auth UID (set at signup)
       const { data: serverData, error } = await supabase
         .from('servers')
-        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member')
+        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance')
         .eq('wallet_address', session.user.id)
         .maybeSingle()
 
@@ -483,7 +484,7 @@ export default function DashboardPage() {
         // Fallback: email match for accounts created before wallet_address was wired up
         const { data: byEmail } = await supabase
           .from('servers')
-          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member')
+          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance')
           .ilike('email', session.user.email ?? '')
           .maybeSingle()
         if (!byEmail) { setProfileLoading(false); return }
@@ -497,7 +498,7 @@ export default function DashboardPage() {
 
     // Separate helper so both lookup paths share the same data-loading logic
     async function hydrateFromServerRow(
-      row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null },
+      row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null; serve_balance?: number | null },
       authUserId: string
     ) {
       // Keep wallet_address in sync for future logins
@@ -542,6 +543,7 @@ export default function DashboardPage() {
         total_ratings: row.total_ratings ?? 0,
         avg_rating: row.average_rating ?? 0,
         follower_count: followerCount,
+        serve_balance: row.serve_balance ?? 0,
       })
       setProfileLoading(false)
     }
@@ -980,7 +982,7 @@ export default function DashboardPage() {
             { label: 'Avg Rating', value: serverProfile?.avg_rating ? serverProfile.avg_rating.toFixed(1) : '—' },
             { label: 'Followers', value: serverProfile?.follower_count ?? 0 },
             { label: 'Venues', value: restaurants.length },
-            { label: '$SERVE Earned', value: (serverProfile?.total_ratings ?? 0) * 10 },
+            { label: '$SERVE Earned', value: serverProfile?.serve_balance ?? 0 },
           ].map(({ label, value }) => (
             <div
               key={label}
@@ -1010,16 +1012,16 @@ export default function DashboardPage() {
 
             {/* Balance */}
             <div className="mb-1">
-              <span className="text-3xl font-bold text-white">{(serverProfile?.total_ratings ?? 0) * 10}</span>
+              <span className="text-3xl font-bold text-white">{serverProfile?.serve_balance ?? 0}</span>
               <span className="ml-1.5 text-sm font-medium text-white">$SERVE</span>
             </div>
             <p className="mb-5 text-xs" style={{ color: '#A0A0A0' }}>
-              {serverProfile?.total_ratings ?? 0} ratings × 10 $SERVE each
+              Cash out through Slate Pay when we launch on mainnet
             </p>
 
             <div className="rounded-xl border border-white/10 px-4 py-3">
               <p className="text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
-                $SERVE launches on mainnet soon. Keep earning by collecting ratings from guests.
+                Earn 25 $SERVE per verified rating. Founding members started with 50 $SERVE.
               </p>
             </div>
           </div>

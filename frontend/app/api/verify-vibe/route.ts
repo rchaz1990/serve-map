@@ -132,6 +132,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 })
   }
 
+  // ── Reward — increment guest $SERVE balance ────────────────────────────────
+  if (serveReward > 0 && reporterEmail) {
+    const { error: rpcError } = await supabase.rpc('increment_serve_balance', {
+      user_email: reporterEmail,
+      amount: serveReward,
+      user_type: 'guest',
+    })
+    if (rpcError) console.error('[verify-vibe] increment_serve_balance error:', rpcError)
+  }
+
   // ── CHECK 8 — Return reward ────────────────────────────────────────────────
   const message = serveReward > 0
     ? `Thanks! You earned ${serveReward} $SERVE`
