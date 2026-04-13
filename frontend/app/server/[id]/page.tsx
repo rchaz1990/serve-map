@@ -13,6 +13,7 @@ type Server = {
   total_ratings: number | null
   follower_count: number | null
   is_founding_member: boolean | null
+  serve_balance: number | null
 }
 
 type Restaurant = {
@@ -161,7 +162,7 @@ export default function ServerProfilePage() {
     ? (ratings.reduce((s, r) => s + r.score, 0) / ratings.length).toFixed(1)
     : server.average_rating?.toFixed(1) ?? '—'
   const totalRatings = ratings.length || server.total_ratings || 0
-  const serveBalance = totalRatings * 10
+  const serveBalance = server.serve_balance ?? 0
 
   // ── Render ────────────────────────────────────────────────────────────────
 
