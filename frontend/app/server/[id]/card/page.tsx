@@ -1,6 +1,8 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 import Navbar from '@/app/components/Navbar'
 
 // Decorative QR code built from SVG rects — no external dependency.
@@ -42,7 +44,35 @@ function QRPlaceholder() {
 }
 
 export default function ServerCardPage() {
+  const params = useParams()
+  const serverId = params?.id as string
   const cardRef = useRef<HTMLDivElement>(null)
+  const [serverName, setServerName] = useState('')
+  const [serverRole, setServerRole] = useState('')
+  const [avgRating, setAvgRating] = useState<number | null>(null)
+  const [totalRatings, setTotalRatings] = useState(0)
+  const [followerCount, setFollowerCount] = useState(0)
+
+  useEffect(() => {
+    if (!serverId) return
+    supabase
+      .from('servers')
+      .select('name, role, average_rating, total_ratings, follower_count')
+      .eq('id', serverId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        setServerName(data.name ?? '')
+        setServerRole(data.role ?? '')
+        setAvgRating(data.average_rating ?? null)
+        setTotalRatings(data.total_ratings ?? 0)
+        setFollowerCount(data.follower_count ?? 0)
+      })
+  }, [serverId])
+
+  const initials = serverName
+    ? serverName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+    : '?'
 
   return (
     <div
@@ -106,17 +136,19 @@ export default function ServerCardPage() {
               <div
                 className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-white/30 bg-white text-2xl font-bold text-black"
               >
-                MJ
+                {initials}
               </div>
 
               {/* Name */}
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2">
-                  <h2 className="text-2xl font-bold tracking-tight text-white">Marcus Johnson</h2>
+                  <h2 className="text-2xl font-bold tracking-tight text-white">{serverName || '—'}</h2>
                 </div>
-                <p className="mt-0.5 text-xs" style={{ color: '#A0A0A0' }}>
-                  Head Bartender · Carbone, NYC
-                </p>
+                {serverRole && (
+                  <p className="mt-0.5 text-xs" style={{ color: '#A0A0A0' }}>
+                    {serverRole}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -127,7 +159,7 @@ export default function ServerCardPage() {
                   className="font-bold text-white"
                   style={{ fontSize: '7rem', lineHeight: 1, letterSpacing: '-0.04em' }}
                 >
-                  4.9
+                  {avgRating != null ? avgRating.toFixed(1) : '—'}
                 </span>
                 <span
                   className="mb-3 ml-2 text-white"
@@ -137,13 +169,13 @@ export default function ServerCardPage() {
                 </span>
               </div>
               <p className="text-xs tracking-widest uppercase" style={{ color: '#606060' }}>
-                127 verified reviews
+                {totalRatings} verified {totalRatings === 1 ? 'review' : 'reviews'}
               </p>
             </div>
 
             {/* Stat pills */}
             <div className="flex flex-wrap justify-center gap-2">
-              {['89 Followers', 'Top 1%', 'Craft Cocktails'].map(label => (
+              {[`${followerCount} Followers`, 'Founding Member', 'Verified'].map(label => (
                 <span
                   key={label}
                   className="rounded-full border border-white/20 px-3.5 py-1.5 text-xs font-medium text-white"
@@ -178,7 +210,7 @@ export default function ServerCardPage() {
             Screenshot this page on your phone, then share to Instagram Stories, X, or anywhere you want your regulars to find you.
           </p>
           <a
-            href="/server/1"
+            href={`/server/${serverId}`}
             className="mt-4 inline-block text-xs transition-colors hover:text-white"
             style={{ color: '#606060' }}
           >

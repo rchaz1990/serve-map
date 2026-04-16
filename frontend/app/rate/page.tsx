@@ -78,6 +78,12 @@ export default function RatePage() {
   const [error, setError] = useState<string | null>(null)
   const [verified, setVerified] = useState(false)       // final verification state for submit
 
+  // Server info from localStorage (set when guest scans QR)
+  const serverName = typeof window !== 'undefined'
+    ? (localStorage.getItem('slateRatingServerName') || 'your server')
+    : 'your server'
+  const serverFirstName = serverName === 'your server' ? 'your server' : serverName.split(' ')[0]
+
   // Location state
   const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle')
 
@@ -190,7 +196,7 @@ export default function RatePage() {
             Rating submitted on-chain ✓
           </h1>
           <p className="mt-4 max-w-sm text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
-            Your {rating}-star review has been permanently written to Solana and attached to Marcus&apos;s profile.
+            Your {rating}-star review has been permanently written to Solana and attached to {serverFirstName}&apos;s profile.
           </p>
 
           {/* Verified / unverified badge */}
@@ -221,7 +227,7 @@ export default function RatePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
               </svg>
               <p className="text-xs" style={{ color: '#A0A0A0' }}>
-                Your verified rating contributes to Marcus&apos;s $SERVE token rewards.
+                Your verified rating contributes to {serverFirstName}&apos;s $SERVE token rewards.
               </p>
             </div>
           )}
@@ -287,7 +293,7 @@ export default function RatePage() {
             </svg>
             <div>
               <p className="text-xs font-semibold text-white">Location verified ✓</p>
-              <p className="text-xs" style={{ color: '#A0A0A0' }}>You&apos;re at the restaurant. Your rating will earn Marcus $SERVE rewards.</p>
+              <p className="text-xs" style={{ color: '#A0A0A0' }}>You&apos;re at the restaurant. Your rating will earn {serverFirstName} $SERVE rewards.</p>
             </div>
           </div>
         )}
@@ -304,7 +310,7 @@ export default function RatePage() {
               <div>
                 <p className="text-sm font-semibold text-white">You need to be at the restaurant to leave a verified rating</p>
                 <p className="mt-1 text-xs leading-relaxed" style={{ color: '#606060' }}>
-                  Verified ratings earn Marcus $SERVE rewards. You can still submit an unverified rating — it won&apos;t count toward rewards.
+                  Verified ratings earn {serverFirstName} $SERVE rewards. You can still submit an unverified rating — it won&apos;t count toward rewards.
                 </p>
               </div>
             </div>
@@ -353,11 +359,8 @@ export default function RatePage() {
             ) : null}
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            How was your experience with Marcus?
+            How was your experience with {serverFirstName}?
           </h1>
-          <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>
-            Eleven Madison Park &nbsp;·&nbsp; March 18, 2025
-          </p>
         </section>
 
         {/* ── Star rating ─────────────────────────────────────────────── */}
@@ -417,7 +420,7 @@ export default function RatePage() {
             rows={5}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="Tell Marcus and future guests about your experience..."
+            placeholder={`Tell ${serverFirstName === 'your server' ? 'future guests' : serverFirstName + ' and future guests'} about your experience...`}
             className="w-full resize-none border-b border-white/20 bg-transparent pb-4 pt-1 text-sm text-white placeholder-white/20 focus:border-white focus:outline-none"
           />
           <div className="mt-2 flex justify-end">
@@ -440,7 +443,7 @@ export default function RatePage() {
             <div>
               <p className="text-sm font-semibold text-white">
                 {locationStatus === 'verified'
-                  ? 'Your verified rating earns Marcus $SERVE token rewards'
+                  ? `Your verified rating earns ${serverFirstName} $SERVE token rewards`
                   : 'Verified ratings earn $SERVE token rewards'}
               </p>
               <p className="mt-1 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
