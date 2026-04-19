@@ -274,22 +274,61 @@ export default function WhitepaperPage() {
         <section className="py-12">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>06</p>
           <h2 className="mb-6 text-2xl font-bold tracking-tight text-white sm:text-3xl">$SERVE Token</h2>
-          <p className="mb-8 text-base leading-8" style={{ color: '#C0C0C0' }}>
-            $SERVE is a fixed supply SPL token on Solana that rewards the best servers and bartenders in the hospitality industry.
+
+          <p className="mb-6 text-base leading-8" style={{ color: '#C0C0C0' }}>
+            $SERVE is not a reward feature. It is the infrastructure that makes portable reputation permanent.
+          </p>
+          <p className="mb-6 text-base leading-8" style={{ color: '#C0C0C0' }}>
+            Without $SERVE, a server&apos;s reputation is stored in a database that someone else controls. An employer can delete it. A platform can shut down. A company can change its terms.
+          </p>
+          <p className="mb-10 text-base leading-8" style={{ color: '#C0C0C0' }}>
+            With $SERVE, reputation becomes economically meaningful and worker-owned. The token is what separates a profile that follows you from a profile that belongs to you.
           </p>
 
+          <h3 className="mb-6 text-base font-semibold text-white">How $SERVE strengthens the network</h3>
+
+          <div className="mb-10 space-y-5">
+            {[
+              {
+                title: 'Behavior retention',
+                body: 'Servers who consistently earn high ratings accumulate $SERVE over time. This creates a compounding incentive to show up, perform, and stay on the platform — not because of a points system, but because their token balance reflects years of verified excellence.',
+              },
+              {
+                title: 'Quality signaling',
+                body: 'A server with 500 $SERVE earned through verified guest ratings is objectively different from a server with zero. $SERVE becomes a credential — the first on-chain proof of hospitality excellence that travels with the worker, not the venue.',
+              },
+              {
+                title: 'Loyalty without lock-in',
+                body: 'Guests who follow servers and leave verified ratings earn $SERVE too. This creates a loyalty loop that benefits everyone — without forcing anyone into a subscription or a program they don\'t want to be on.',
+              },
+              {
+                title: 'Governance',
+                body: 'Servers who hold $SERVE earn voting rights in the Worker Council. The people who built their careers on Slate shape its future. Not investors. Not the company. The workers.',
+              },
+            ].map(block => (
+              <div key={block.title} className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
+                <p className="mb-2 text-sm font-semibold text-white">{block.title}</p>
+                <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>{block.body}</p>
+              </div>
+            ))}
+          </div>
+
           {/* Supply */}
-          <div className="mb-8 rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
+          <div className="mb-6 rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
             <p className="mb-1 text-xs font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>Total Supply</p>
             <p className="text-2xl font-bold text-white">100,000,000 $SERVE</p>
             <p className="mt-1 text-xs" style={{ color: '#606060' }}>Fixed forever</p>
           </div>
 
+          <p className="mb-10 text-base leading-8" style={{ color: '#C0C0C0' }}>
+            35% allocated to server rewards over 6 years with emission decay — founding members earn significantly more per rating than servers who join later. Early participation is permanently recognized on-chain.
+          </p>
+
           {/* Allocation */}
           <h3 className="mb-4 text-base font-semibold text-white">Allocation</h3>
-          <div className="mb-8 space-y-2">
+          <div className="mb-10 space-y-2">
             {[
-              { pct: '35%', label: 'Server rewards', note: 'Vested over 6 years, emissions tied to platform revenue' },
+              { pct: '35%', label: 'Server rewards', note: 'Vested over 6 years, emissions decay over time — founding members earn more per rating' },
               { pct: '20%', label: 'Ecosystem and liquidity', note: '10M for Raydium liquidity pool, 10M for grants and partnerships' },
               { pct: '20%', label: 'Treasury', note: 'Controlled by multisig, spent only through community governance' },
               { pct: '15%', label: 'Team and founder', note: '1 year cliff, 4 year linear vest' },
@@ -305,67 +344,13 @@ export default function WhitepaperPage() {
             ))}
           </div>
 
-          <div className="space-y-6">
-            {[
-              {
-                title: 'How Servers Earn $SERVE',
-                body: 'Every week the Slate smart contract calculates a performance score for every server on the platform. Score = Average Rating × Booking Volume × Repeat Guest Percentage. The top 20% of servers by score share that week\'s reward distribution from the treasury. Higher scores earn larger shares. Minimum 5 verified ratings required to qualify.',
-              },
-            ].map(block => (
-              <div key={block.title}>
-                <h3 className="mb-2 text-base font-semibold text-white">{block.title}</h3>
-                <p className="text-base leading-8" style={{ color: '#C0C0C0' }}>{block.body}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="my-8 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
-              <p className="mb-4 text-sm font-semibold text-white">Demand drivers</p>
-              <ul className="space-y-2">
-                {[
-                  'Guests spend $SERVE for priority reservations with in-demand servers',
-                  'Servers stake $SERVE to boost profile visibility in search',
-                  'Every booking fee generates automatic buy pressure on $SERVE',
-                ].map(item => (
-                  <li key={item} className="flex items-start gap-2 text-xs leading-5" style={{ color: '#A0A0A0' }}>
-                    <span className="shrink-0" style={{ color: '#606060' }}>—</span>{item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
-              <p className="mb-4 text-sm font-semibold text-white">Deflationary mechanics</p>
-              <ul className="space-y-2">
-                {[
-                  'Every booking: 1% of fee value burned in $SERVE',
-                  'Every profile boost purchase: 100% of $SERVE spent is burned',
-                  'Every priority reservation: 50% of $SERVE spent is burned',
-                ].map(item => (
-                  <li key={item} className="flex items-start gap-2 text-xs leading-5" style={{ color: '#A0A0A0' }}>
-                    <span className="shrink-0" style={{ color: '#606060' }}>—</span>{item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            {[
-              {
-                title: 'Sustainability',
-                body: '$SERVE emissions are tied entirely to real platform revenue — not to new token minting after the initial distribution. As bookings grow treasury grows. As treasury grows server rewards grow. The token is designed to appreciate in value as the platform scales not depreciate through inflation.',
-              },
-              {
-                title: 'Cashout',
-                body: 'Servers convert $SERVE to USDC through Slate Pay and receive direct bank transfers within 1–2 business days. No crypto knowledge required. The experience feels identical to direct deposit.',
-              },
-            ].map(block => (
-              <div key={block.title}>
-                <h3 className="mb-2 text-base font-semibold text-white">{block.title}</h3>
-                <p className="text-base leading-8" style={{ color: '#C0C0C0' }}>{block.body}</p>
-              </div>
-            ))}
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-6">
+            <p className="mb-4 text-sm leading-7" style={{ color: '#A0A0A0' }}>
+              The question investors ask is: does this product work without the token?
+            </p>
+            <p className="text-sm leading-7 text-white">
+              The answer is no — not the way we intend it to. Without $SERVE there is no trustless way to reward workers automatically without going through an employer. Without $SERVE reputation is just a database row someone else owns. The token is not optional. It is the point.
+            </p>
           </div>
         </section>
 

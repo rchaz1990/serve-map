@@ -72,7 +72,7 @@ export default function ForServersPage() {
                 },
                 {
                   title: '$SERVE rewards',
-                  body: 'Top rated servers earn weekly token rewards distributed automatically by smart contract. Cash out to your bank account.',
+                  body: 'Every verified rating you earn converts to $SERVE — the on-chain proof that you showed up and delivered. This isn\'t a points program. It\'s ownership.',
                 },
                 {
                   title: 'Your QR code',
@@ -87,6 +87,33 @@ export default function ForServersPage() {
                   <p className="text-sm leading-relaxed" style={{ color: '#606060' }}>{card.body}</p>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <div className="border-t border-white/10" />
+
+        {/* ── $SERVE ownership ──────────────────────────────────────────── */}
+        <section className="px-6 py-16 lg:px-24 lg:py-24">
+          <div className="mx-auto max-w-4xl">
+            <h2 className="mb-8 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              Your reputation belongs to you.
+            </h2>
+            <div className="max-w-2xl space-y-5 text-base leading-8" style={{ color: '#C0C0C0' }}>
+              <p>
+                Every rating you receive is stored permanently on Solana.
+                Every shift you work builds a credential no employer can delete.
+                And every verified rating you earn converts to $SERVE —
+                the on-chain proof that you showed up and delivered.
+              </p>
+              <p className="font-semibold text-white">
+                This isn&apos;t a points program. It&apos;s ownership.
+              </p>
+              <p>
+                When you hold $SERVE you hold a piece of the platform you helped build.
+                You vote on how Slate grows. You decide what gets built next.
+                You are not a user on Slate. You are a stakeholder.
+              </p>
             </div>
           </div>
         </section>
