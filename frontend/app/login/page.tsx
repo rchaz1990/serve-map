@@ -52,11 +52,14 @@ function LoginForm() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/live`,
+        redirectTo: 'https://slatenow.xyz/auth/callback',
         queryParams: { access_type: 'offline', prompt: 'consent' },
       },
     })
-    if (error) setError('Google sign in failed. Please try email instead.')
+    if (error) {
+      setError('Google sign in failed. Please try email and password instead.')
+      console.error('Google OAuth error:', error)
+    }
   }
 
   return (
