@@ -79,7 +79,7 @@ function useQRCode() {
 
 type Workplace = { id: string; restaurant_name: string; is_primary: boolean; currently_working: boolean }
 
-function WorkplaceSection({ serverId }: { serverId: string | null }) {
+function WorkplaceSection({ serverId, serverName }: { serverId: string | null; serverName: string }) {
   const [open, setOpen] = useState(false)
   const [googleLoaded, setGoogleLoaded] = useState(false)
   const [newVenue, setNewVenue] = useState('')
@@ -149,6 +149,18 @@ function WorkplaceSection({ serverId }: { serverId: string | null }) {
       start_date: today,
     })
     if (error) console.error('[supabase] workplace insert:', error)
+    if (!error && serverId && serverName) {
+      fetch('/api/notify-followers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serverId,
+          serverName,
+          restaurantName: newVenue,
+          type: 'job_changed',
+        }),
+      }).catch(() => {})
+    }
     setSaving(false)
     setSaved(true)
     loadWorkplaces()
@@ -293,7 +305,7 @@ function WorkerCouncilSection() {
     if (data) setSuggestions(data as Suggestion[])
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!title.trim()) return
     setSubmitting(true)
@@ -623,6 +635,20 @@ export default function DashboardPage() {
     setShiftToast(true)
     setShowRestaurantPicker(false)
 
+    // Notify followers (fire and forget)
+    if (serverProfile) {
+      fetch('/api/notify-followers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serverId: serverProfile.id,
+          serverName: serverProfile.name,
+          restaurantName,
+          type: 'shift_started',
+        }),
+      }).catch(() => {})
+    }
+
     const insertShift = async (gpsVerified: boolean, distance: number | null, userLat: number | null, userLng: number | null) => {
       const { data, error } = await supabase.from('shifts').insert({
         restaurant_name: restaurantName,
@@ -933,7 +959,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Update workplace ────────────────────────────────────────── */}
-        <WorkplaceSection serverId={serverProfile?.id ?? null} />
+        <WorkplaceSection serverId={serverProfile?.id ?? null} serverName={serverProfile?.name ?? ''} />
 
         {/* ── Header ──────────────────────────────────────────────────── */}
         {profileLoading ? (

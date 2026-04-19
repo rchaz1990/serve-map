@@ -1,9 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
+
+type Notification = {
+  id: string
+  created_at: string
+  title: string
+  message: string
+  link: string | null
+  is_read: boolean
+}
 
 const LOGO = (
   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -29,6 +38,10 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   const [session, setSession] = useState<Session | null>(null)
   const [serverRow, setServerRow] = useState<ServerRow | null>(null)
   const [authLoaded, setAuthLoaded] = useState(false)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const bellRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // ── Step 1: Read localStorage synchronously — no async delay ──────────────
@@ -65,6 +78,21 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           }
         }
         // If storedId exists, trust the cache — already set in Step 1
+
+        // Load unread notifications
+        if (s.user.email) {
+          const { data: notifs } = await supabase
+            .from('notifications')
+            .select('id, created_at, title, message, link, is_read')
+            .eq('recipient_email', s.user.email)
+            .eq('is_read', false)
+            .order('created_at', { ascending: false })
+            .limit(10)
+          if (notifs) {
+            setNotifications(notifs as Notification[])
+            setUnreadCount(notifs.length)
+          }
+        }
       } else {
         // No active session — clear any stale cache
         setServerRow(null)
@@ -113,6 +141,17 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
     })
 
     return () => subscription.unsubscribe()
+  }, [])
+
+  // Close notification dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setShowNotifications(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   async function detectServer(userId: string, userEmail: string | null): Promise<ServerRow | null> {
@@ -164,6 +203,12 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   const isServer = authLoaded && session && serverRow
   const isGuest  = authLoaded && session && !serverRow
 
+  async function markRead(id: string) {
+    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+    setNotifications(prev => prev.filter(n => n.id !== id))
+    setUnreadCount(prev => Math.max(0, prev - 1))
+  }
+
   function DesktopAuthLinks() {
     if (!authLoaded) return null
     if (!session) {
@@ -195,6 +240,64 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
             My Dashboard
           </a>
         )}
+
+        {/* Notification bell */}
+        <div ref={bellRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowNotifications(v => !v)}
+            aria-label="Notifications"
+            style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} style={{ width: 18, height: 18, color: unreadCount > 0 ? 'white' : 'rgba(255,255,255,0.4)' }}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+            </svg>
+            {unreadCount > 0 && (
+              <span style={{
+                position: 'absolute', top: -4, right: -4,
+                background: 'white', color: 'black',
+                borderRadius: '50%', width: 16, height: 16,
+                fontSize: 9, display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontWeight: 700, lineHeight: 1,
+              }}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {showNotifications && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 12px)', right: 0,
+              background: '#0a0a0a', border: '1px solid #1e1e1e',
+              width: 320, maxHeight: 400, overflowY: 'auto',
+              zIndex: 1000, borderRadius: 8,
+              boxShadow: '0 16px 48px rgba(0,0,0,0.8)',
+            }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #1a1a1a', fontSize: 11, letterSpacing: '2px', color: '#444', textTransform: 'uppercase' }}>
+                Notifications
+              </div>
+              {notifications.length === 0 ? (
+                <div style={{ padding: '24px 16px', color: '#444', fontSize: 13, textAlign: 'center' }}>
+                  No new notifications
+                </div>
+              ) : (
+                notifications.map(n => (
+                  <a
+                    key={n.id}
+                    href={n.link ?? '#'}
+                    onClick={() => markRead(n.id)}
+                    style={{ display: 'block', padding: '14px 16px', borderBottom: '1px solid #111', textDecoration: 'none', color: 'white' }}
+                  >
+                    <div style={{ fontSize: 13, marginBottom: 4, lineHeight: 1.4 }}>{n.title}</div>
+                    <div style={{ fontSize: 11, color: '#555' }}>
+                      {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </a>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
         <button
           onClick={handleSignOut}
           className="rounded-full border border-white/20 px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:border-white"
