@@ -119,11 +119,10 @@ function VibePill({ vibe, selected, onClick }: { vibe: string; selected: boolean
 
 // ── Vibe report card ──────────────────────────────────────────────────────────
 
-function ReportCard({ report, delay }: { report: VibeReport; delay: number }) {
+function ReportCard({ report, allReports, animClass, delay }: { report: VibeReport; allReports: VibeReport[]; animClass: string; delay: number }) {
   const ref = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const vibe = report.vibe as Vibe
-  const animClass = vibe === 'CHILL' ? 'anim-chill' : vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
 
   useEffect(() => {
     const el = ref.current
@@ -166,7 +165,12 @@ function ReportCard({ report, delay }: { report: VibeReport; delay: number }) {
         <p className="mb-4 text-3xl">{VIBE_META[vibe]?.emoji ?? '📍'}</p>
 
         <div className="flex items-center justify-between gap-3">
-          <span className="text-xs" style={{ color: '#404040' }}>Reported {timeLabel}</span>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs" style={{ color: '#404040' }}>Reported {timeLabel}</span>
+            {allReports.length > 1 && (
+              <span className="text-xs" style={{ color: '#404040' }}>{allReports.length} reports total</span>
+            )}
+          </div>
           {(report.bar_seats || report.wait_time) && (
             <div className="flex gap-3 text-xs" style={{ color: '#606060' }}>
               {report.bar_seats && <span>Seats: {report.bar_seats}</span>}
@@ -401,14 +405,10 @@ export default function LivePage() {
 
   useEffect(() => {
     async function loadData() {
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
-
       const [reportsRes, shiftsRes] = await Promise.all([
         supabase
           .from('vibe_reports')
-          .select('id, restaurant_name, vibe, bar_seats, wait_time, gps_verified, integrity_score, created_at')
-          .gte('created_at', todayStart.toISOString())
+          .select('*')
           .order('created_at', { ascending: false })
           .limit(50),
         supabase
@@ -557,7 +557,7 @@ export default function LivePage() {
               </h2>
               {!loadingReports && reports.length > 0 && (
                 <span className="text-xs" style={{ color: '#404040' }}>
-                  · {reports.length} {reports.length === 1 ? 'report' : 'reports'} tonight
+                  · {reports.length} {reports.length === 1 ? 'report' : 'reports'}
                 </span>
               )}
             </div>
@@ -569,11 +569,35 @@ export default function LivePage() {
                 No vibes reported yet tonight. Be the first to report.
               </p>
             ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {reports.map((report, i) => (
-                  <ReportCard key={report.id} report={report} delay={i * 60} />
-                ))}
-              </div>
+              (() => {
+                // Group by restaurant, keeping the most recent report per restaurant first
+                const grouped = new Map<string, VibeReport[]>()
+                for (const r of reports) {
+                  const key = r.restaurant_name
+                  if (!grouped.has(key)) grouped.set(key, [])
+                  grouped.get(key)!.push(r)
+                }
+                const restaurants = Array.from(grouped.entries())
+
+                return (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {restaurants.map(([name, venueReports], i) => {
+                      const latest = venueReports[0]
+                      const vibe = latest.vibe as Vibe
+                      const animClass = vibe === 'CHILL' ? 'anim-chill' : vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
+                      return (
+                        <ReportCard
+                          key={name}
+                          report={latest}
+                          allReports={venueReports}
+                          animClass={animClass}
+                          delay={i * 60}
+                        />
+                      )
+                    })}
+                  </div>
+                )
+              })()
             )}
           </div>
         </section>
