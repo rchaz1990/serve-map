@@ -19,6 +19,8 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
 
 export async function POST(request: Request) {
   const body = await request.json()
+  console.log('verify-vibe API called with:', body)
+
   const {
     userId,
     reporterEmail,
@@ -109,7 +111,8 @@ export async function POST(request: Request) {
     integrityScore >= 20 ? 1 : 0
 
   // ── CHECK 7 — Persist ─────────────────────────────────────────────────────
-  const { error } = await supabase
+  console.log('Attempting to insert vibe report...')
+  const { data: insertData, error } = await supabase
     .from('vibe_reports')
     .insert({
       restaurant_name: restaurantName,
@@ -126,6 +129,8 @@ export async function POST(request: Request) {
       user_lat: userLat ?? null,
       user_lng: userLng ?? null,
     })
+    .select()
+  console.log('Insert result:', insertData, error)
 
   if (error) {
     console.error('[verify-vibe] insert error:', error)
