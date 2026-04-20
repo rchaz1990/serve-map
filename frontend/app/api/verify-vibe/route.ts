@@ -66,9 +66,9 @@ export async function POST(request: Request) {
     .eq('reported_by', reporterEmail)
     .gte('created_at', todayStart.toISOString())
 
-  if ((dailyCount ?? 0) >= 5) {
+  if ((dailyCount ?? 0) >= 20) {
     return NextResponse.json(
-      { success: false, error: 'Daily limit reached. You can submit 5 vibe reports per day.' },
+      { success: false, error: 'Daily limit reached. You can submit 20 vibe reports per day.' },
       { status: 429 }
     )
   }
