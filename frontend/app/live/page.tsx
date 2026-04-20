@@ -20,6 +20,21 @@ interface VibeReport {
   created_at: string
 }
 
+interface VenueDisplay {
+  name: string
+  latestReport: VibeReport | null
+  reportCount: number
+}
+
+// ── Default NYC venues ────────────────────────────────────────────────────────
+
+const DEFAULT_VENUES = [
+  'Employees Only', 'Death & Co', 'Attaboy', 'Dante',
+  'The Dead Rabbit', "Please Don't Tell", 'Maison Premiere',
+  'Amor y Amargo', 'Carbone', 'Don Angie', 'Via Carota',
+  'Lilia', 'Lucali', 'Le Bernardin', 'Balthazar',
+]
+
 // ── Haversine distance ────────────────────────────────────────────────────────
 
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -35,10 +50,10 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
 
 // ── Vibe metadata ─────────────────────────────────────────────────────────────
 
-const VIBE_META: Record<string, { emoji: string; label: string; tagline: string }> = {
-  CHILL:  { emoji: '🧊', label: 'CHILL',  tagline: 'Calm energy. Good conversation. Perfect for a date.' },
-  LIVE:   { emoji: '🔥', label: 'LIVE',   tagline: 'Buzzing energy. Great crowd. Night is just getting started.' },
-  PACKED: { emoji: '🚀', label: 'PACKED', tagline: 'Electric. Wall to wall. Peak NYC energy.' },
+const VIBE_META: Record<string, { emoji: string; tagline: string }> = {
+  CHILL:  { emoji: '🧊', tagline: 'Calm energy. Good conversation.' },
+  LIVE:   { emoji: '🔥', tagline: 'Buzzing energy. Great crowd.' },
+  PACKED: { emoji: '🚀', tagline: 'Electric. Wall to wall.' },
 }
 
 // ── CSS animations ────────────────────────────────────────────────────────────
@@ -97,8 +112,6 @@ function Pill({ label, selected, onClick }: { label: string; selected: boolean; 
 const VIBE_EMOJI: Record<string, string> = { CHILL: '🧊', LIVE: '🔥', PACKED: '🚀' }
 
 function VibePill({ vibe, selected, onClick }: { vibe: string; selected: boolean; onClick: () => void }) {
-  const emoji = VIBE_EMOJI[vibe] ?? vibe
-  const label = vibe.charAt(0) + vibe.slice(1).toLowerCase()
   return (
     <button
       onClick={onClick}
@@ -109,21 +122,32 @@ function VibePill({ vibe, selected, onClick }: { vibe: string; selected: boolean
         minWidth: '72px',
       }}
     >
-      <span style={{ fontSize: '28px', lineHeight: 1 }}>{emoji}</span>
+      <span style={{ fontSize: '28px', lineHeight: 1 }}>{VIBE_EMOJI[vibe] ?? vibe}</span>
       <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: selected ? 'black' : '#606060' }}>
-        {label}
+        {vibe.charAt(0) + vibe.slice(1).toLowerCase()}
       </span>
     </button>
   )
 }
 
-// ── Vibe report card ──────────────────────────────────────────────────────────
+// ── Venue card ────────────────────────────────────────────────────────────────
 
-function ReportCard({ report, reportCount, delay }: { report: VibeReport; reportCount: number; delay: number }) {
+function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
   const ref = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
-  const vibe = report.vibe as Vibe
-  const animClass = vibe === 'CHILL' ? 'anim-chill' : vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
+
+  const [checkInOpen, setCheckInOpen] = useState(false)
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [gpsVerifiedForSubmit, setGpsVerifiedForSubmit] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [vibe, setVibe] = useState<string | null>(null)
+  const [seats, setSeats] = useState<string | null>(null)
+  const [wait, setWait] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [serveEarned, setServeEarned] = useState<number | null>(null)
+  const [submitMessage, setSubmitMessage] = useState('')
+  const [submitError, setSubmitError] = useState('')
 
   useEffect(() => {
     const el = ref.current
@@ -136,52 +160,222 @@ function ReportCard({ report, reportCount, delay }: { report: VibeReport; report
     return () => obs.disconnect()
   }, [])
 
-  const minutesAgo = Math.round((Date.now() - new Date(report.created_at).getTime()) / 60000)
-  const hoursAgo = Math.floor(minutesAgo / 60)
-  const timeLabel =
+  const report = venue.latestReport
+  const hasReport = report !== null
+  const vibeName = report?.vibe as Vibe | undefined
+  const animClass = vibeName === 'CHILL' ? 'anim-chill' : vibeName === 'LIVE' ? 'anim-live' : vibeName === 'PACKED' ? 'anim-packed' : ''
+
+  const minutesAgo = report
+    ? Math.round((Date.now() - new Date(report.created_at).getTime()) / 60000)
+    : null
+  const timeLabel = minutesAgo === null ? '' :
     minutesAgo < 1 ? 'just now' :
     minutesAgo < 60 ? `${minutesAgo} min ago` :
-    hoursAgo === 1 ? '1 hour ago' :
-    `${hoursAgo} hours ago`
+    `${Math.floor(minutesAgo / 60)}h ago`
+
+  function handleImHere() {
+    if (checkInOpen) {
+      setCheckInOpen(false); setUserCoords(null); setShowForm(false)
+      setVibe(null); setSeats(null); setWait(null)
+      return
+    }
+    setCheckInOpen(true)
+    setShowForm(true)
+    setGpsVerifiedForSubmit(false)
+
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const userLat = pos.coords.latitude
+        const userLng = pos.coords.longitude
+        setUserCoords({ lat: userLat, lng: userLng })
+
+        try {
+          const res = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name + ' NYC')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
+          )
+          const data = await res.json()
+          const venueLat: number | null = data.results?.[0]?.geometry?.location?.lat ?? null
+          const venueLng: number | null = data.results?.[0]?.geometry?.location?.lng ?? null
+          if (venueLat !== null && venueLng !== null) {
+            const dist = getDistanceMeters(userLat, userLng, venueLat, venueLng)
+            if (dist <= 500) setGpsVerifiedForSubmit(true)
+          }
+        } catch { /* silent */ }
+      },
+      () => { /* denied — form already shown */ },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
+  }
+
+  async function handleSubmit() {
+    if (!vibe) return
+    setSubmitting(true)
+    setSubmitError('')
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const reporterEmail = session?.user?.email ?? localStorage.getItem('slateUserEmail') ?? undefined
+    const coords = userCoords
+
+    const res = await fetch('/api/verify-vibe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: session?.user?.id ?? null,
+        reporterEmail,
+        restaurantName: venue.name,
+        vibe, barSeats: seats, waitTime: wait,
+        userLat: coords?.lat ?? null,
+        userLng: coords?.lng ?? null,
+        restaurantLat: null, restaurantLng: null,
+        gpsVerified: gpsVerifiedForSubmit,
+        distanceMeters: null,
+      }),
+    })
+    const json = await res.json()
+    setSubmitting(false)
+
+    if (res.status === 429) { setSubmitError(json.error); return }
+    if (!res.ok) { setSubmitError('Something went wrong. Please try again.'); return }
+
+    setServeEarned(json.serveReward ?? null)
+    setSubmitMessage(json.message ?? '')
+    setSubmitted(true)
+  }
 
   return (
-    <div
-      ref={ref}
-      className={visible ? 'slide-up' : ''}
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-all duration-300 hover:border-white/25 hover:bg-white/[0.05]">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <h3 className="text-base font-bold text-white">{report.restaurant_name}</h3>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
-              Verified
-            </span>
-            <span
-              className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white ${animClass}`}
-              style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}
-            >
-              {report.vibe}
-            </span>
-          </div>
-        </div>
+    <div ref={ref} className={visible ? 'slide-up' : ''} style={{ animationDelay: `${delay}ms` }}>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] transition-all duration-300 hover:border-white/25 hover:bg-white/[0.05]">
+        <div className="p-6">
 
-        <p className="mb-4 text-3xl">{VIBE_META[vibe]?.emoji ?? '📍'}</p>
-
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs" style={{ color: '#404040' }}>Reported {timeLabel}</span>
-            {reportCount > 1 && (
-              <span className="text-xs" style={{ color: '#404040' }}>{reportCount} reports here</span>
-            )}
-          </div>
-          {(report.bar_seats || report.wait_time) && (
-            <div className="flex gap-3 text-xs" style={{ color: '#606060' }}>
-              {report.bar_seats && <span>Seats: {report.bar_seats}</span>}
-              {report.wait_time && <span>Wait: {report.wait_time}</span>}
+          {/* Top row */}
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <h3 className="text-base font-bold text-white">{venue.name}</h3>
+            <div className="flex shrink-0 items-center gap-2">
+              {hasReport && report!.gps_verified && (
+                <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
+                  Verified
+                </span>
+              )}
+              {hasReport && vibeName ? (
+                <span
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white ${animClass}`}
+                  style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                >
+                  {report!.vibe}
+                </span>
+              ) : (
+                <span className="rounded-full px-2.5 py-1 text-[10px] font-medium" style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#404040' }}>
+                  No report yet
+                </span>
+              )}
             </div>
+          </div>
+
+          {/* Emoji + meta */}
+          {hasReport && vibeName ? (
+            <>
+              <p className="mb-2 text-3xl">{VIBE_META[vibeName]?.emoji}</p>
+              <p className="mb-1 text-xs" style={{ color: '#606060' }}>{VIBE_META[vibeName]?.tagline}</p>
+              <div className="mb-4 flex items-center gap-3 text-xs" style={{ color: '#404040' }}>
+                <span>Reported {timeLabel}</span>
+                {venue.reportCount > 1 && <span>· {venue.reportCount} reports</span>}
+                {report!.bar_seats && <span>· Seats: {report!.bar_seats}</span>}
+                {report!.wait_time && <span>· Wait: {report!.wait_time}</span>}
+              </div>
+            </>
+          ) : (
+            <p className="mb-4 text-xs" style={{ color: '#404040' }}>No vibes yet tonight. Be the first to report.</p>
+          )}
+
+          {/* I'm here button */}
+          {!submitted && (
+            <button
+              onClick={handleImHere}
+              className="w-full rounded-full border border-white/20 py-2.5 text-xs font-semibold text-white transition-colors hover:border-white"
+            >
+              {checkInOpen ? 'Cancel' : "I'm here right now 📍"}
+            </button>
           )}
         </div>
+
+        {/* Check-in panel */}
+        {checkInOpen && !submitted && (
+          <div className="border-t border-white/10 px-6 pb-6 pt-5">
+            <p className="mb-5 text-sm font-semibold text-white">
+              You&apos;re at {venue.name}
+              {gpsVerifiedForSubmit && (
+                <span className="ml-2 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
+                  GPS ✓
+                </span>
+              )}
+            </p>
+
+            {showForm && (
+              <>
+                <div className="mb-4">
+                  <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>What&apos;s the vibe?</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['CHILL', 'LIVE', 'PACKED'].map(v => (
+                      <VibePill key={v} vibe={v} selected={vibe === v} onClick={() => setVibe(v)} />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Bar seats?</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['Plenty', 'A few', 'None'].map(s => (
+                      <Pill key={s} label={s} selected={seats === s} onClick={() => setSeats(s)} />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-5">
+                  <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Wait time?</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['No wait', '~15 min', '30+ min'].map(w => (
+                      <Pill key={w} label={w} selected={wait === w} onClick={() => setWait(w)} />
+                    ))}
+                  </div>
+                </div>
+
+                {submitError && (
+                  <p className="mb-3 text-xs" style={{ color: '#f87171' }}>{submitError}</p>
+                )}
+                <button
+                  disabled={!vibe || submitting}
+                  onClick={handleSubmit}
+                  className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
+                >
+                  {submitting ? 'Submitting…' : gpsVerifiedForSubmit ? 'Share the vibe — earn 5 $SERVE 🍸' : 'Share the vibe — earn 1 $SERVE 🍸'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Success state */}
+        {submitted && vibe && (
+          <div className="border-t border-white/10 px-6 pb-6 pt-5">
+            <div style={{ fontSize: '48px', lineHeight: 1 }} className="mb-3">
+              {VIBE_META[vibe]?.emoji ?? VIBE_EMOJI[vibe]}
+            </div>
+            <p className="mb-1 text-sm font-semibold text-white capitalize">{vibe.toLowerCase()}</p>
+            <p className="mb-1 text-xs" style={{ color: '#606060' }}>Reported just now</p>
+            {submitMessage && (
+              <p className="mb-1 text-xs font-semibold" style={{ color: (serveEarned ?? 0) > 0 ? '#4ade80' : '#9ca3af' }}>
+                {submitMessage}
+              </p>
+            )}
+            {(seats || wait) && (
+              <div className="mt-2 flex flex-wrap gap-3 text-xs" style={{ color: '#A0A0A0' }}>
+                {seats && <span>Bar seats: {seats}</span>}
+                {wait && <span>Wait: {wait}</span>}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -206,21 +400,17 @@ function VenueSearch() {
 
   function checkGpsForVenue(venueLat: number | null, venueLng: number | null) {
     setShowForm(true)
-
     if (!navigator.geolocation) return
-
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const userLat = pos.coords.latitude
         const userLng = pos.coords.longitude
         setUserCoords({ lat: userLat, lng: userLng })
-
         if (venueLat !== null && venueLng !== null) {
-          const distance = getDistanceMeters(userLat, userLng, venueLat, venueLng)
-          console.log('[GPS] VenueSearch distance:', Math.round(distance), 'm')
+          console.log('[GPS] distance:', Math.round(getDistanceMeters(userLat, userLng, venueLat, venueLng)), 'm')
         }
       },
-      () => { /* denied — form already shown */ },
+      () => {},
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     )
   }
@@ -257,12 +447,8 @@ function VenueSearch() {
   }, [googleLoaded, selected])
 
   function handleChange() {
-    setSelected(null)
-    setUserCoords(null)
-    setShowForm(false)
-    setVibe(null)
-    setSeats(null)
-    setWait(null)
+    setSelected(null); setUserCoords(null); setShowForm(false)
+    setVibe(null); setSeats(null); setWait(null)
     if (inputRef.current) inputRef.current.value = ''
   }
 
@@ -303,10 +489,7 @@ function VenueSearch() {
   }
 
   return (
-    <div
-      className="border-b border-white/10 px-8 py-10 lg:px-16"
-      style={{ backgroundColor: '#050505' }}
-    >
+    <div className="border-b border-white/10 px-8 py-10 lg:px-16" style={{ backgroundColor: '#050505' }}>
       <Script
         src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}&libraries=places`}
         onLoad={() => setGoogleLoaded(true)}
@@ -341,9 +524,7 @@ function VenueSearch() {
                 <p className="text-sm font-semibold text-white">{selected.name}</p>
                 <p className="text-xs" style={{ color: '#606060' }}>{selected.address}</p>
               </div>
-              <button onClick={handleChange} className="shrink-0 text-xs transition-colors hover:text-white" style={{ color: '#606060' }}>
-                Change
-              </button>
+              <button onClick={handleChange} className="shrink-0 text-xs transition-colors hover:text-white" style={{ color: '#606060' }}>Change</button>
             </div>
 
             {showForm && (
@@ -356,7 +537,6 @@ function VenueSearch() {
                     ))}
                   </div>
                 </div>
-
                 <div className="mb-4">
                   <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Bar seats?</p>
                   <div className="flex flex-wrap gap-2">
@@ -365,7 +545,6 @@ function VenueSearch() {
                     ))}
                   </div>
                 </div>
-
                 <div className="mb-5">
                   <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Wait time?</p>
                   <div className="flex flex-wrap gap-2">
@@ -374,7 +553,6 @@ function VenueSearch() {
                     ))}
                   </div>
                 </div>
-
                 <button
                   disabled={!vibe || submitting}
                   onClick={handleSubmit}
@@ -399,23 +577,11 @@ function VenueSearch() {
   )
 }
 
-// ── Group reports by restaurant, most recent per venue first ──────────────────
-
-function groupByRestaurant(reports: VibeReport[]): Array<{ latest: VibeReport; count: number }> {
-  const grouped = new Map<string, VibeReport[]>()
-  for (const r of reports) {
-    if (!grouped.has(r.restaurant_name)) grouped.set(r.restaurant_name, [])
-    grouped.get(r.restaurant_name)!.push(r)
-  }
-  return Array.from(grouped.values()).map(group => ({ latest: group[0], count: group.length }))
-}
-
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function LivePage() {
   const [faqOpen, setFaqOpen] = useState(false)
-  const [tonightReports, setTonightReports] = useState<VibeReport[]>([])
-  const [recentFallback, setRecentFallback] = useState<VibeReport[]>([])
+  const [venues, setVenues] = useState<VenueDisplay[]>([])
   const [weeklyReportCount, setWeeklyReportCount] = useState(0)
   const [weeklyVenueCount, setWeeklyVenueCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -425,7 +591,7 @@ export default function LivePage() {
       const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-      const [tonightRes, weeklyRes] = await Promise.all([
+      const [recentRes, weeklyRes] = await Promise.all([
         supabase
           .from('vibe_reports')
           .select('*')
@@ -439,33 +605,37 @@ export default function LivePage() {
           .gte('created_at', weekAgo),
       ])
 
-      const tonight = tonightRes.data ?? []
-      setTonightReports(tonight)
-
+      const recentReports: VibeReport[] = recentRes.data ?? []
       const weekly = weeklyRes.data ?? []
       setWeeklyReportCount(weekly.length)
       setWeeklyVenueCount(new Set(weekly.map(r => r.restaurant_name)).size)
 
-      // If nothing tonight, load last 5 verified reports from any time as fallback
-      if (tonight.length === 0) {
-        const { data: fallback } = await supabase
-          .from('vibe_reports')
-          .select('*')
-          .eq('gps_verified', true)
-          .order('created_at', { ascending: false })
-          .limit(5)
-        setRecentFallback(fallback ?? [])
+      // Build per-venue map from real reports
+      const reportsByVenue = new Map<string, VibeReport[]>()
+      for (const r of recentReports) {
+        if (!reportsByVenue.has(r.restaurant_name)) reportsByVenue.set(r.restaurant_name, [])
+        reportsByVenue.get(r.restaurant_name)!.push(r)
       }
 
+      // Venues with real reports — show first, ordered by most recent
+      const reportedNames = new Set(reportsByVenue.keys())
+      const withReports: VenueDisplay[] = Array.from(reportsByVenue.entries()).map(([name, reps]) => ({
+        name,
+        latestReport: reps[0],
+        reportCount: reps.length,
+      }))
+
+      // Default venues that have no report — fill the rest
+      const withoutReports: VenueDisplay[] = DEFAULT_VENUES
+        .filter(name => !reportedNames.has(name))
+        .map(name => ({ name, latestReport: null, reportCount: 0 }))
+
+      setVenues([...withReports, ...withoutReports])
       setLoading(false)
     }
 
     loadData()
   }, [])
-
-  const hasTonight = tonightReports.length > 0
-  const tonightGrouped = groupByRestaurant(tonightReports)
-  const fallbackGrouped = groupByRestaurant(recentFallback)
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
@@ -488,9 +658,7 @@ export default function LivePage() {
           </div>
 
           <div className="mx-auto max-w-5xl">
-            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-              NYC Tonight
-            </p>
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>NYC Tonight</p>
             <h1 className="mb-4 text-5xl font-bold tracking-tight text-white sm:text-6xl lg:text-7xl">
               What&apos;s the vibe?
             </h1>
@@ -508,63 +676,38 @@ export default function LivePage() {
         <div className="border-t border-white/10" />
 
         {/* ── Vibe legend ──────────────────────────────────────────────── */}
-        <section className="px-8 py-16 lg:px-16 lg:py-20">
+        <section className="px-8 py-12 lg:px-16 lg:py-16">
           <div className="mx-auto max-w-5xl">
-            <div className="mb-10">
-              <h2 className="mb-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                Share the vibe. Earn $SERVE.
-              </h2>
+            <div className="mb-8">
+              <h2 className="mb-2 text-xl font-bold tracking-tight text-white sm:text-2xl">Share the vibe. Earn $SERVE.</h2>
               <p className="text-sm" style={{ color: '#606060' }}>
-                Search for your venue above and report what you&apos;re experiencing right now.
+                Search above or tap &ldquo;I&apos;m here right now&rdquo; on any venue below.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {(Object.keys(VIBE_META) as Vibe[]).map(vibe => {
-                const meta = VIBE_META[vibe]
-                const baseAnim = vibe === 'CHILL' ? 'anim-chill' : vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
-                return (
-                  <div
-                    key={vibe}
-                    className="relative flex flex-col items-start rounded-2xl border p-7"
-                    style={{ borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}
-                  >
-                    <span className={`mb-4 block ${baseAnim}`} style={{ fontSize: '48px', lineHeight: 1 }}>
-                      {meta.emoji}
-                    </span>
-                    <p className="mb-1 text-lg font-black tracking-[0.15em] text-white">{meta.label}</p>
-                    <p className="text-xs leading-5" style={{ color: '#606060' }}>{meta.tagline}</p>
-                  </div>
-                )
-              })}
+            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              {(['CHILL', 'LIVE', 'PACKED'] as Vibe[]).map(v => (
+                <div key={v} className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center">
+                  <p className="mb-1 text-2xl">{VIBE_META[v].emoji}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white">{v}</p>
+                </div>
+              ))}
             </div>
 
-            <div className="mt-6">
-              <p className="mb-3 text-xs" style={{ color: '#404040' }}>
-                Must be at the venue to submit. GPS verified.
-              </p>
+            <div className="mt-4">
               <button
                 onClick={() => setFaqOpen(o => !o)}
                 className="flex items-center gap-2 text-xs transition-colors hover:text-white"
                 style={{ color: '#606060' }}
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  className={`h-3.5 w-3.5 transition-transform ${faqOpen ? 'rotate-90' : ''}`}
-                >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={`h-3.5 w-3.5 transition-transform ${faqOpen ? 'rotate-90' : ''}`}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
                 </svg>
                 How do I earn $SERVE?
               </button>
               {faqOpen && (
-                <div
-                  className="mt-3 max-w-lg rounded-xl border border-white/10 px-5 py-4 text-xs leading-6"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.03)', color: '#A0A0A0' }}
-                >
-                  Submit a vibe report while you&apos;re physically at a venue and earn 5 $SERVE tokens. Reports are verified via GPS — your location is checked once to confirm you&apos;re on-site and never stored. Reports validated by subsequent guests earn bonus tokens. Cash out $SERVE to your bank account through Slate Pay.
+                <div className="mt-3 max-w-lg rounded-xl border border-white/10 px-5 py-4 text-xs leading-6" style={{ backgroundColor: 'rgba(255,255,255,0.03)', color: '#A0A0A0' }}>
+                  Submit a vibe report while you&apos;re physically at a venue and earn $SERVE tokens. GPS-verified reports earn 5 $SERVE. Reports are verified via GPS — your location is checked once and never stored. Cash out $SERVE to your bank account through Slate Pay.
                 </div>
               )}
             </div>
@@ -573,67 +716,31 @@ export default function LivePage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── Live feed ─────────────────────────────────────────────────── */}
+        {/* ── Venue feed ────────────────────────────────────────────────── */}
         <section className="px-8 py-16 lg:px-16 lg:py-20">
           <div className="mx-auto max-w-5xl">
+            <div className="mb-10 flex items-center gap-3">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-40" style={{ animation: 'liveDot 1.4s ease-in-out infinite' }} />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+              </span>
+              <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">NYC right now</h2>
+              {!loading && (
+                <span className="text-xs" style={{ color: '#404040' }}>
+                  · {venues.length} venues
+                </span>
+              )}
+            </div>
 
             {loading ? (
               <p className="text-sm" style={{ color: '#404040' }}>Loading…</p>
-
-            ) : hasTonight ? (
-              <>
-                <div className="mb-10 flex items-center gap-3">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-40" style={{ animation: 'liveDot 1.4s ease-in-out infinite' }} />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
-                  </span>
-                  <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
-                    NYC right now
-                  </h2>
-                  <span className="text-xs" style={{ color: '#404040' }}>
-                    · {tonightReports.length} verified {tonightReports.length === 1 ? 'report' : 'reports'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {tonightGrouped.map(({ latest, count }, i) => (
-                    <ReportCard key={latest.restaurant_name} report={latest} reportCount={count} delay={i * 60} />
-                  ))}
-                </div>
-              </>
-
             ) : (
-              <>
-                {/* Empty state — no verified reports tonight */}
-                <div className="mb-12 rounded-2xl border border-white/10 bg-white/[0.02] px-8 py-12 text-center">
-                  <p className="mb-2 text-xl font-bold text-white">Be the first to report a vibe tonight.</p>
-                  <p className="mb-8 text-sm" style={{ color: '#606060' }}>
-                    No verified reports in the last 4 hours. Search for your venue above and share what you&apos;re seeing.
-                  </p>
-                  <a
-                    href="#report"
-                    onClick={e => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-                    className="inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80"
-                  >
-                    Report a vibe →
-                  </a>
-                </div>
-
-                {/* Fallback: last 5 verified reports from any time */}
-                {fallbackGrouped.length > 0 && (
-                  <>
-                    <h2 className="mb-6 text-lg font-bold tracking-tight text-white">
-                      Recent reports
-                    </h2>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      {fallbackGrouped.map(({ latest, count }, i) => (
-                        <ReportCard key={latest.restaurant_name} report={latest} reportCount={count} delay={i * 60} />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {venues.map((venue, i) => (
+                  <VenueCard key={venue.name} venue={venue} delay={i * 40} />
+                ))}
+              </div>
             )}
-
           </div>
         </section>
 
