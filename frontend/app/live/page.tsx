@@ -35,7 +35,7 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
 
 // ── Vibe metadata ─────────────────────────────────────────────────────────────
 
-const VIBE_META = {
+const VIBE_META: Record<string, { emoji: string; label: string; tagline: string }> = {
   CHILL:  { emoji: '🧊', label: 'CHILL',  tagline: 'Calm energy. Good conversation. Perfect for a date.' },
   LIVE:   { emoji: '🔥', label: 'LIVE',   tagline: 'Buzzing energy. Great crowd. Night is just getting started.' },
   PACKED: { emoji: '🚀', label: 'PACKED', tagline: 'Electric. Wall to wall. Peak NYC energy.' },
@@ -119,10 +119,11 @@ function VibePill({ vibe, selected, onClick }: { vibe: string; selected: boolean
 
 // ── Vibe report card ──────────────────────────────────────────────────────────
 
-function ReportCard({ report, allReports, animClass, delay }: { report: VibeReport; allReports: VibeReport[]; animClass: string; delay: number }) {
+function ReportCard({ report, reportCount, delay }: { report: VibeReport; reportCount: number; delay: number }) {
   const ref = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const vibe = report.vibe as Vibe
+  const animClass = vibe === 'CHILL' ? 'anim-chill' : vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
 
   useEffect(() => {
     const el = ref.current
@@ -136,7 +137,12 @@ function ReportCard({ report, allReports, animClass, delay }: { report: VibeRepo
   }, [])
 
   const minutesAgo = Math.round((Date.now() - new Date(report.created_at).getTime()) / 60000)
-  const timeLabel = minutesAgo < 1 ? 'just now' : minutesAgo === 1 ? '1 min ago' : `${minutesAgo} min ago`
+  const hoursAgo = Math.floor(minutesAgo / 60)
+  const timeLabel =
+    minutesAgo < 1 ? 'just now' :
+    minutesAgo < 60 ? `${minutesAgo} min ago` :
+    hoursAgo === 1 ? '1 hour ago' :
+    `${hoursAgo} hours ago`
 
   return (
     <div
@@ -148,11 +154,9 @@ function ReportCard({ report, allReports, animClass, delay }: { report: VibeRepo
         <div className="mb-3 flex items-start justify-between gap-3">
           <h3 className="text-base font-bold text-white">{report.restaurant_name}</h3>
           <div className="flex shrink-0 items-center gap-2">
-            {report.gps_verified && (
-              <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
-                GPS ✓
-              </span>
-            )}
+            <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
+              Verified
+            </span>
             <span
               className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white ${animClass}`}
               style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}
@@ -167,8 +171,8 @@ function ReportCard({ report, allReports, animClass, delay }: { report: VibeRepo
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
             <span className="text-xs" style={{ color: '#404040' }}>Reported {timeLabel}</span>
-            {allReports.length > 1 && (
-              <span className="text-xs" style={{ color: '#404040' }}>{allReports.length} reports total</span>
+            {reportCount > 1 && (
+              <span className="text-xs" style={{ color: '#404040' }}>{reportCount} reports here</span>
             )}
           </div>
           {(report.bar_seats || report.wait_time) && (
@@ -395,35 +399,73 @@ function VenueSearch() {
   )
 }
 
+// ── Group reports by restaurant, most recent per venue first ──────────────────
+
+function groupByRestaurant(reports: VibeReport[]): Array<{ latest: VibeReport; count: number }> {
+  const grouped = new Map<string, VibeReport[]>()
+  for (const r of reports) {
+    if (!grouped.has(r.restaurant_name)) grouped.set(r.restaurant_name, [])
+    grouped.get(r.restaurant_name)!.push(r)
+  }
+  return Array.from(grouped.values()).map(group => ({ latest: group[0], count: group.length }))
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function LivePage() {
   const [faqOpen, setFaqOpen] = useState(false)
-  const [reports, setReports] = useState<VibeReport[]>([])
-  const [activeServerCount, setActiveServerCount] = useState<number>(0)
-  const [loadingReports, setLoadingReports] = useState(true)
+  const [tonightReports, setTonightReports] = useState<VibeReport[]>([])
+  const [recentFallback, setRecentFallback] = useState<VibeReport[]>([])
+  const [weeklyReportCount, setWeeklyReportCount] = useState(0)
+  const [weeklyVenueCount, setWeeklyVenueCount] = useState(0)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function loadData() {
-      const [reportsRes, shiftsRes] = await Promise.all([
+      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+      const [tonightRes, weeklyRes] = await Promise.all([
         supabase
           .from('vibe_reports')
           .select('*')
-          .order('created_at', { ascending: false })
-          .limit(50),
+          .eq('gps_verified', true)
+          .gte('created_at', fourHoursAgo)
+          .order('created_at', { ascending: false }),
         supabase
-          .from('shifts')
-          .select('id', { count: 'exact', head: true })
-          .eq('is_active', true),
+          .from('vibe_reports')
+          .select('id, restaurant_name')
+          .eq('gps_verified', true)
+          .gte('created_at', weekAgo),
       ])
 
-      setReports(reportsRes.data ?? [])
-      setActiveServerCount(shiftsRes.count ?? 0)
-      setLoadingReports(false)
+      const tonight = tonightRes.data ?? []
+      setTonightReports(tonight)
+
+      const weekly = weeklyRes.data ?? []
+      setWeeklyReportCount(weekly.length)
+      setWeeklyVenueCount(new Set(weekly.map(r => r.restaurant_name)).size)
+
+      // If nothing tonight, load last 5 verified reports from any time as fallback
+      if (tonight.length === 0) {
+        const { data: fallback } = await supabase
+          .from('vibe_reports')
+          .select('*')
+          .eq('gps_verified', true)
+          .order('created_at', { ascending: false })
+          .limit(5)
+        setRecentFallback(fallback ?? [])
+      }
+
+      setLoading(false)
     }
 
     loadData()
   }, [])
+
+  const hasTonight = tonightReports.length > 0
+  const tonightGrouped = groupByRestaurant(tonightReports)
+  const fallbackGrouped = groupByRestaurant(recentFallback)
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
@@ -452,19 +494,14 @@ export default function LivePage() {
             <h1 className="mb-4 text-5xl font-bold tracking-tight text-white sm:text-6xl lg:text-7xl">
               What&apos;s the vibe?
             </h1>
-            <p className="mb-3 max-w-xl text-base leading-relaxed sm:text-lg" style={{ color: '#A0A0A0' }}>
+            <p className="mb-4 max-w-xl text-base leading-relaxed sm:text-lg" style={{ color: '#A0A0A0' }}>
               Real time energy from NYC venues — reported by people who are there right now.
             </p>
-            <div className="flex flex-col gap-1">
-              <p className="text-xs" style={{ color: '#404040' }}>
-                Updated in real time · Location verified reports only
+            {!loading && weeklyReportCount > 0 && (
+              <p className="text-xs font-semibold" style={{ color: '#606060' }}>
+                {weeklyReportCount} verified {weeklyReportCount === 1 ? 'report' : 'reports'} across {weeklyVenueCount} {weeklyVenueCount === 1 ? 'venue' : 'venues'} this week
               </p>
-              {activeServerCount > 0 && (
-                <p className="text-xs" style={{ color: '#404040' }}>
-                  {activeServerCount} Slate {activeServerCount === 1 ? 'server' : 'servers'} working tonight
-                </p>
-              )}
-            </div>
+            )}
           </div>
         </section>
 
@@ -486,25 +523,17 @@ export default function LivePage() {
               {(Object.keys(VIBE_META) as Vibe[]).map(vibe => {
                 const meta = VIBE_META[vibe]
                 const baseAnim = vibe === 'CHILL' ? 'anim-chill' : vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
-
                 return (
                   <div
                     key={vibe}
                     className="relative flex flex-col items-start rounded-2xl border p-7"
-                    style={{
-                      borderColor: 'rgba(255,255,255,0.1)',
-                      backgroundColor: 'rgba(255,255,255,0.03)',
-                    }}
+                    style={{ borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.03)' }}
                   >
                     <span className={`mb-4 block ${baseAnim}`} style={{ fontSize: '48px', lineHeight: 1 }}>
                       {meta.emoji}
                     </span>
-                    <p className="mb-1 text-lg font-black tracking-[0.15em] text-white">
-                      {meta.label}
-                    </p>
-                    <p className="text-xs leading-5" style={{ color: '#606060' }}>
-                      {meta.tagline}
-                    </p>
+                    <p className="mb-1 text-lg font-black tracking-[0.15em] text-white">{meta.label}</p>
+                    <p className="text-xs leading-5" style={{ color: '#606060' }}>{meta.tagline}</p>
                   </div>
                 )
               })}
@@ -512,7 +541,7 @@ export default function LivePage() {
 
             <div className="mt-6">
               <p className="mb-3 text-xs" style={{ color: '#404040' }}>
-                Must be at the venue to submit. GPS verified at launch.
+                Must be at the venue to submit. GPS verified.
               </p>
               <button
                 onClick={() => setFaqOpen(o => !o)}
@@ -544,61 +573,67 @@ export default function LivePage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── Live vibe feed ────────────────────────────────────────────── */}
+        {/* ── Live feed ─────────────────────────────────────────────────── */}
         <section className="px-8 py-16 lg:px-16 lg:py-20">
           <div className="mx-auto max-w-5xl">
-            <div className="mb-10 flex items-center gap-3">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-40" style={{ animation: 'liveDot 1.4s ease-in-out infinite' }} />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
-              </span>
-              <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
-                NYC right now
-              </h2>
-              {!loadingReports && reports.length > 0 && (
-                <span className="text-xs" style={{ color: '#404040' }}>
-                  · {reports.length} {reports.length === 1 ? 'report' : 'reports'}
-                </span>
-              )}
-            </div>
 
-            {loadingReports ? (
+            {loading ? (
               <p className="text-sm" style={{ color: '#404040' }}>Loading…</p>
-            ) : reports.length === 0 ? (
-              <p className="text-sm" style={{ color: '#606060' }}>
-                No vibes reported yet tonight. Be the first to report.
-              </p>
-            ) : (
-              (() => {
-                // Group by restaurant, keeping the most recent report per restaurant first
-                const grouped = new Map<string, VibeReport[]>()
-                for (const r of reports) {
-                  const key = r.restaurant_name
-                  if (!grouped.has(key)) grouped.set(key, [])
-                  grouped.get(key)!.push(r)
-                }
-                const restaurants = Array.from(grouped.entries())
 
-                return (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {restaurants.map(([name, venueReports], i) => {
-                      const latest = venueReports[0]
-                      const vibe = latest.vibe as Vibe
-                      const animClass = vibe === 'CHILL' ? 'anim-chill' : vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
-                      return (
-                        <ReportCard
-                          key={name}
-                          report={latest}
-                          allReports={venueReports}
-                          animClass={animClass}
-                          delay={i * 60}
-                        />
-                      )
-                    })}
-                  </div>
-                )
-              })()
+            ) : hasTonight ? (
+              <>
+                <div className="mb-10 flex items-center gap-3">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-40" style={{ animation: 'liveDot 1.4s ease-in-out infinite' }} />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+                  </span>
+                  <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+                    NYC right now
+                  </h2>
+                  <span className="text-xs" style={{ color: '#404040' }}>
+                    · {tonightReports.length} verified {tonightReports.length === 1 ? 'report' : 'reports'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {tonightGrouped.map(({ latest, count }, i) => (
+                    <ReportCard key={latest.restaurant_name} report={latest} reportCount={count} delay={i * 60} />
+                  ))}
+                </div>
+              </>
+
+            ) : (
+              <>
+                {/* Empty state — no verified reports tonight */}
+                <div className="mb-12 rounded-2xl border border-white/10 bg-white/[0.02] px-8 py-12 text-center">
+                  <p className="mb-2 text-xl font-bold text-white">Be the first to report a vibe tonight.</p>
+                  <p className="mb-8 text-sm" style={{ color: '#606060' }}>
+                    No verified reports in the last 4 hours. Search for your venue above and share what you&apos;re seeing.
+                  </p>
+                  <a
+                    href="#report"
+                    onClick={e => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                    className="inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80"
+                  >
+                    Report a vibe →
+                  </a>
+                </div>
+
+                {/* Fallback: last 5 verified reports from any time */}
+                {fallbackGrouped.length > 0 && (
+                  <>
+                    <h2 className="mb-6 text-lg font-bold tracking-tight text-white">
+                      Recent reports
+                    </h2>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {fallbackGrouped.map(({ latest, count }, i) => (
+                        <ReportCard key={latest.restaurant_name} report={latest} reportCount={count} delay={i * 60} />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
             )}
+
           </div>
         </section>
 
