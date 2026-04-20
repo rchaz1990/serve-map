@@ -9,15 +9,15 @@ import { supabase } from '@/lib/supabase'
 
 type Vibe = 'CHILL' | 'LIVE' | 'PACKED'
 
-interface Venue {
-  id: number
-  name: string
-  neighborhood: string
-  vibe: Vibe
-  minutesAgo: number
-  servers: number
-  energy: number
-  gpsVerified?: boolean
+interface VibeReport {
+  id: string
+  restaurant_name: string
+  vibe: string
+  bar_seats: string | null
+  wait_time: string | null
+  gps_verified: boolean
+  integrity_score: number
+  created_at: string
 }
 
 // ── Haversine distance ────────────────────────────────────────────────────────
@@ -33,23 +33,12 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// ── Data ──────────────────────────────────────────────────────────────────────
-
-const VENUES: Venue[] = [
-  { id: 1, name: 'Employees Only',    neighborhood: 'West Village',      vibe: 'PACKED', minutesAgo: 3,  servers: 2, energy: 96 },
-  { id: 2, name: 'Death & Co',        neighborhood: 'East Village',      vibe: 'LIVE',   minutesAgo: 7,  servers: 1, energy: 62 },
-  { id: 3, name: 'Attaboy',           neighborhood: 'Lower East Side',   vibe: 'PACKED', minutesAgo: 2,  servers: 3, energy: 99 },
-  { id: 4, name: 'Dante',             neighborhood: 'West Village',      vibe: 'LIVE',   minutesAgo: 12, servers: 2, energy: 58 },
-  { id: 5, name: 'The Dead Rabbit',   neighborhood: 'Financial District', vibe: 'LIVE',  minutesAgo: 5,  servers: 1, energy: 71 },
-  { id: 6, name: "Please Don't Tell", neighborhood: 'East Village',      vibe: 'PACKED', minutesAgo: 1,  servers: 4, energy: 100 },
-  { id: 7, name: 'Maison Premiere',   neighborhood: 'Williamsburg',      vibe: 'CHILL',  minutesAgo: 18, servers: 2, energy: 28 },
-  { id: 8, name: 'Amor y Amargo',     neighborhood: 'East Village',      vibe: 'CHILL',  minutesAgo: 22, servers: 1, energy: 22 },
-]
+// ── Vibe metadata ─────────────────────────────────────────────────────────────
 
 const VIBE_META = {
-  CHILL:  { emoji: '🧊', label: 'CHILL',  tagline: 'Calm energy. Good conversation. Perfect for a date.', reports: 14 },
-  LIVE:   { emoji: '🔥', label: 'LIVE',   tagline: 'Buzzing energy. Great crowd. Night is just getting started.', reports: 31 },
-  PACKED: { emoji: '🚀', label: 'PACKED', tagline: 'Electric. Wall to wall. Peak NYC energy.', reports: 8 },
+  CHILL:  { emoji: '🧊', label: 'CHILL',  tagline: 'Calm energy. Good conversation. Perfect for a date.' },
+  LIVE:   { emoji: '🔥', label: 'LIVE',   tagline: 'Buzzing energy. Great crowd. Night is just getting started.' },
+  PACKED: { emoji: '🚀', label: 'PACKED', tagline: 'Electric. Wall to wall. Peak NYC energy.' },
 }
 
 // ── CSS animations ────────────────────────────────────────────────────────────
@@ -81,16 +70,9 @@ const CSS = `
   from { opacity:0; transform:translateY(20px); }
   to   { opacity:1; transform:translateY(0); }
 }
-@keyframes selectedGlow {
-  0%,100% { box-shadow:0 0 20px rgba(255,255,255,.2); }
-  50%     { box-shadow:0 0 40px rgba(255,255,255,.4); }
-}
 .anim-chill  { animation: chillBreathe 4s ease-in-out infinite; }
 .anim-live   { animation: liveFlicker 2.2s ease-in-out infinite; }
 .anim-packed { animation: packedPulse 1.1s ease-in-out infinite; }
-.anim-chill-active  { animation: chillBreathe 3s ease-in-out infinite, selectedGlow 3s ease-in-out infinite; }
-.anim-live-active   { animation: liveFlicker 1.6s ease-in-out infinite, selectedGlow 2s ease-in-out infinite; }
-.anim-packed-active { animation: packedPulse .8s ease-in-out infinite, selectedGlow 1.2s ease-in-out infinite; }
 .slide-up { animation: slideUp .5s ease-out forwards; opacity:0; }
 `
 
@@ -135,30 +117,13 @@ function VibePill({ vibe, selected, onClick }: { vibe: string; selected: boolean
   )
 }
 
-// ── Venue card ────────────────────────────────────────────────────────────────
+// ── Vibe report card ──────────────────────────────────────────────────────────
 
-function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
+function ReportCard({ report, delay }: { report: VibeReport; delay: number }) {
   const ref = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
-  const animClass = venue.vibe === 'CHILL' ? 'anim-chill' : venue.vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
-
-  // Check-in flow state
-  const [checkInOpen, setCheckInOpen] = useState(false)
-
-  // GPS — silent background tracking
-  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
-  const [gpsVerifiedForSubmit, setGpsVerifiedForSubmit] = useState(false)
-
-  // Vibe form state — shown only after GPS check passes or is overridden
-  const [showForm, setShowForm] = useState(false)
-  const [vibe, setVibe] = useState<string | null>(null)
-  const [seats, setSeats] = useState<string | null>(null)
-  const [wait, setWait] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [serveEarned, setServeEarned] = useState<number | null>(null)
-  const [submitMessage, setSubmitMessage] = useState('')
-  const [submitError, setSubmitError] = useState('')
+  const vibe = report.vibe as Vibe
+  const animClass = vibe === 'CHILL' ? 'anim-chill' : vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
 
   useEffect(() => {
     const el = ref.current
@@ -171,99 +136,8 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
     return () => obs.disconnect()
   }, [])
 
-  function handleImHere() {
-    if (checkInOpen) {
-      // Cancel — reset everything
-      setCheckInOpen(false)
-      setUserCoords(null)
-      setShowForm(false)
-      setVibe(null)
-      setSeats(null)
-      setWait(null)
-      return
-    }
-
-    // Show form immediately — GPS captured silently in background
-    setCheckInOpen(true)
-    setShowForm(true)
-    setGpsVerifiedForSubmit(false)
-
-    if (!navigator.geolocation) return
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const userLat = pos.coords.latitude
-        const userLng = pos.coords.longitude
-        setUserCoords({ lat: userLat, lng: userLng })
-
-        try {
-          let venueLat: number | null = null
-          let venueLng: number | null = null
-          const res1 = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name)}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`)
-          const data1 = await res1.json()
-          venueLat = data1.results?.[0]?.geometry?.location?.lat ?? null
-          venueLng = data1.results?.[0]?.geometry?.location?.lng ?? null
-
-          if (venueLat === null) {
-            const res2 = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name + ' NYC')}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`)
-            const data2 = await res2.json()
-            venueLat = data2.results?.[0]?.geometry?.location?.lat ?? null
-            venueLng = data2.results?.[0]?.geometry?.location?.lng ?? null
-          }
-
-          if (venueLat !== null && venueLng !== null) {
-            const distance = Math.round(getDistanceMeters(userLat, userLng, venueLat, venueLng))
-            if (distance <= 500) setGpsVerifiedForSubmit(true)
-          }
-        } catch {
-          // silent — GPS data quality, not a blocker
-        }
-      },
-      () => { /* denied — form already shown, just no GPS badge */ },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    )
-  }
-
-  async function handleSubmit() {
-    if (!vibe) return
-    setSubmitting(true)
-    setSubmitError('')
-
-    const { data: { session } } = await supabase.auth.getSession()
-    const reporterEmail = session?.user?.email ?? localStorage.getItem('slateUserEmail') ?? undefined
-    const coords = userCoords
-
-    const res = await fetch('/api/verify-vibe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: session?.user?.id ?? null,
-        reporterEmail,
-        restaurantName: venue.name,
-        vibe, barSeats: seats, waitTime: wait,
-        userLat: coords?.lat ?? null,
-        userLng: coords?.lng ?? null,
-        restaurantLat: null,
-        restaurantLng: null,
-        gpsVerified: gpsVerifiedForSubmit,
-        distanceMeters: null,
-      }),
-    })
-    const json = await res.json()
-    setSubmitting(false)
-
-    if (res.status === 429) {
-      setSubmitError(json.error)
-      return
-    }
-    if (!res.ok) {
-      setSubmitError('Something went wrong. Please try again.')
-      return
-    }
-    setServeEarned(json.serveReward ?? null)
-    setSubmitMessage(json.message ?? '')
-    setSubmitted(true)
-  }
+  const minutesAgo = Math.round((Date.now() - new Date(report.created_at).getTime()) / 60000)
+  const timeLabel = minutesAgo < 1 ? 'just now' : minutesAgo === 1 ? '1 min ago' : `${minutesAgo} min ago`
 
   return (
     <div
@@ -271,137 +145,35 @@ function VenueCard({ venue, delay }: { venue: Venue; delay: number }) {
       className={visible ? 'slide-up' : ''}
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] transition-all duration-300 hover:border-white/25 hover:bg-white/[0.05]">
-        {/* Card body */}
-        <div className="group p-6">
-          {/* Top row */}
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <h3 className="text-base font-bold text-white">{venue.name}</h3>
-            <div className="flex shrink-0 items-center gap-2">
-              {venue.gpsVerified && (
-                <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
-                  GPS ✓
-                </span>
-              )}
-              <span
-                className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white ${animClass}`}
-                style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}
-              >
-                {venue.vibe}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-all duration-300 hover:border-white/25 hover:bg-white/[0.05]">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <h3 className="text-base font-bold text-white">{report.restaurant_name}</h3>
+          <div className="flex shrink-0 items-center gap-2">
+            {report.gps_verified && (
+              <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
+                GPS ✓
               </span>
-            </div>
-          </div>
-
-          <p className="mb-2 text-3xl">{VIBE_META[venue.vibe].emoji}</p>
-          <p className="mb-4 text-xs" style={{ color: '#606060' }}>{venue.neighborhood}</p>
-
-          <div className="mb-5 flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white/70" />
-                </span>
-                <span className="text-xs font-semibold text-white">
-                  {venue.servers} Slate {venue.servers === 1 ? 'server' : 'servers'} on shift
-                </span>
-              </div>
-              <span className="text-xs" style={{ color: '#404040' }}>
-                Reported {venue.minutesAgo} min ago
-              </span>
-            </div>
-          </div>
-
-          {/* I'm here button */}
-          {!submitted && (
-            <button
-              onClick={handleImHere}
-              className="w-full rounded-full border border-white/20 py-2.5 text-xs font-semibold text-white transition-colors hover:border-white"
+            )}
+            <span
+              className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white ${animClass}`}
+              style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}
             >
-              {checkInOpen ? 'Cancel' : "I'm here right now 📍"}
-            </button>
-          )}
+              {report.vibe}
+            </span>
+          </div>
         </div>
 
-        {/* Inline check-in panel */}
-        {checkInOpen && !submitted && (
-          <div className="border-t border-white/10 px-6 pb-6 pt-5">
+        <p className="mb-4 text-3xl">{VIBE_META[vibe]?.emoji ?? '📍'}</p>
 
-            {/* Vibe form — shown immediately on check-in, GPS verified badge appears asynchronously */}
-            {showForm && (
-              <>
-                <p className="mb-5 text-sm font-semibold text-white">
-                  You&apos;re at {venue.name}
-                  {gpsVerifiedForSubmit && (
-                    <span className="ml-2 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
-                      GPS ✓
-                    </span>
-                  )}
-                </p>
-
-                <div className="mb-4">
-                  <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>What&apos;s the vibe?</p>
-                  <div className="flex flex-wrap gap-2">
-                    {['CHILL', 'LIVE', 'PACKED'].map(v => (
-                      <VibePill key={v} vibe={v} selected={vibe === v} onClick={() => setVibe(v)} />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Bar seats?</p>
-                  <div className="flex flex-wrap gap-2">
-                    {['Plenty', 'A few', 'None'].map(s => (
-                      <Pill key={s} label={s} selected={seats === s} onClick={() => setSeats(s)} />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mb-5">
-                  <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Wait time?</p>
-                  <div className="flex flex-wrap gap-2">
-                    {['No wait', '~15 min', '30+ min'].map(w => (
-                      <Pill key={w} label={w} selected={wait === w} onClick={() => setWait(w)} />
-                    ))}
-                  </div>
-                </div>
-
-                {submitError && (
-                  <p className="mb-3 text-xs" style={{ color: '#f87171' }}>{submitError}</p>
-                )}
-                <button
-                  disabled={!vibe || submitting}
-                  onClick={handleSubmit}
-                  className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
-                >
-                  {submitting ? 'Submitting…' : gpsVerifiedForSubmit ? 'Share the vibe — earn 5 $SERVE 🍸' : 'Share the vibe — earn 1 $SERVE 🍸'}
-                </button>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Success state */}
-        {submitted && vibe && (
-          <div className="border-t border-white/10 px-6 pb-6 pt-5">
-            <div style={{ fontSize: '48px', lineHeight: 1 }} className="mb-3">
-              {VIBE_META[vibe as Vibe]?.emoji ?? VIBE_EMOJI[vibe]}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs" style={{ color: '#404040' }}>Reported {timeLabel}</span>
+          {(report.bar_seats || report.wait_time) && (
+            <div className="flex gap-3 text-xs" style={{ color: '#606060' }}>
+              {report.bar_seats && <span>Seats: {report.bar_seats}</span>}
+              {report.wait_time && <span>Wait: {report.wait_time}</span>}
             </div>
-            <p className="mb-1 text-sm font-semibold text-white capitalize">{vibe.toLowerCase()}</p>
-            <p className="mb-1 text-xs" style={{ color: '#606060' }}>Reported just now</p>
-            {submitMessage && (
-              <p className="mb-1 text-xs font-semibold" style={{ color: (serveEarned ?? 0) > 0 ? '#4ade80' : '#9ca3af' }}>
-                {submitMessage}
-              </p>
-            )}
-            {(seats || wait) && (
-              <div className="mt-2 flex flex-wrap gap-3 text-xs" style={{ color: '#A0A0A0' }}>
-                {seats && <span>Bar seats: {seats}</span>}
-                {wait && <span>Wait: {wait}</span>}
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )
@@ -414,7 +186,6 @@ function VenueSearch() {
   const [googleLoaded, setGoogleLoaded] = useState(false)
   const [selected, setSelected] = useState<{ name: string; address: string; lat: number | null; lng: number | null } | null>(null)
 
-  // GPS state — triggered immediately on venue selection
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [showForm, setShowForm] = useState(false)
 
@@ -426,7 +197,6 @@ function VenueSearch() {
   const [submitResult, setSubmitResult] = useState<{ serveReward: number; message: string; error: string | null } | null>(null)
 
   function checkGpsForVenue(venueLat: number | null, venueLng: number | null) {
-    // Show form immediately — GPS captured silently
     setShowForm(true)
 
     if (!navigator.geolocation) return
@@ -468,7 +238,6 @@ function VenueSearch() {
       const lat = place.geometry?.location?.lat() ?? null
       const lng = place.geometry?.location?.lng() ?? null
       setSelected({ name: place.name ?? '', address: place.formatted_address ?? '', lat, lng })
-      // GPS check fires immediately on venue selection
       checkGpsForVenue(lat, lng)
     })
 
@@ -569,7 +338,6 @@ function VenueSearch() {
               </button>
             </div>
 
-            {/* Vibe form — shown immediately, GPS verified badge appears asynchronously */}
             {showForm && (
               <>
                 <div className="mb-4">
@@ -626,8 +394,36 @@ function VenueSearch() {
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function LivePage() {
-  const [selectedVibe, setSelectedVibe] = useState<Vibe | null>(null)
   const [faqOpen, setFaqOpen] = useState(false)
+  const [reports, setReports] = useState<VibeReport[]>([])
+  const [activeServerCount, setActiveServerCount] = useState<number>(0)
+  const [loadingReports, setLoadingReports] = useState(true)
+
+  useEffect(() => {
+    async function loadData() {
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+
+      const [reportsRes, shiftsRes] = await Promise.all([
+        supabase
+          .from('vibe_reports')
+          .select('id, restaurant_name, vibe, bar_seats, wait_time, gps_verified, integrity_score, created_at')
+          .gte('created_at', todayStart.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase
+          .from('shifts')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_active', true),
+      ])
+
+      setReports(reportsRes.data ?? [])
+      setActiveServerCount(shiftsRes.count ?? 0)
+      setLoadingReports(false)
+    }
+
+    loadData()
+  }, [])
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
@@ -659,15 +455,22 @@ export default function LivePage() {
             <p className="mb-3 max-w-xl text-base leading-relaxed sm:text-lg" style={{ color: '#A0A0A0' }}>
               Real time energy from NYC venues — reported by people who are there right now.
             </p>
-            <p className="text-xs" style={{ color: '#404040' }}>
-              Updated in real time · Location verified reports only
-            </p>
+            <div className="flex flex-col gap-1">
+              <p className="text-xs" style={{ color: '#404040' }}>
+                Updated in real time · Location verified reports only
+              </p>
+              {activeServerCount > 0 && (
+                <p className="text-xs" style={{ color: '#404040' }}>
+                  {activeServerCount} Slate {activeServerCount === 1 ? 'server' : 'servers'} working tonight
+                </p>
+              )}
+            </div>
           </div>
         </section>
 
         <div className="border-t border-white/10" />
 
-        {/* ── Vibe meter ───────────────────────────────────────────────── */}
+        {/* ── Vibe legend ──────────────────────────────────────────────── */}
         <section className="px-8 py-16 lg:px-16 lg:py-20">
           <div className="mx-auto max-w-5xl">
             <div className="mb-10">
@@ -675,51 +478,34 @@ export default function LivePage() {
                 Share the vibe. Earn $SERVE.
               </h2>
               <p className="text-sm" style={{ color: '#606060' }}>
-                Tap to report what you&apos;re experiencing right now.
+                Search for your venue above and report what you&apos;re experiencing right now.
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               {(Object.keys(VIBE_META) as Vibe[]).map(vibe => {
                 const meta = VIBE_META[vibe]
-                const isSelected = selectedVibe === vibe
-                const isDimmed = selectedVibe !== null && !isSelected
                 const baseAnim = vibe === 'CHILL' ? 'anim-chill' : vibe === 'LIVE' ? 'anim-live' : 'anim-packed'
-                const activeAnim = `${baseAnim}-active`
 
                 return (
-                  <button
+                  <div
                     key={vibe}
-                    onClick={() => setSelectedVibe(isSelected ? null : vibe)}
-                    className={`relative flex flex-col items-start rounded-2xl border p-7 text-left transition-all duration-300 ${isDimmed ? 'opacity-20' : 'opacity-100'}`}
+                    className="relative flex flex-col items-start rounded-2xl border p-7"
                     style={{
-                      borderColor: isSelected ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.1)',
-                      backgroundColor: isSelected ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)',
-                      transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                      borderColor: 'rgba(255,255,255,0.1)',
+                      backgroundColor: 'rgba(255,255,255,0.03)',
                     }}
                   >
-                    <span className={`mb-4 block ${isSelected ? activeAnim : baseAnim}`} style={{ fontSize: '48px', lineHeight: 1 }}>
+                    <span className={`mb-4 block ${baseAnim}`} style={{ fontSize: '48px', lineHeight: 1 }}>
                       {meta.emoji}
                     </span>
                     <p className="mb-1 text-lg font-black tracking-[0.15em] text-white">
                       {meta.label}
                     </p>
-                    <p className="mb-5 text-xs leading-5" style={{ color: isSelected ? '#C0C0C0' : '#606060' }}>
+                    <p className="text-xs leading-5" style={{ color: '#606060' }}>
                       {meta.tagline}
                     </p>
-                    {isSelected ? (
-                      <div
-                        className="mt-auto w-full rounded-xl px-4 py-3 text-center text-xs font-semibold text-white"
-                        style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)' }}
-                      >
-                        Vibe submitted! +5 $SERVE earned ✓
-                      </div>
-                    ) : (
-                      <p className="mt-auto text-xs" style={{ color: '#404040' }}>
-                        {meta.reports} reports tonight
-                      </p>
-                    )}
-                  </button>
+                  </div>
                 )
               })}
             </div>
@@ -758,7 +544,7 @@ export default function LivePage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── Live venue feed ───────────────────────────────────────────── */}
+        {/* ── Live vibe feed ────────────────────────────────────────────── */}
         <section className="px-8 py-16 lg:px-16 lg:py-20">
           <div className="mx-auto max-w-5xl">
             <div className="mb-10 flex items-center gap-3">
@@ -769,16 +555,26 @@ export default function LivePage() {
               <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
                 NYC right now
               </h2>
-              <span className="text-xs" style={{ color: '#404040' }}>
-                · {VENUES.length} venues reporting
-              </span>
+              {!loadingReports && reports.length > 0 && (
+                <span className="text-xs" style={{ color: '#404040' }}>
+                  · {reports.length} {reports.length === 1 ? 'report' : 'reports'} tonight
+                </span>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {VENUES.map((venue, i) => (
-                <VenueCard key={venue.id} venue={venue} delay={i * 60} />
-              ))}
-            </div>
+            {loadingReports ? (
+              <p className="text-sm" style={{ color: '#404040' }}>Loading…</p>
+            ) : reports.length === 0 ? (
+              <p className="text-sm" style={{ color: '#606060' }}>
+                No vibes reported yet tonight. Be the first to report.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {reports.map((report, i) => (
+                  <ReportCard key={report.id} report={report} delay={i * 60} />
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
