@@ -24,15 +24,23 @@ interface VenueDisplay {
   name: string
   latestReport: VibeReport | null
   reportCount: number
+  defaultVibe: Vibe | null
 }
 
 // ── Default NYC venues ────────────────────────────────────────────────────────
 
-const DEFAULT_VENUES = [
-  'Employees Only', 'Death & Co', 'Attaboy', 'Dante',
-  'The Dead Rabbit', "Please Don't Tell", 'Maison Premiere',
-  'Amor y Amargo', 'Carbone', 'Don Angie', 'Via Carota',
-  'Lilia', 'Lucali', 'Le Bernardin', 'Balthazar',
+const DEFAULT_VENUES: { name: string; vibe: Vibe }[] = [
+  { name: 'Employees Only',    vibe: 'PACKED' },
+  { name: 'Death & Co',        vibe: 'LIVE'   },
+  { name: 'Attaboy',           vibe: 'PACKED' },
+  { name: 'Dante',             vibe: 'LIVE'   },
+  { name: 'The Dead Rabbit',   vibe: 'LIVE'   },
+  { name: "Please Don't Tell", vibe: 'PACKED' },
+  { name: 'Maison Premiere',   vibe: 'CHILL'  },
+  { name: 'Amor y Amargo',     vibe: 'CHILL'  },
+  { name: 'Carbone',           vibe: 'LIVE'   },
+  { name: 'Don Angie',         vibe: 'PACKED' },
+  { name: 'Via Carota',        vibe: 'LIVE'   },
 ]
 
 // ── Haversine distance ────────────────────────────────────────────────────────
@@ -161,8 +169,9 @@ function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
   }, [])
 
   const report = venue.latestReport
-  const hasReport = report !== null
-  const vibeName = report?.vibe as Vibe | undefined
+  const hasRealReport = report !== null
+  // Use real report vibe if available, otherwise fall back to the preset default
+  const vibeName: Vibe | undefined = (report?.vibe as Vibe | undefined) ?? venue.defaultVibe ?? undefined
   const animClass = vibeName === 'CHILL' ? 'anim-chill' : vibeName === 'LIVE' ? 'anim-live' : vibeName === 'PACKED' ? 'anim-packed' : ''
 
   const minutesAgo = report
@@ -252,40 +261,40 @@ function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
           <div className="mb-3 flex items-start justify-between gap-3">
             <h3 className="text-base font-bold text-white">{venue.name}</h3>
             <div className="flex shrink-0 items-center gap-2">
-              {hasReport && report!.gps_verified && (
+              {hasRealReport && (
                 <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
                   Verified
                 </span>
               )}
-              {hasReport && vibeName ? (
+              {vibeName && (
                 <span
                   className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white ${animClass}`}
                   style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)' }}
                 >
-                  {report!.vibe}
-                </span>
-              ) : (
-                <span className="rounded-full px-2.5 py-1 text-[10px] font-medium" style={{ border: '1px solid rgba(255,255,255,0.1)', color: '#404040' }}>
-                  No report yet
+                  {vibeName}
                 </span>
               )}
             </div>
           </div>
 
           {/* Emoji + meta */}
-          {hasReport && vibeName ? (
+          {vibeName && (
             <>
               <p className="mb-2 text-3xl">{VIBE_META[vibeName]?.emoji}</p>
               <p className="mb-1 text-xs" style={{ color: '#606060' }}>{VIBE_META[vibeName]?.tagline}</p>
               <div className="mb-4 flex items-center gap-3 text-xs" style={{ color: '#404040' }}>
-                <span>Reported {timeLabel}</span>
-                {venue.reportCount > 1 && <span>· {venue.reportCount} reports</span>}
-                {report!.bar_seats && <span>· Seats: {report!.bar_seats}</span>}
-                {report!.wait_time && <span>· Wait: {report!.wait_time}</span>}
+                {hasRealReport ? (
+                  <>
+                    <span>Reported {timeLabel}</span>
+                    {venue.reportCount > 1 && <span>· {venue.reportCount} reports</span>}
+                    {report!.bar_seats && <span>· Seats: {report!.bar_seats}</span>}
+                    {report!.wait_time && <span>· Wait: {report!.wait_time}</span>}
+                  </>
+                ) : (
+                  <span>No live report yet — tap to be the first</span>
+                )}
               </div>
             </>
-          ) : (
-            <p className="mb-4 text-xs" style={{ color: '#404040' }}>No vibes yet tonight. Be the first to report.</p>
           )}
 
           {/* I'm here button */}
@@ -623,12 +632,13 @@ export default function LivePage() {
         name,
         latestReport: reps[0],
         reportCount: reps.length,
+        defaultVibe: null,
       }))
 
-      // Default venues that have no report — fill the rest
+      // Default venues that have no real report — fill the rest with preset vibes
       const withoutReports: VenueDisplay[] = DEFAULT_VENUES
-        .filter(name => !reportedNames.has(name))
-        .map(name => ({ name, latestReport: null, reportCount: 0 }))
+        .filter(v => !reportedNames.has(v.name))
+        .map(v => ({ name: v.name, latestReport: null, reportCount: 0, defaultVibe: v.vibe }))
 
       setVenues([...withReports, ...withoutReports])
       setLoading(false)
