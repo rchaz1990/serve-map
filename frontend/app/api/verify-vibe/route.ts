@@ -104,11 +104,7 @@ export async function POST(request: Request) {
     (!isSuspicious ? 10 : 0)
 
   // ── CHECK 6 — $SERVE reward ────────────────────────────────────────────────
-  const serveReward =
-    integrityScore >= 80 ? 5 :
-    integrityScore >= 60 ? 3 :
-    integrityScore >= 40 ? 2 :
-    integrityScore >= 20 ? 1 : 0
+  const serveReward = gpsVerified ? 5 : 2
 
   // ── CHECK 7 — Persist ─────────────────────────────────────────────────────
   console.log('Attempting to insert vibe report...')
@@ -137,20 +133,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 })
   }
 
-  // ── Reward — increment guest $SERVE balance ────────────────────────────────
+  // ── Reward — update $SERVE balance ───────────────────────────────────────
   if (serveReward > 0 && reporterEmail) {
-    const { error: rpcError } = await supabase.rpc('increment_serve_balance', {
-      user_email: reporterEmail,
-      amount: serveReward,
-      user_type: 'guest',
-    })
-    if (rpcError) console.error('[verify-vibe] increment_serve_balance error:', rpcError)
+    // Check if the reporter is a server
+    const { data: serverData } = await supabase
+      .from('servers')
+      .select('id, serve_balance')
+      .eq('email', reporterEmail)
+      .maybeSingle()
+
+    if (serverData) {
+      // Server — update servers table directly
+      const { error: updateError } = await supabase
+        .from('servers')
+        .update({ serve_balance: (serverData.serve_balance ?? 0) + serveReward })
+        .eq('email', reporterEmail)
+      if (updateError) console.error('[verify-vibe] server balance update error:', updateError)
+    } else {
+      // Guest — use RPC to upsert guest_rewards
+      const { error: rpcError } = await supabase.rpc('increment_serve_balance', {
+        user_email: reporterEmail,
+        amount: serveReward,
+        user_type: 'guest',
+      })
+      if (rpcError) console.error('[verify-vibe] increment_serve_balance error:', rpcError)
+    }
   }
 
-  // ── CHECK 8 — Return reward ────────────────────────────────────────────────
   const message = serveReward > 0
-    ? `Thanks! You earned ${serveReward} $SERVE`
-    : 'Report submitted. Enable location and scan server QR codes to earn $SERVE rewards.'
+    ? `You earned ${serveReward} $SERVE!`
+    : 'Report submitted. Enable location to earn $SERVE rewards.'
 
   return NextResponse.json({ success: true, serveReward, integrityScore, gpsVerified, distance, message })
 }

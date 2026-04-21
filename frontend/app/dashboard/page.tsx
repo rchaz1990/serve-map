@@ -564,6 +564,19 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  async function refreshServeBalance() {
+    const serverId = localStorage.getItem('slateServerId')
+    if (!serverId) return
+    const { data } = await supabase
+      .from('servers')
+      .select('serve_balance')
+      .eq('id', serverId)
+      .maybeSingle()
+    if (data != null) {
+      setServerProfile(prev => prev ? { ...prev, serve_balance: data.serve_balance ?? 0 } : prev)
+    }
+  }
+
   const [copied, setCopied] = useState(false)
   const [shiftToast, setShiftToast] = useState(false)
   const { qrCode, msLeft, activate, deactivate, formatCountdown } = useQRCode()
@@ -780,6 +793,7 @@ export default function DashboardPage() {
                       .eq('id', shiftDbId).then(({ error }) => { if (error) console.error('[supabase] shift end:', error) })
                   }
                   deactivate()
+                  refreshServeBalance()
                   setVibeSubmitted(false)
                   setSelectedVibe(null)
                   setShiftCovers('')
