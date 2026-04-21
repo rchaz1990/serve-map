@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
 )
 
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -135,28 +135,38 @@ export async function POST(request: Request) {
 
   // ── Reward — update $SERVE balance ───────────────────────────────────────
   if (serveReward > 0 && reporterEmail) {
-    // Check if the reporter is a server
-    const { data: serverData } = await supabase
+    const { data: serverRow } = await supabase
       .from('servers')
-      .select('id, serve_balance')
-      .eq('email', reporterEmail)
+      .select('id, serve_balance, email')
+      .ilike('email', reporterEmail)
       .maybeSingle()
 
-    if (serverData) {
-      // Server — update servers table directly
+    if (serverRow) {
+      const newBalance = (serverRow.serve_balance ?? 0) + serveReward
       const { error: updateError } = await supabase
         .from('servers')
-        .update({ serve_balance: (serverData.serve_balance ?? 0) + serveReward })
-        .eq('email', reporterEmail)
+        .update({ serve_balance: newBalance })
+        .eq('id', serverRow.id)
       if (updateError) console.error('[verify-vibe] server balance update error:', updateError)
+      else console.log(`Updated server ${reporterEmail} balance to ${newBalance}`)
     } else {
-      // Guest — use RPC to upsert guest_rewards
-      const { error: rpcError } = await supabase.rpc('increment_serve_balance', {
-        user_email: reporterEmail,
-        amount: serveReward,
-        user_type: 'guest',
-      })
-      if (rpcError) console.error('[verify-vibe] increment_serve_balance error:', rpcError)
+      const { data: guestRow } = await supabase
+        .from('guest_rewards')
+        .select('serve_balance')
+        .ilike('email', reporterEmail)
+        .maybeSingle()
+
+      if (guestRow) {
+        await supabase
+          .from('guest_rewards')
+          .update({ serve_balance: (guestRow.serve_balance ?? 0) + serveReward })
+          .ilike('email', reporterEmail)
+      } else {
+        await supabase
+          .from('guest_rewards')
+          .insert({ email: reporterEmail, serve_balance: serveReward })
+      }
+      console.log(`Updated guest ${reporterEmail} balance by ${serveReward}`)
     }
   }
 
