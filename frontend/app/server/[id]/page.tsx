@@ -47,6 +47,7 @@ export default function ServerProfilePage() {
   const [followLoading, setFollowLoading] = useState(false)
   const [followerId, setFollowerId] = useState<string | null>(null)
   const [followerEmail, setFollowerEmail] = useState<string | null>(null)
+  const [followerCount, setFollowerCount] = useState(0)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -62,6 +63,7 @@ export default function ServerProfilePage() {
 
       if (data) {
         setServer(data as Server)
+        setFollowerCount(data.follower_count ?? 0)
 
         const { data: rests } = await supabase
           .from('server_restaurants')
@@ -114,15 +116,31 @@ export default function ServerProfilePage() {
     setFollowLoading(true)
     if (following) {
       await supabase.from('follows').delete().eq('follower_id', followerId).eq('server_id', profileId)
+      const { data: serverData } = await supabase
+        .from('servers').select('follower_count').eq('id', profileId).maybeSingle()
+      await supabase
+        .from('servers')
+        .update({ follower_count: Math.max(0, (serverData?.follower_count || 1) - 1) })
+        .eq('id', profileId)
       setFollowing(false)
+      setFollowerCount(prev => Math.max(0, prev - 1))
     } else {
-      await supabase.from('follows').insert({
+      const { error: followError } = await supabase.from('follows').insert({
         follower_id: followerId,
         follower_email: followerEmail,
         server_id: profileId,
         follower_type: localStorage.getItem('slateUserType') ?? 'guest',
       })
-      setFollowing(true)
+      if (!followError) {
+        const { data: serverData } = await supabase
+          .from('servers').select('follower_count').eq('id', profileId).maybeSingle()
+        await supabase
+          .from('servers')
+          .update({ follower_count: (serverData?.follower_count || 0) + 1 })
+          .eq('id', profileId)
+        setFollowing(true)
+        setFollowerCount(prev => prev + 1)
+      }
     }
     setFollowLoading(false)
   }
@@ -202,7 +220,7 @@ export default function ServerProfilePage() {
             {[
               { value: avgRating, label: 'Rating' },
               { value: totalRatings, label: 'Reviews' },
-              { value: server.follower_count ?? 0, label: 'Followers' },
+              { value: followerCount, label: 'Followers' },
               { value: serveBalance, label: '$SERVE' },
             ].map(({ value, label }) => (
               <div key={label}>

@@ -68,11 +68,10 @@ export default function RatePage() {
   const [rating, setRating] = useState(0)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [comment, setComment] = useState('')
-  const [submitted, setSubmitted] = useState(false)
+  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState('')
   const [gpsVerified, setGpsVerified] = useState(false)
-  const [serveEarned, setServeEarned] = useState(0)
 
   const serverName = typeof window !== 'undefined'
     ? (localStorage.getItem('slateRatingServerName') || 'your server')
@@ -112,84 +111,77 @@ export default function RatePage() {
   const canSubmit = rating > 0
 
   async function handleSubmit() {
-    setLoading(true)
-    setError(null)
-
     try {
+      setLoading(true)
+      setError('')
+
       const { data: { session } } = await supabase.auth.getSession()
-      const guestEmail = session?.user?.email || 'anonymous'
-      const serverId = typeof window !== 'undefined'
-        ? localStorage.getItem('slateRatingServerId')
-        : null
-      const restaurantName = typeof window !== 'undefined'
-        ? (localStorage.getItem('slateRestaurantName') || '')
-        : ''
+      const serverId = typeof window !== 'undefined' ? localStorage.getItem('slateRatingServerId') : null
+      const restaurantName = typeof window !== 'undefined' ? (localStorage.getItem('slateRestaurantName') || '') : ''
 
       // ── Save rating to Supabase ──────────────────────────────────────────
-      const { error: insertError } = await supabase
+      const { error: ratingError } = await supabase
         .from('ratings')
         .insert({
           server_id: serverId,
           score: rating,
           comment: comment || null,
           guest_name: selectedTags.length > 0 ? selectedTags.join(', ') : null,
-          guest_email: guestEmail,
+          guest_email: session?.user?.email || 'anonymous',
           restaurant_name: restaurantName || null,
           gps_verified: gpsVerified,
-          verification_method: gpsVerified ? 'gps' : 'none',
+          created_at: new Date().toISOString(),
         })
 
-      if (insertError) {
-        console.error('[rate] insert error:', insertError)
-        setError('Failed to submit rating. Please try again.')
-        setLoading(false)
-        return
-      }
+      if (ratingError) throw ratingError
 
-      // ── $SERVE rewards ───────────────────────────────────────────────────
-      // Guest earns 10 $SERVE for a verified rating, 2 for unverified
-      const guestReward = gpsVerified ? 10 : 2
-      // Server earns 25 $SERVE for a verified rating, 5 for unverified
-      const serverReward = gpsVerified ? 25 : 5
-
-      if (guestEmail !== 'anonymous') {
-        supabase.rpc('increment_serve_balance', {
-          user_email: guestEmail,
-          amount: guestReward,
-          user_type: 'guest',
-        }).then(({ error: e }) => { if (e) console.error('[rate] guest reward error:', e) })
-      }
-
+      // ── Update server average rating, total ratings, and $SERVE balance ──
       if (serverId) {
-        supabase.rpc('increment_serve_balance_by_id', {
-          server_id: serverId,
-          amount: serverReward,
-        }).then(({ error: e }) => {
-          if (e) {
-            // Fallback: direct increment if RPC unavailable
-            supabase
-              .from('servers')
-              .select('serve_balance')
-              .eq('id', serverId)
-              .maybeSingle()
-              .then(({ data }) => {
-                if (data) {
-                  supabase
-                    .from('servers')
-                    .update({ serve_balance: (data.serve_balance ?? 0) + serverReward })
-                    .eq('id', serverId)
-                    .then(({ error: ue }) => { if (ue) console.error('[rate] server balance fallback error:', ue) })
-                }
-              })
-          }
-        })
+        const { data: serverData } = await supabase
+          .from('servers')
+          .select('average_rating, total_ratings, serve_balance')
+          .eq('id', serverId)
+          .maybeSingle()
+
+        if (serverData) {
+          const newTotal = (serverData.total_ratings || 0) + 1
+          const newAverage = (((serverData.average_rating || 0) * (serverData.total_ratings || 0)) + rating) / newTotal
+
+          await supabase
+            .from('servers')
+            .update({
+              average_rating: Math.round(newAverage * 10) / 10,
+              total_ratings: newTotal,
+              serve_balance: (serverData.serve_balance || 0) + 25,
+            })
+            .eq('id', serverId)
+        }
       }
 
-      setServeEarned(guestReward)
-      setSubmitted(true)
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setError(msg)
+      // ── Award guest 10 $SERVE ────────────────────────────────────────────
+      if (session?.user?.email) {
+        const { data: guestRow } = await supabase
+          .from('guest_rewards')
+          .select('serve_balance')
+          .eq('email', session.user.email)
+          .maybeSingle()
+
+        if (guestRow) {
+          await supabase
+            .from('guest_rewards')
+            .update({ serve_balance: (guestRow.serve_balance || 0) + 10 })
+            .eq('email', session.user.email)
+        } else {
+          await supabase
+            .from('guest_rewards')
+            .insert({ email: session.user.email, serve_balance: 10 })
+        }
+      }
+
+      setSuccess(true)
+    } catch (err) {
+      console.error('[rate] submit error:', err)
+      setError('Failed to submit rating. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -197,7 +189,7 @@ export default function RatePage() {
 
   // ── Submitted state ───────────────────────────────────────────────────────
 
-  if (submitted) {
+  if (success) {
     return (
       <div className="flex min-h-screen flex-col" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
         <Navbar />
@@ -231,16 +223,14 @@ export default function RatePage() {
             )}
           </div>
 
-          {serveEarned > 0 && (
-            <div className="mt-6 flex w-full max-w-sm items-center gap-3 rounded-xl border border-white/10 px-6 py-4">
-              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={1.5} className="h-5 w-5 shrink-0">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
-              </svg>
-              <p className="text-xs" style={{ color: '#A0A0A0' }}>
-                You earned <span className="font-semibold text-white">{serveEarned} $SERVE</span>. {serverFirstName} earned $SERVE for your rating too.
-              </p>
-            </div>
-          )}
+          <div className="mt-6 flex w-full max-w-sm items-center gap-3 rounded-xl border border-white/10 px-6 py-4">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={1.5} className="h-5 w-5 shrink-0">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+            </svg>
+            <p className="text-xs" style={{ color: '#A0A0A0' }}>
+              You earned <span className="font-semibold text-white">10 $SERVE</span>. {serverFirstName} earned 25 $SERVE for your rating.
+            </p>
+          </div>
 
           <a href="/" className="mt-8 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80">
             Back to home
