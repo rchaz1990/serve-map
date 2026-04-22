@@ -1,14 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { PublicKey } from '@solana/web3.js'
 import Navbar from '@/app/components/Navbar'
-import { getOrCreateDemoKeypair, keypairToWallet, getProgram } from '@/lib/solana'
 import { supabase } from '@/lib/supabase'
 
 // ── Geofencing ───────────────────────────────────────────────────────────────
 
-// Carbone, 181 Thompson St, New York, NY
 const RESTAURANT_LAT = 40.7264
 const RESTAURANT_LNG = -74.0022
 const VERIFIED_RADIUS_M = 300
@@ -65,26 +62,23 @@ const ratingLabels: Record<number, string> = {
   1: 'Poor', 2: 'Below average', 3: 'Good', 4: 'Great', 5: 'Exceptional',
 }
 
-const DEMO_SERVER_PROFILE = '11111111111111111111111111111111'
-
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RatePage() {
   const [rating, setRating] = useState(0)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [comment, setComment] = useState('')
-  const [txSig, setTxSig] = useState<string | null>(null)
+  const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [verified, setVerified] = useState(false)       // final verification state for submit
+  const [gpsVerified, setGpsVerified] = useState(false)
+  const [serveEarned, setServeEarned] = useState(0)
 
-  // Server info from localStorage (set when guest scans QR)
   const serverName = typeof window !== 'undefined'
     ? (localStorage.getItem('slateRatingServerName') || 'your server')
     : 'your server'
   const serverFirstName = serverName === 'your server' ? 'your server' : serverName.split(' ')[0]
 
-  // Location state
   const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle')
 
   function toggleTag(tag: string) {
@@ -105,14 +99,12 @@ export default function RatePage() {
         )
         if (dist <= VERIFIED_RADIUS_M) {
           setLocationStatus('verified')
-          setVerified(true)
+          setGpsVerified(true)
         } else {
           setLocationStatus('out-of-range')
         }
       },
-      () => {
-        setLocationStatus('denied')
-      },
+      () => { setLocationStatus('denied') },
       { timeout: 10_000, maximumAge: 60_000 },
     )
   }
@@ -122,66 +114,90 @@ export default function RatePage() {
   async function handleSubmit() {
     setLoading(true)
     setError(null)
+
     try {
-      const keypair = await getOrCreateDemoKeypair()
-      const wallet = keypairToWallet(keypair)
-      const program = getProgram(wallet)
+      const { data: { session } } = await supabase.auth.getSession()
+      const guestEmail = session?.user?.email || 'anonymous'
+      const serverId = typeof window !== 'undefined'
+        ? localStorage.getItem('slateRatingServerId')
+        : null
+      const restaurantName = typeof window !== 'undefined'
+        ? (localStorage.getItem('slateRestaurantName') || '')
+        : ''
 
-      const serverProfileKey =
-        typeof window !== 'undefined'
-          ? (localStorage.getItem('slate-server-profile') ?? DEMO_SERVER_PROFILE)
-          : DEMO_SERVER_PROFILE
-      const serverProfile = new PublicKey(serverProfileKey)
+      // ── Save rating to Supabase ──────────────────────────────────────────
+      const { error: insertError } = await supabase
+        .from('ratings')
+        .insert({
+          server_id: serverId,
+          score: rating,
+          comment: comment || null,
+          guest_name: selectedTags.length > 0 ? selectedTags.join(', ') : null,
+          guest_email: guestEmail,
+          restaurant_name: restaurantName || null,
+          gps_verified: gpsVerified,
+          verification_method: gpsVerified ? 'gps' : 'none',
+        })
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sig = await (program.methods as any)
-        .submitRating(rating, comment, verified)
-        .accounts({ serverProfile, rater: keypair.publicKey })
-        .signers([keypair])
-        .rpc()
-
-      // ── $SERVE rewards (fire-and-forget, non-blocking) ─────────────────────
-      // Guest earns 10 $SERVE for a verified rating
-      if (verified) {
-        const { data: { session } } = await supabase.auth.getSession()
-        const guestEmail = session?.user?.email
-        if (guestEmail) {
-          supabase.rpc('increment_serve_balance', {
-            user_email: guestEmail,
-            amount: 10,
-            user_type: 'guest',
-          }).then(({ error }) => { if (error) console.error('[rate] guest reward error:', error) })
-        }
-
-        // Server earns 25 $SERVE — look up by Supabase server ID stored during scan
-        const serverId = typeof window !== 'undefined'
-          ? localStorage.getItem('slateRatingServerId')
-          : null
-        if (serverId) {
-          supabase.rpc('increment_serve_balance_by_id', {
-            server_id: serverId,
-            amount: 25,
-          }).then(({ error }) => { if (error) {
-            // Fallback: direct update if RPC not available
-            supabase.from('servers')
-              .update({ serve_balance: supabase.rpc('serve_balance') })
-              .eq('id', serverId)
-          }})
-        }
+      if (insertError) {
+        console.error('[rate] insert error:', insertError)
+        setError('Failed to submit rating. Please try again.')
+        setLoading(false)
+        return
       }
 
-      setTxSig(sig)
+      // ── $SERVE rewards ───────────────────────────────────────────────────
+      // Guest earns 10 $SERVE for a verified rating, 2 for unverified
+      const guestReward = gpsVerified ? 10 : 2
+      // Server earns 25 $SERVE for a verified rating, 5 for unverified
+      const serverReward = gpsVerified ? 25 : 5
+
+      if (guestEmail !== 'anonymous') {
+        supabase.rpc('increment_serve_balance', {
+          user_email: guestEmail,
+          amount: guestReward,
+          user_type: 'guest',
+        }).then(({ error: e }) => { if (e) console.error('[rate] guest reward error:', e) })
+      }
+
+      if (serverId) {
+        supabase.rpc('increment_serve_balance_by_id', {
+          server_id: serverId,
+          amount: serverReward,
+        }).then(({ error: e }) => {
+          if (e) {
+            // Fallback: direct increment if RPC unavailable
+            supabase
+              .from('servers')
+              .select('serve_balance')
+              .eq('id', serverId)
+              .maybeSingle()
+              .then(({ data }) => {
+                if (data) {
+                  supabase
+                    .from('servers')
+                    .update({ serve_balance: (data.serve_balance ?? 0) + serverReward })
+                    .eq('id', serverId)
+                    .then(({ error: ue }) => { if (ue) console.error('[rate] server balance fallback error:', ue) })
+                }
+              })
+          }
+        })
+      }
+
+      setServeEarned(guestReward)
+      setSubmitted(true)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
-      setError(msg.includes('already in use') ? 'You have already rated this server.' : msg)
+      setError(msg)
     } finally {
       setLoading(false)
     }
   }
 
-  // ── Submitted state ──────────────────────────────────────────────────────────
+  // ── Submitted state ───────────────────────────────────────────────────────
 
-  if (txSig) {
+  if (submitted) {
     return (
       <div className="flex min-h-screen flex-col" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
         <Navbar />
@@ -193,15 +209,14 @@ export default function RatePage() {
           </div>
 
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            Rating submitted on-chain ✓
+            Rating submitted ✓
           </h1>
           <p className="mt-4 max-w-sm text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
-            Your {rating}-star review has been permanently written to Solana and attached to {serverFirstName}&apos;s profile.
+            Your {rating}-star review has been saved to {serverFirstName}&apos;s profile.
           </p>
 
-          {/* Verified / unverified badge */}
           <div className="mt-5">
-            {verified ? (
+            {gpsVerified ? (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/[0.07] px-4 py-1.5 text-xs font-semibold text-white">
                 <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 shrink-0">
                   <circle cx="12" cy="12" r="12" fill="white" />
@@ -216,18 +231,13 @@ export default function RatePage() {
             )}
           </div>
 
-          <div className="mt-6 w-full max-w-sm rounded-xl border border-white/10 px-4 py-4 text-left">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>Transaction</p>
-            <p className="break-all font-mono text-xs text-white">{txSig}</p>
-          </div>
-
-          {verified && (
-            <div className="mt-6 flex w-full max-w-sm items-center gap-3 rounded-none border border-white/10 px-6 py-4">
+          {serveEarned > 0 && (
+            <div className="mt-6 flex w-full max-w-sm items-center gap-3 rounded-xl border border-white/10 px-6 py-4">
               <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={1.5} className="h-5 w-5 shrink-0">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
               </svg>
               <p className="text-xs" style={{ color: '#A0A0A0' }}>
-                Your verified rating contributes to {serverFirstName}&apos;s $SERVE token rewards.
+                You earned <span className="font-semibold text-white">{serveEarned} $SERVE</span>. {serverFirstName} earned $SERVE for your rating too.
               </p>
             </div>
           )}
@@ -240,7 +250,7 @@ export default function RatePage() {
     )
   }
 
-  // ── Rating form ──────────────────────────────────────────────────────────────
+  // ── Rating form ───────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
@@ -310,12 +320,12 @@ export default function RatePage() {
               <div>
                 <p className="text-sm font-semibold text-white">You need to be at the restaurant to leave a verified rating</p>
                 <p className="mt-1 text-xs leading-relaxed" style={{ color: '#606060' }}>
-                  Verified ratings earn {serverFirstName} $SERVE rewards. You can still submit an unverified rating — it won&apos;t count toward rewards.
+                  Verified ratings earn {serverFirstName} $SERVE rewards. You can still submit an unverified rating.
                 </p>
               </div>
             </div>
             <button
-              onClick={() => { setLocationStatus('denied'); setVerified(false) }}
+              onClick={() => { setLocationStatus('denied'); setGpsVerified(false) }}
               className="w-full rounded-full border border-white/20 py-2.5 text-xs font-medium text-white transition-colors hover:border-white"
             >
               Rate Anyway (Unverified)
@@ -343,7 +353,6 @@ export default function RatePage() {
             <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#A0A0A0' }}>
               Verified booking
             </p>
-            {/* Visit badge */}
             {locationStatus === 'verified' ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/[0.06] px-2.5 py-0.5 text-[10px] font-semibold text-white">
                 <svg viewBox="0 0 24 24" fill="none" className="h-2.5 w-2.5 shrink-0">
@@ -381,7 +390,7 @@ export default function RatePage() {
         {/* ── Quick tags ──────────────────────────────────────────────── */}
         <section className="mb-14">
           <p className="mb-6 text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: '#A0A0A0' }}>
-            What stood out? <span className="normal-case tracking-normal font-normal">({`optional`})</span>
+            What stood out? <span className="normal-case tracking-normal font-normal">(optional)</span>
           </p>
           <div className="flex flex-wrap gap-2">
             {tags.map((tag) => {
@@ -448,8 +457,8 @@ export default function RatePage() {
               </p>
               <p className="mt-1 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
                 {locationStatus === 'verified'
-                  ? 'Your location-verified review is permanent and tamper-proof — it can\'t be deleted by the restaurant.'
-                  : 'Allow location access at the restaurant to submit a verified rating that counts toward $SERVE rewards.'}
+                  ? 'Your location-verified review is permanent and can\'t be deleted by the restaurant.'
+                  : 'Allow location access at the restaurant to submit a verified rating that earns $SERVE rewards.'}
               </p>
             </div>
           </div>
@@ -475,7 +484,7 @@ export default function RatePage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
-                Submitting on-chain…
+                Submitting…
               </span>
             ) : locationStatus === 'verified'
               ? 'Submit Verified Rating'
