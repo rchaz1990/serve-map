@@ -861,7 +861,7 @@ export default function DashboardPage() {
               <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
                 <div className="rounded-2xl bg-white p-4">
                   <QRCode
-                    value={`https://slatenow.xyz/rate?server=${serverProfile?.id}`}
+                    value={`https://slatenow.xyz/scan/${serverProfile?.id}`}
                     size={120}
                     bgColor="#ffffff"
                     fgColor="#000000"
@@ -1212,7 +1212,7 @@ export default function DashboardPage() {
               <div className="mb-5 flex flex-col items-center gap-5">
                 <div className="rounded-2xl bg-white p-5">
                   <QRCode
-                    value={`https://slatenow.xyz/rate?server=${serverProfile?.id}`}
+                    value={`https://slatenow.xyz/scan/${serverProfile?.id}`}
                     size={200}
                     bgColor="#ffffff"
                     fgColor="#000000"
