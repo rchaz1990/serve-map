@@ -109,13 +109,11 @@ function RateForm() {
         .from('ratings')
         .insert({
           server_id: serverId,
-          server_name: serverData?.name ?? null,
           score: rating,
           comment: comment || null,
-          guest_name: selectedTags.length > 0 ? selectedTags.join(', ') : null,
-          guest_id: session?.user?.id ?? null,
-          restaurant_name: null,
-          created_at: new Date().toISOString(),
+          guest_email: session?.user?.email ?? null,
+          gps_verified: false,
+          verification_method: 'qr',
         })
 
       if (ratingError) {

@@ -12,6 +12,7 @@ export default function ScanPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [isFollowing, setIsFollowing] = useState(false)
+  const [followerCount, setFollowerCount] = useState(0)
 
   useEffect(() => {
     if (!serverId) {
@@ -35,6 +36,19 @@ export default function ScanPage() {
 
     if (data) {
       setServer(data)
+      setFollowerCount(data.follower_count || 0)
+
+      // Check if current user is already following
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.id) {
+        const { data: existingFollow } = await supabase
+          .from('follows')
+          .select('id')
+          .eq('follower_id', session.user.id)
+          .eq('server_id', serverId)
+          .maybeSingle()
+        setIsFollowing(!!existingFollow)
+      }
     } else {
       setError('Server not found. Please scan the QR code again.')
     }
@@ -48,19 +62,22 @@ export default function ScanPage() {
       return
     }
 
-    await supabase.from('follows').insert({
+    const { error: followError } = await supabase.from('follows').insert({
       follower_id: session.user.id,
       follower_email: session.user.email,
       server_id: serverId,
       follower_type: 'guest'
     })
 
-    await supabase
-      .from('servers')
-      .update({ follower_count: (server?.follower_count || 0) + 1 })
-      .eq('id', serverId)
+    if (!followError) {
+      await supabase
+        .from('servers')
+        .update({ follower_count: followerCount + 1 })
+        .eq('id', serverId)
 
-    setIsFollowing(true)
+      setFollowerCount(prev => prev + 1)
+      setIsFollowing(true)
+    }
   }
 
   if (loading) return (
@@ -139,7 +156,7 @@ export default function ScanPage() {
           </div>
           <div style={{ background: '#000', padding: '20px', textAlign: 'center' }}>
             <div style={{ fontSize: '24px', fontFamily: 'Georgia', fontWeight: '700' }}>
-              {server?.follower_count || 0}
+              {followerCount}
             </div>
             <div style={{ fontSize: '10px', color: '#444',
               letterSpacing: '2px', textTransform: 'uppercase', marginTop: '4px' }}>
