@@ -14,6 +14,7 @@ type Server = {
   follower_count: number | null
   is_founding_member: boolean | null
   serve_balance: number | null
+  photo_url: string | null
 }
 
 type Restaurant = {
@@ -192,6 +193,35 @@ export default function ServerProfilePage() {
 
         {/* ── Header ── */}
         <section style={{ marginBottom: '64px' }}>
+
+          {/* Profile photo */}
+          <div style={{ marginBottom: '24px' }}>
+            {server.photo_url ? (
+              <img
+                src={server.photo_url}
+                alt={server.name}
+                style={{
+                  width: '100px',
+                  height: '100px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '1px solid #222',
+                }}
+              />
+            ) : (
+              <div style={{
+                width: '100px',
+                height: '100px',
+                borderRadius: '50%',
+                background: '#111',
+                border: '1px solid #222',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '36px',
+              }}>👤</div>
+            )}
+          </div>
 
           {server.is_founding_member && (
             <p style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', marginBottom: '20px', textTransform: 'uppercase' }}>

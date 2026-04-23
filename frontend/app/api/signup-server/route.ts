@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       restaurantAddress2,
       city2,
       userId,  // Supabase auth UID — stored in wallet_address for fast lookup
+      photoUrl,
     } = body
 
     const email = rawEmail?.toLowerCase().trim()
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
         wallet_address: userId ?? null,
         is_founding_member: true,
         serve_balance: 50,  // Founding member bonus
+        photo_url: photoUrl ?? null,
       })
       .select('id, name')
       .single()

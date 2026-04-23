@@ -171,6 +171,23 @@ export default function ServerSignupPage() {
       })
       if (authError) throw new Error(authError.message)
 
+      // Step 1b — Upload photo to Supabase Storage if provided
+      let photoUrl: string | null = null
+      const photoFile = photoInputRef.current?.files?.[0]
+      if (photoFile && authData.user?.id) {
+        const ext = photoFile.name.split('.').pop() ?? 'jpg'
+        const path = `avatars/${authData.user.id}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(path, photoFile, { upsert: true, contentType: photoFile.type })
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+          photoUrl = urlData.publicUrl
+        } else {
+          console.error('Photo upload error (non-fatal):', uploadError)
+        }
+      }
+
       // Step 2 — Create server profile via API route (server-side Supabase insert)
       const res = await fetch('/api/signup-server', {
         method: 'POST',
@@ -187,6 +204,7 @@ export default function ServerSignupPage() {
           restaurantAddress2: confirmedPlace2?.address ?? city2 ?? undefined,
           city2: city2 || confirmedPlace2?.address || undefined,
           userId: authData.user?.id,  // Supabase auth UID → saved to wallet_address
+          photoUrl,
         }),
       })
 
