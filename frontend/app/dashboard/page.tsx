@@ -861,7 +861,7 @@ export default function DashboardPage() {
               <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
                 <div className="rounded-2xl bg-white p-4">
                   <QRCode
-                    value={`https://slatenow.xyz/scan/${serverProfile?.id}`}
+                    value={`https://slatenow.xyz/rate?server=${serverProfile?.id}`}
                     size={120}
                     bgColor="#ffffff"
                     fgColor="#000000"
@@ -879,7 +879,7 @@ export default function DashboardPage() {
                   </p>
                   <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
                     <span className="flex-1 truncate font-mono text-xs" style={{ color: '#606060' }}>
-                      slatenow.xyz/scan/{serverProfile?.id}
+                      slatenow.xyz/rate?server={serverProfile?.id}
                     </span>
                   </div>
                 </div>
@@ -1212,7 +1212,7 @@ export default function DashboardPage() {
               <div className="mb-5 flex flex-col items-center gap-5">
                 <div className="rounded-2xl bg-white p-5">
                   <QRCode
-                    value={`https://slatenow.xyz/scan/${serverProfile?.id}`}
+                    value={`https://slatenow.xyz/rate?server=${serverProfile?.id}`}
                     size={200}
                     bgColor="#ffffff"
                     fgColor="#000000"
@@ -1226,7 +1226,7 @@ export default function DashboardPage() {
               {/* URL + deactivate */}
               <div className="mb-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
                 <span className="flex-1 truncate font-mono text-xs" style={{ color: '#606060' }}>
-                  slatenow.xyz/scan/{serverProfile?.id}
+                  slatenow.xyz/rate?server={serverProfile?.id}
                 </span>
               </div>
               <button

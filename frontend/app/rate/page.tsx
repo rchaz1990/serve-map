@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
 
@@ -43,9 +44,22 @@ const ratingLabels: Record<number, string> = {
   1: 'Poor', 2: 'Below average', 3: 'Good', 4: 'Great', 5: 'Exceptional',
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Inner form (needs Suspense because of useSearchParams) ────────────────────
 
-export default function RatePage() {
+type ServerRow = {
+  id: string
+  name: string
+  role: string | null
+  average_rating: number | null
+  total_ratings: number | null
+  serve_balance: number | null
+}
+
+function RateForm() {
+  const searchParams = useSearchParams()
+  const serverId = searchParams.get('server')
+
+  const [serverData, setServerData] = useState<ServerRow | null>(null)
   const [rating, setRating] = useState(0)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [comment, setComment] = useState('')
@@ -53,9 +67,24 @@ export default function RatePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const serverId = typeof window !== 'undefined' ? localStorage.getItem('slateRatingServerId') : null
-  const restaurantName = typeof window !== 'undefined' ? (localStorage.getItem('slateRestaurantName') || '') : ''
-  const serverName = typeof window !== 'undefined' ? (localStorage.getItem('slateRatingServerName') || 'your server') : 'your server'
+  useEffect(() => {
+    console.log('serverId from URL:', serverId)
+    if (!serverId) return
+
+    const loadServer = async () => {
+      const { data } = await supabase
+        .from('servers')
+        .select('id, name, role, average_rating, total_ratings, serve_balance')
+        .eq('id', serverId)
+        .maybeSingle()
+      console.log('serverData:', data)
+      setServerData(data as ServerRow | null)
+    }
+
+    loadServer()
+  }, [serverId])
+
+  const serverName = serverData?.name || 'your server'
   const serverFirstName = serverName === 'your server' ? 'your server' : serverName.split(' ')[0]
 
   function toggleTag(tag: string) {
@@ -65,6 +94,11 @@ export default function RatePage() {
   }
 
   const handleSubmitRating = async () => {
+    if (!serverId) {
+      setError('Server not found. Please scan the QR code again.')
+      return
+    }
+
     try {
       setLoading(true)
       setError('')
@@ -75,41 +109,44 @@ export default function RatePage() {
         .from('ratings')
         .insert({
           server_id: serverId,
+          server_name: serverData?.name ?? null,
           score: rating,
-          comment: comment,
+          comment: comment || null,
           guest_name: selectedTags.length > 0 ? selectedTags.join(', ') : null,
-          guest_email: session?.user?.email || 'anonymous',
-          restaurant_name: restaurantName || null,
-          gps_verified: false,
+          guest_id: session?.user?.id ?? null,
+          restaurant_name: null,
           created_at: new Date().toISOString(),
         })
 
       if (ratingError) {
         console.error('Rating insert error:', ratingError)
-        setError('Failed to submit rating. Please try again.')
+        setError(`Failed to submit rating: ${ratingError.message}`)
         return
       }
 
-      // Update server stats
-      const { data: serverData } = await supabase
+      // Update server stats — best-effort, non-blocking
+      const { data: fresh, error: fetchErr } = await supabase
         .from('servers')
         .select('average_rating, total_ratings, serve_balance')
         .eq('id', serverId)
         .maybeSingle()
 
-      if (serverData) {
-        const newTotal = (serverData.total_ratings || 0) + 1
-        const newAverage = (((serverData.average_rating || 0) *
-          (serverData.total_ratings || 0)) + rating) / newTotal
+      if (fetchErr) console.error('Server fetch error (non-fatal):', fetchErr)
 
-        await supabase
+      if (fresh) {
+        const newTotal = (fresh.total_ratings || 0) + 1
+        const newAverage = (((fresh.average_rating || 0) * (fresh.total_ratings || 0)) + rating) / newTotal
+
+        const { error: updateErr } = await supabase
           .from('servers')
           .update({
             average_rating: parseFloat(newAverage.toFixed(1)),
             total_ratings: newTotal,
-            serve_balance: (serverData.serve_balance || 0) + 25,
+            serve_balance: (fresh.serve_balance || 0) + 25,
           })
           .eq('id', serverId)
+
+        if (updateErr) console.error('Server stats update error (non-fatal):', updateErr)
       }
 
       setSuccess(true)
@@ -120,6 +157,21 @@ export default function RatePage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // ── No server ID ──────────────────────────────────────────────────────────
+
+  if (!serverId) {
+    return (
+      <div className="flex min-h-screen flex-col" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+        <Navbar />
+        <main className="flex flex-1 flex-col items-center justify-center px-8 text-center">
+          <p className="text-sm" style={{ color: '#A0A0A0' }}>
+            No server found. Please scan a valid QR code.
+          </p>
+        </main>
+      </div>
+    )
   }
 
   // ── Success state ─────────────────────────────────────────────────────────
@@ -296,5 +348,17 @@ export default function RatePage() {
 
       </main>
     </div>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function RatePage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', background: '#000000' }} />
+    }>
+      <RateForm />
+    </Suspense>
   )
 }
