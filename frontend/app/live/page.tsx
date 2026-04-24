@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
@@ -24,6 +25,10 @@ interface VenueDisplay {
   name: string
   latestReport: VibeReport | null
   reportCount: number
+}
+
+interface HotVenue extends VenueDisplay {
+  hotCount: number
 }
 
 // ── Default NYC venues (Tier 3) ───────────────────────────────────────────────
@@ -69,7 +74,7 @@ const VIBE_META: Record<string, { emoji: string; tagline: string }> = {
 
 const VIBE_EMOJI: Record<string, string> = { CHILL: '🧊', LIVE: '🔥', PACKED: '🚀' }
 
-// ── CSS animations ────────────────────────────────────────────────────────────
+// ── CSS ───────────────────────────────────────────────────────────────────────
 
 const CSS = `
 @keyframes liveDot {
@@ -94,17 +99,22 @@ const CSS = `
   55%     { opacity:1;  transform:scale(1.02); }
   75%     { opacity:.7; }
 }
+@keyframes hotBadgePulse {
+  0%,100% { opacity:1; transform:scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,0.3); }
+  50%     { opacity:.85; transform:scale(1.04); box-shadow: 0 0 0 6px rgba(255,255,255,0); }
+}
 @keyframes slideUp {
   from { opacity:0; transform:translateY(20px); }
   to   { opacity:1; transform:translateY(0); }
 }
-.anim-chill  { animation: chillBreathe 4s ease-in-out infinite; }
-.anim-live   { animation: liveFlicker 2.2s ease-in-out infinite; }
-.anim-packed { animation: packedPulse 1.1s ease-in-out infinite; }
+.anim-chill    { animation: chillBreathe 4s ease-in-out infinite; }
+.anim-live     { animation: liveFlicker 2.2s ease-in-out infinite; }
+.anim-packed   { animation: packedPulse 1.1s ease-in-out infinite; }
+.anim-hot-badge{ animation: hotBadgePulse 1.6s ease-in-out infinite; }
 .slide-up { animation: slideUp .5s ease-out forwards; opacity:0; }
 `
 
-// ── Pill button ───────────────────────────────────────────────────────────────
+// ── Shared sub-components ─────────────────────────────────────────────────────
 
 function Pill({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
   return (
@@ -141,8 +151,6 @@ function VibePill({ vibe, selected, onClick }: { vibe: string; selected: boolean
   )
 }
 
-// ── Section heading ───────────────────────────────────────────────────────────
-
 function SectionHeading({ children, dot }: { children: React.ReactNode; dot?: boolean }) {
   return (
     <div className="mb-8 flex items-center gap-3">
@@ -162,7 +170,7 @@ function SectionHeading({ children, dot }: { children: React.ReactNode; dot?: bo
   )
 }
 
-// ── Venue card (shared across all tiers) ──────────────────────────────────────
+// ── Venue card ────────────────────────────────────────────────────────────────
 
 function VenueCard({
   venueName,
@@ -171,6 +179,8 @@ function VenueCard({
   reportCount,
   defaultEmoji,
   delay,
+  isHot,
+  hotCount,
 }: {
   venueName: string
   tier: 1 | 2 | 3
@@ -178,10 +188,11 @@ function VenueCard({
   reportCount: number
   defaultEmoji?: string
   delay: number
+  isHot?: boolean
+  hotCount?: number
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
-
   const [checkInOpen, setCheckInOpen] = useState(false)
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [gpsVerifiedForSubmit, setGpsVerifiedForSubmit] = useState(false)
@@ -224,7 +235,6 @@ function VenueCard({
     }
     setCheckInOpen(true)
     setGpsVerifiedForSubmit(false)
-
     if (!navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
@@ -253,11 +263,9 @@ function VenueCard({
     if (!vibe) return
     setSubmitting(true)
     setSubmitError('')
-
     const { data: { session } } = await supabase.auth.getSession()
     const reporterEmail = session?.user?.email ?? localStorage.getItem('slateUserEmail') ?? undefined
     const coords = userCoords
-
     const res = await fetch('/api/verify-vibe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -275,41 +283,54 @@ function VenueCard({
     })
     const json = await res.json()
     setSubmitting(false)
-
     if (res.status === 429) { setSubmitError(json.error); return }
     if (!res.ok) { setSubmitError('Something went wrong. Please try again.'); return }
-
     setServeEarned(json.serveReward ?? null)
     setSubmitMessage(json.message ?? '')
     setSubmitted(true)
   }
 
-  // Card border style varies by tier
-  const borderStyle = tier === 1
+  const borderStyle = isHot
+    ? '1px solid rgba(255,255,255,0.7)'
+    : tier === 1
     ? '1px solid rgba(255,255,255,0.3)'
     : tier === 2
     ? '1px solid rgba(255,255,255,0.1)'
     : '1px solid rgba(255,255,255,0.06)'
 
-  const bgStyle = tier === 1
+  const bgStyle = isHot
+    ? 'rgba(255,255,255,0.05)'
+    : tier === 1
     ? 'rgba(255,255,255,0.04)'
     : tier === 2
     ? 'rgba(255,255,255,0.02)'
     : 'transparent'
 
+  const topVibeName = (report?.vibe ?? '').toUpperCase() as Vibe
+
   return (
     <div ref={ref} className={visible ? 'slide-up' : ''} style={{ animationDelay: `${delay}ms` }}>
-      <div
-        className="rounded-2xl transition-all duration-300"
-        style={{ border: borderStyle, backgroundColor: bgStyle }}
-      >
+      <div className="rounded-2xl transition-all duration-300" style={{ border: borderStyle, backgroundColor: bgStyle }}>
         <div className="p-6">
 
           {/* Top row */}
           <div className="mb-3 flex items-start justify-between gap-3">
-            <h3 className="text-base font-bold text-white">{venueName}</h3>
+            <Link
+              href={`/venue/${encodeURIComponent(venueName)}`}
+              className="text-base font-bold text-white hover:underline underline-offset-2"
+            >
+              {venueName}
+            </Link>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-              {tier === 1 && (
+              {isHot && (
+                <span
+                  className="anim-hot-badge rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-black"
+                  style={{ backgroundColor: 'white' }}
+                >
+                  🔥 Hot Right Now
+                </span>
+              )}
+              {tier === 1 && !isHot && (
                 <span
                   className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
                   style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}
@@ -328,11 +349,17 @@ function VenueCard({
             </div>
           </div>
 
-          {/* Real report display (tiers 1 & 2) */}
+          {/* Real report display */}
           {report && vibeName ? (
             <>
-              <p className="mb-2 text-3xl">{VIBE_META[vibeName]?.emoji}</p>
-              <p className="mb-1 text-xs" style={{ color: '#606060' }}>{VIBE_META[vibeName]?.tagline}</p>
+              <p className="mb-2 text-3xl">{VIBE_META[topVibeName]?.emoji ?? VIBE_META[vibeName]?.emoji}</p>
+              {isHot && hotCount ? (
+                <p className="mb-1 text-xs font-semibold" style={{ color: '#A0A0A0' }}>
+                  {hotCount} {hotCount === 1 ? 'person says' : 'people say'} it&apos;s {topVibeName.toLowerCase()}
+                </p>
+              ) : (
+                <p className="mb-1 text-xs" style={{ color: '#606060' }}>{VIBE_META[topVibeName]?.tagline}</p>
+              )}
               <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: '#404040' }}>
                 <span>{timeLabel}</span>
                 {reportCount > 1 && <span>· {reportCount} reports</span>}
@@ -341,7 +368,6 @@ function VenueCard({
               </div>
             </>
           ) : (
-            /* Tier 3: no real report */
             <>
               <p className="mb-2 text-3xl">{defaultEmoji ?? '🍽️'}</p>
               <p className="mb-4 text-xs" style={{ color: '#404040' }}>No reports yet tonight</p>
@@ -378,7 +404,6 @@ function VenueCard({
                 </span>
               )}
             </p>
-
             <div className="mb-4">
               <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>What&apos;s the vibe?</p>
               <div className="flex flex-wrap gap-2">
@@ -387,7 +412,6 @@ function VenueCard({
                 ))}
               </div>
             </div>
-
             <div className="mb-4">
               <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Bar seats?</p>
               <div className="flex flex-wrap gap-2">
@@ -396,7 +420,6 @@ function VenueCard({
                 ))}
               </div>
             </div>
-
             <div className="mb-5">
               <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Wait time?</p>
               <div className="flex flex-wrap gap-2">
@@ -405,7 +428,6 @@ function VenueCard({
                 ))}
               </div>
             </div>
-
             {submitError && (
               <p className="mb-3 text-xs" style={{ color: '#f87171' }}>{submitError}</p>
             )}
@@ -445,16 +467,14 @@ function VenueCard({
   )
 }
 
-// ── Venue search + quick vibe form ────────────────────────────────────────────
+// ── Venue search ──────────────────────────────────────────────────────────────
 
 function VenueSearch() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [googleLoaded, setGoogleLoaded] = useState(false)
   const [selected, setSelected] = useState<{ name: string; address: string; lat: number | null; lng: number | null } | null>(null)
-
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [showForm, setShowForm] = useState(false)
-
   const [vibe, setVibe] = useState<string | null>(null)
   const [seats, setSeats] = useState<string | null>(null)
   const [wait, setWait] = useState<string | null>(null)
@@ -484,17 +504,14 @@ function VenueSearch() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const google = (window as any).google
     if (!google?.maps?.places) return
-
     const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
       types: ['establishment'],
       componentRestrictions: { country: 'us' },
       fields: ['name', 'formatted_address', 'geometry'],
     })
-
     const style = document.createElement('style')
     style.innerHTML = '.pac-container { z-index: 99999 !important; pointer-events: all !important; }'
     document.head.appendChild(style)
-
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace()
       const lat = place.geometry?.location?.lat() ?? null
@@ -502,7 +519,6 @@ function VenueSearch() {
       setSelected({ name: place.name ?? '', address: place.formatted_address ?? '', lat, lng })
       checkGpsForVenue(lat, lng)
     })
-
     const input = inputRef.current
     const suppressEnter = (e: KeyboardEvent) => { if (e.key === 'Enter') e.preventDefault() }
     input.addEventListener('keydown', suppressEnter)
@@ -519,36 +535,26 @@ function VenueSearch() {
   async function handleSubmit() {
     if (!selected || !vibe) return
     setSubmitting(true)
-
     const { data: { session } } = await supabase.auth.getSession()
     const reporterEmail = session?.user?.email ?? localStorage.getItem('slateUserEmail') ?? undefined
     const coords = userCoords
-
     const res = await fetch('/api/verify-vibe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: session?.user?.id ?? null,
-        reporterEmail,
-        restaurantName: selected.name,
-        vibe, barSeats: seats, waitTime: wait,
-        userLat: coords?.lat ?? null,
-        userLng: coords?.lng ?? null,
-        restaurantLat: selected.lat,
-        restaurantLng: selected.lng,
+        userId: session?.user?.id ?? null, reporterEmail,
+        restaurantName: selected.name, vibe, barSeats: seats, waitTime: wait,
+        userLat: coords?.lat ?? null, userLng: coords?.lng ?? null,
+        restaurantLat: selected.lat, restaurantLng: selected.lng,
       }),
     })
     const json = await res.json()
     setSubmitting(false)
-
     if (res.status === 429) {
       setSubmitResult({ serveReward: 0, message: json.error, error: json.error })
-      setSubmitted(true)
-      return
+      setSubmitted(true); return
     }
-    if (res.ok) {
-      setSubmitResult({ serveReward: json.serveReward ?? 0, message: json.message ?? '', error: null })
-    }
+    if (res.ok) setSubmitResult({ serveReward: json.serveReward ?? 0, message: json.message ?? '', error: null })
     setSubmitted(true)
   }
 
@@ -562,7 +568,6 @@ function VenueSearch() {
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
           Where are you right now?
         </p>
-
         {submitted ? (
           <div className="rounded-xl border border-white/15 px-5 py-4">
             <div className="flex items-start gap-3">
@@ -590,7 +595,6 @@ function VenueSearch() {
               </div>
               <button onClick={handleChange} className="shrink-0 text-xs transition-colors hover:text-white" style={{ color: '#606060' }}>Change</button>
             </div>
-
             {showForm && (
               <>
                 <div className="mb-4">
@@ -645,6 +649,7 @@ function VenueSearch() {
 
 export default function LivePage() {
   const [loading, setLoading] = useState(true)
+  const [hotVenues, setHotVenues] = useState<HotVenue[]>([])
   const [tier1, setTier1] = useState<VenueDisplay[]>([])
   const [tier2, setTier2] = useState<VenueDisplay[]>([])
   const [tier3, setTier3] = useState<{ name: string; emoji: string }[]>([])
@@ -652,68 +657,76 @@ export default function LivePage() {
 
   useEffect(() => {
     async function loadData() {
-      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-      const weekAgo  = new Date(Date.now() - 7  * 24 * 60 * 60 * 1000).toISOString()
+      const since24h  = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const since2h   = new Date(Date.now() -  2 * 60 * 60 * 1000).toISOString()
+      const weekAgo   = new Date(Date.now() -  7 * 24 * 60 * 60 * 1000).toISOString()
 
-      const [verifiedRes, unverifiedRes, weeklyRes] = await Promise.all([
-        supabase
-          .from('vibe_reports')
-          .select('*')
-          .eq('gps_verified', true)
-          .gte('created_at', since24h)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('vibe_reports')
-          .select('*')
-          .eq('gps_verified', false)
-          .gte('created_at', since24h)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('vibe_reports')
-          .select('id')
-          .eq('gps_verified', true)
-          .gte('created_at', weekAgo),
+      const [verifiedRes, unverifiedRes, hotRes, weeklyRes] = await Promise.all([
+        supabase.from('vibe_reports').select('*').eq('gps_verified', true)
+          .gte('created_at', since24h).order('created_at', { ascending: false }),
+        supabase.from('vibe_reports').select('*').eq('gps_verified', false)
+          .gte('created_at', since24h).order('created_at', { ascending: false }),
+        supabase.from('vibe_reports').select('restaurant_name, vibe, created_at')
+          .in('vibe', ['PACKED', 'LIVE', 'Packed', 'Live'])
+          .gte('created_at', since2h),
+        supabase.from('vibe_reports').select('id').eq('gps_verified', true).gte('created_at', weekAgo),
       ])
 
       setWeeklyCount(weeklyRes.data?.length ?? 0)
 
-      // Group verified reports by venue (most recent first per venue)
+      // Compute hot venues (3+ PACKED/LIVE reports in last 2h)
+      const hotCounts = new Map<string, number>()
+      for (const r of (hotRes.data ?? [])) {
+        hotCounts.set(r.restaurant_name, (hotCounts.get(r.restaurant_name) ?? 0) + 1)
+      }
+      const hotNames = new Set<string>()
+      hotCounts.forEach((count, name) => { if (count >= 3) hotNames.add(name) })
+
+      // Group verified and unverified by venue
       const verifiedMap = new Map<string, VibeReport[]>()
       for (const r of (verifiedRes.data ?? []) as VibeReport[]) {
         if (!verifiedMap.has(r.restaurant_name)) verifiedMap.set(r.restaurant_name, [])
         verifiedMap.get(r.restaurant_name)!.push(r)
       }
-
-      // Group unverified reports, excluding venues already in verified
       const unverifiedMap = new Map<string, VibeReport[]>()
       for (const r of (unverifiedRes.data ?? []) as VibeReport[]) {
-        if (verifiedMap.has(r.restaurant_name)) continue // already in tier 1
+        if (verifiedMap.has(r.restaurant_name)) continue
         if (!unverifiedMap.has(r.restaurant_name)) unverifiedMap.set(r.restaurant_name, [])
         unverifiedMap.get(r.restaurant_name)!.push(r)
       }
 
+      // Build hot venues list (pull report data from verified or unverified map)
+      const hot: HotVenue[] = []
+      hotNames.forEach(name => {
+        const reps = verifiedMap.get(name) ?? unverifiedMap.get(name) ?? []
+        hot.push({
+          name,
+          latestReport: reps[0] ?? null,
+          reportCount: reps.length,
+          hotCount: hotCounts.get(name) ?? 0,
+        })
+      })
+      hot.sort((a, b) => b.hotCount - a.hotCount)
+
       const reportedNames = new Set([...verifiedMap.keys(), ...unverifiedMap.keys()])
 
-      const t1: VenueDisplay[] = Array.from(verifiedMap.entries()).map(([name, reps]) => ({
-        name,
-        latestReport: reps[0],
-        reportCount: reps.length,
-      }))
+      // Tier 1 & 2 exclude hot venues
+      const t1: VenueDisplay[] = Array.from(verifiedMap.entries())
+        .filter(([name]) => !hotNames.has(name))
+        .map(([name, reps]) => ({ name, latestReport: reps[0], reportCount: reps.length }))
 
-      const t2: VenueDisplay[] = Array.from(unverifiedMap.entries()).map(([name, reps]) => ({
-        name,
-        latestReport: reps[0],
-        reportCount: reps.length,
-      }))
+      const t2: VenueDisplay[] = Array.from(unverifiedMap.entries())
+        .filter(([name]) => !hotNames.has(name))
+        .map(([name, reps]) => ({ name, latestReport: reps[0], reportCount: reps.length }))
 
-      const t3 = DEFAULT_VENUES.filter(v => !reportedNames.has(v.name))
+      const t3 = DEFAULT_VENUES.filter(v => !reportedNames.has(v.name) && !hotNames.has(v.name))
 
+      setHotVenues(hot)
       setTier1(t1)
       setTier2(t2)
       setTier3(t3)
       setLoading(false)
     }
-
     loadData()
   }, [])
 
@@ -726,8 +739,7 @@ export default function LivePage() {
       <VenueSearch />
 
       <main>
-
-        {/* ── Page header ────────────────────────────────────────────────── */}
+        {/* ── Header ────────────────────────────────────────────────────── */}
         <section className="relative px-8 pt-16 pb-12 lg:px-16 lg:pt-20">
           <div className="absolute right-8 top-6 flex items-center gap-2 lg:right-16">
             <span className="relative flex h-2 w-2">
@@ -736,7 +748,6 @@ export default function LivePage() {
             </span>
             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">Live</span>
           </div>
-
           <div className="mx-auto max-w-5xl">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>NYC Tonight</p>
             <h1 className="mb-4 text-5xl font-bold tracking-tight text-white sm:text-6xl lg:text-7xl">
@@ -755,21 +766,20 @@ export default function LivePage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── Feed ────────────────────────────────────────────────────────── */}
+        {/* ── Feed ──────────────────────────────────────────────────────── */}
         <section className="px-8 py-16 lg:px-16 lg:py-20">
           <div className="mx-auto max-w-5xl">
-
             {loading ? (
               <p className="text-sm" style={{ color: '#404040' }}>Loading…</p>
             ) : (
               <div className="space-y-16">
 
-                {/* Tier 1 — GPS Verified */}
-                {tier1.length > 0 && (
+                {/* Hot Right Now */}
+                {hotVenues.length > 0 && (
                   <div>
-                    <SectionHeading dot>Live Tonight</SectionHeading>
+                    <SectionHeading dot>🔥 Hot Right Now</SectionHeading>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      {tier1.map((v, i) => (
+                      {hotVenues.map((v, i) => (
                         <VenueCard
                           key={v.name}
                           venueName={v.name}
@@ -777,7 +787,22 @@ export default function LivePage() {
                           report={v.latestReport}
                           reportCount={v.reportCount}
                           delay={i * 40}
+                          isHot
+                          hotCount={v.hotCount}
                         />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tier 1 — GPS Verified */}
+                {tier1.length > 0 && (
+                  <div>
+                    <SectionHeading dot>Live Tonight</SectionHeading>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {tier1.map((v, i) => (
+                        <VenueCard key={v.name} venueName={v.name} tier={1}
+                          report={v.latestReport} reportCount={v.reportCount} delay={i * 40} />
                       ))}
                     </div>
                   </div>
@@ -789,14 +814,8 @@ export default function LivePage() {
                     <SectionHeading>Recently Reported</SectionHeading>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       {tier2.map((v, i) => (
-                        <VenueCard
-                          key={v.name}
-                          venueName={v.name}
-                          tier={2}
-                          report={v.latestReport}
-                          reportCount={v.reportCount}
-                          delay={i * 40}
-                        />
+                        <VenueCard key={v.name} venueName={v.name} tier={2}
+                          report={v.latestReport} reportCount={v.reportCount} delay={i * 40} />
                       ))}
                     </div>
                   </div>
@@ -808,15 +827,8 @@ export default function LivePage() {
                     <SectionHeading>Discover NYC</SectionHeading>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       {tier3.map((v, i) => (
-                        <VenueCard
-                          key={v.name}
-                          venueName={v.name}
-                          tier={3}
-                          report={null}
-                          reportCount={0}
-                          defaultEmoji={v.emoji}
-                          delay={i * 30}
-                        />
+                        <VenueCard key={v.name} venueName={v.name} tier={3}
+                          report={null} reportCount={0} defaultEmoji={v.emoji} delay={i * 30} />
                       ))}
                     </div>
                   </div>
@@ -826,7 +838,6 @@ export default function LivePage() {
             )}
           </div>
         </section>
-
       </main>
     </div>
   )
