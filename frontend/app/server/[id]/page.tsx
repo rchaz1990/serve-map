@@ -269,9 +269,42 @@ export default function ServerProfilePage() {
             {server.name}
           </h1>
 
-          <p style={{ fontSize: '16px', color: '#555', marginBottom: '40px', letterSpacing: '0.2px' }}>
+          <p style={{ fontSize: '16px', color: '#555', marginBottom: '24px', letterSpacing: '0.2px' }}>
             {server.role}
           </p>
+
+          {/* ── Share links — debug: red background ── */}
+          <div style={{ background: 'red', padding: '20px', zIndex: 9999, marginBottom: '32px' }}>
+            <a
+              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out ${server?.name || 'this server'} on Slate 🍸`)}&url=${encodeURIComponent(`https://slatenow.xyz/server/${profileId}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-block', marginRight: '12px',
+                background: 'black', color: 'white', border: '1px solid #444',
+                padding: '12px 24px', fontSize: '12px', letterSpacing: '2px',
+                textTransform: 'uppercase', textDecoration: 'none',
+                minHeight: '44px', lineHeight: '20px',
+              }}
+            >
+              Share on X
+            </a>
+            <a
+              href="https://www.instagram.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={async (e) => { e.preventDefault(); await shareOnInstagram() }}
+              style={{
+                display: 'inline-block',
+                background: 'transparent', color: 'white', border: '1px solid #444',
+                padding: '12px 24px', fontSize: '12px', letterSpacing: '2px',
+                textTransform: 'uppercase', textDecoration: 'none',
+                minHeight: '44px', lineHeight: '20px',
+              }}
+            >
+              Share on Instagram
+            </a>
+          </div>
 
           {/* Stats row */}
           <div style={{ display: 'flex', gap: '48px', flexWrap: 'wrap', marginBottom: '40px', borderTop: '1px solid #111', paddingTop: '32px' }}>
@@ -417,12 +450,12 @@ export default function ServerProfilePage() {
           ))}
         </section>
 
-        {/* ── Share ── */}
+        {/* ── Share — copy link ── */}
         <section style={{ borderTop: '1px solid #111', paddingTop: '48px' }}>
           <p style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', textTransform: 'uppercase', marginBottom: '20px' }}>
             Share this profile
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1a1a1a', paddingBottom: '16px', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1a1a1a', paddingBottom: '16px' }}>
             <span style={{ color: '#333', fontSize: '13px', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '16px' }}>
               {typeof window !== 'undefined' ? window.location.href : `slatenow.xyz/server/${profileId}`}
             </span>
@@ -432,40 +465,6 @@ export default function ServerProfilePage() {
             >
               {copied ? 'Copied' : 'Copy'}
             </button>
-          </div>
-          <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-            <a
-              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out ${server?.name || 'this server'} on Slate 🍸`)}&url=${encodeURIComponent(`https://slatenow.xyz/server/${profileId}`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-block',
-                background: 'black', color: 'white', border: '1px solid #444',
-                padding: '12px 24px', fontSize: '12px', letterSpacing: '2px',
-                textTransform: 'uppercase', textDecoration: 'none',
-                minHeight: '44px', lineHeight: '20px',
-              }}
-            >
-              Share on X
-            </a>
-            <a
-              href="https://www.instagram.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={async (e) => {
-                e.preventDefault()
-                await shareOnInstagram()
-              }}
-              style={{
-                display: 'inline-block',
-                background: 'transparent', color: 'white', border: '1px solid #444',
-                padding: '12px 24px', fontSize: '12px', letterSpacing: '2px',
-                textTransform: 'uppercase', textDecoration: 'none',
-                minHeight: '44px', lineHeight: '20px',
-              }}
-            >
-              Share on Instagram
-            </a>
           </div>
         </section>
 
