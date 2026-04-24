@@ -273,37 +273,42 @@ export default function ServerProfilePage() {
             {server.role}
           </p>
 
-          {/* ── Share links — debug: red background ── */}
-          <div style={{ background: 'red', padding: '20px', zIndex: 9999, marginBottom: '32px' }}>
+          {/* ── Share links ── */}
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '32px' }}>
             <a
-              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out ${server?.name || 'this server'} on Slate 🍸`)}&url=${encodeURIComponent(`https://slatenow.xyz/server/${profileId}`)}`}
+              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`I'm on Slate — the first on-chain reputation platform for NYC servers and bartenders 🍸 slatenow.xyz/server/${profileId}`)}`}
               target="_blank"
               rel="noopener noreferrer"
               style={{
-                display: 'inline-block', marginRight: '12px',
-                background: 'black', color: 'white', border: '1px solid #444',
-                padding: '12px 24px', fontSize: '12px', letterSpacing: '2px',
+                display: 'inline-block',
+                background: 'transparent', color: 'white', border: '1px solid #333',
+                padding: '12px 24px', fontSize: '11px', letterSpacing: '2px',
                 textTransform: 'uppercase', textDecoration: 'none',
                 minHeight: '44px', lineHeight: '20px',
               }}
             >
               Share on X
             </a>
-            <a
-              href="https://www.instagram.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={async (e) => { e.preventDefault(); await shareOnInstagram() }}
+            <button
+              onClick={async () => {
+                const url = `https://slatenow.xyz/server/${profileId}`
+                const text = `Follow me on Slate 🍸`
+                if (navigator.share) {
+                  await navigator.share({ title: 'My Slate Profile', text, url })
+                } else {
+                  await navigator.clipboard.writeText(url)
+                  alert('Link copied! Paste it in your Instagram story.')
+                }
+              }}
               style={{
-                display: 'inline-block',
-                background: 'transparent', color: 'white', border: '1px solid #444',
-                padding: '12px 24px', fontSize: '12px', letterSpacing: '2px',
-                textTransform: 'uppercase', textDecoration: 'none',
-                minHeight: '44px', lineHeight: '20px',
+                background: 'transparent', color: 'white', border: '1px solid #333',
+                padding: '12px 24px', fontSize: '11px', letterSpacing: '2px',
+                textTransform: 'uppercase', cursor: 'pointer',
+                minHeight: '44px', touchAction: 'manipulation',
               }}
             >
               Share on Instagram
-            </a>
+            </button>
           </div>
 
           {/* Stats row */}

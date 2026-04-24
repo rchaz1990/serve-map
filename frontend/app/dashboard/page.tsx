@@ -1373,24 +1373,34 @@ export default function DashboardPage() {
           {/* Social share buttons */}
           <div className="flex gap-3">
             <a
-              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent('Check out my Slate profile 🍸')}&url=${encodeURIComponent(`https://slatenow.xyz/server/${serverProfile?.id ?? ''}`)}`}
+              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`I'm on Slate — the first on-chain reputation platform for NYC servers and bartenders 🍸 slatenow.xyz/server/${serverProfile?.id ?? ''}`)}`}
               target="_blank"
               rel="noopener noreferrer"
               style={{
                 display: 'inline-flex', flex: 1, alignItems: 'center', justifyContent: 'center',
                 color: 'white', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px',
-                padding: '10px', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase',
+                padding: '10px', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase',
                 textDecoration: 'none', minHeight: '44px', background: 'transparent',
               }}
             >
               Share on X
             </a>
             <button
-              onClick={shareProfileOnInstagram}
+              onClick={async () => {
+                const url = `https://slatenow.xyz/server/${serverProfile?.id ?? ''}`
+                const text = `Follow me on Slate 🍸`
+                if (navigator.share) {
+                  try { await navigator.share({ title: 'My Slate Profile', text, url }) }
+                  catch (err) { console.error('Share failed:', err) }
+                } else {
+                  await navigator.clipboard.writeText(url)
+                  alert('Link copied! Paste it in your Instagram story.')
+                }
+              }}
               style={{
                 display: 'inline-flex', flex: 1, alignItems: 'center', justifyContent: 'center',
                 color: 'white', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px',
-                padding: '10px', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase',
+                padding: '10px', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase',
                 cursor: 'pointer', minHeight: '44px', background: 'transparent',
                 touchAction: 'manipulation',
               }}
