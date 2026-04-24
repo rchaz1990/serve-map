@@ -433,33 +433,39 @@ export default function ServerProfilePage() {
               {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
-          <div style={{ display: 'flex', gap: '12px', marginTop: '24px', position: 'relative', zIndex: 10 }}>
-            <button
-              onClick={shareOnX}
+          <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+            <a
+              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out ${server?.name || 'this server'} on Slate 🍸`)}&url=${encodeURIComponent(`https://slatenow.xyz/server/${profileId}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
+                display: 'inline-block',
                 background: 'black', color: 'white', border: '1px solid #444',
                 padding: '12px 24px', fontSize: '12px', letterSpacing: '2px',
-                textTransform: 'uppercase', cursor: 'pointer',
-                WebkitAppearance: 'none', borderRadius: '0',
-                touchAction: 'manipulation', minHeight: '44px',
-                position: 'relative', zIndex: 10,
+                textTransform: 'uppercase', textDecoration: 'none',
+                minHeight: '44px', lineHeight: '20px',
               }}
             >
               Share on X
-            </button>
-            <button
-              onClick={shareOnInstagram}
+            </a>
+            <a
+              href="https://www.instagram.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={async (e) => {
+                e.preventDefault()
+                await shareOnInstagram()
+              }}
               style={{
+                display: 'inline-block',
                 background: 'transparent', color: 'white', border: '1px solid #444',
                 padding: '12px 24px', fontSize: '12px', letterSpacing: '2px',
-                textTransform: 'uppercase', cursor: 'pointer',
-                WebkitAppearance: 'none', borderRadius: '0',
-                touchAction: 'manipulation', minHeight: '44px',
-                position: 'relative', zIndex: 10,
+                textTransform: 'uppercase', textDecoration: 'none',
+                minHeight: '44px', lineHeight: '20px',
               }}
             >
               Share on Instagram
-            </button>
+            </a>
           </div>
         </section>
 
