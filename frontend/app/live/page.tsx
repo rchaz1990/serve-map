@@ -24,23 +24,26 @@ interface VenueDisplay {
   name: string
   latestReport: VibeReport | null
   reportCount: number
-  defaultVibe: Vibe | null
 }
 
-// ── Default NYC venues ────────────────────────────────────────────────────────
+// ── Default NYC venues (Tier 3) ───────────────────────────────────────────────
 
-const DEFAULT_VENUES: { name: string; vibe: Vibe }[] = [
-  { name: 'Employees Only',    vibe: 'PACKED' },
-  { name: 'Death & Co',        vibe: 'LIVE'   },
-  { name: 'Attaboy',           vibe: 'PACKED' },
-  { name: 'Dante',             vibe: 'LIVE'   },
-  { name: 'The Dead Rabbit',   vibe: 'LIVE'   },
-  { name: "Please Don't Tell", vibe: 'PACKED' },
-  { name: 'Maison Premiere',   vibe: 'CHILL'  },
-  { name: 'Amor y Amargo',     vibe: 'CHILL'  },
-  { name: 'Carbone',           vibe: 'LIVE'   },
-  { name: 'Don Angie',         vibe: 'PACKED' },
-  { name: 'Via Carota',        vibe: 'LIVE'   },
+const DEFAULT_VENUES: { name: string; emoji: string }[] = [
+  { name: 'Employees Only',    emoji: '🍸' },
+  { name: 'Death & Co',        emoji: '🥃' },
+  { name: 'Attaboy',           emoji: '🍹' },
+  { name: 'Dante',             emoji: '🍷' },
+  { name: 'The Dead Rabbit',   emoji: '🐰' },
+  { name: "Please Don't Tell", emoji: '🤫' },
+  { name: 'Maison Premiere',   emoji: '🦪' },
+  { name: 'Amor y Amargo',     emoji: '🌹' },
+  { name: 'Carbone',           emoji: '🍝' },
+  { name: 'Don Angie',         emoji: '🧆' },
+  { name: 'Via Carota',        emoji: '🥗' },
+  { name: 'Lilia',             emoji: '🍝' },
+  { name: 'Lucali',            emoji: '🍕' },
+  { name: 'Le Bernardin',      emoji: '🐟' },
+  { name: 'Balthazar',         emoji: '🥐' },
 ]
 
 // ── Haversine distance ────────────────────────────────────────────────────────
@@ -63,6 +66,8 @@ const VIBE_META: Record<string, { emoji: string; tagline: string }> = {
   LIVE:   { emoji: '🔥', tagline: 'Buzzing energy. Great crowd.' },
   PACKED: { emoji: '🚀', tagline: 'Electric. Wall to wall.' },
 }
+
+const VIBE_EMOJI: Record<string, string> = { CHILL: '🧊', LIVE: '🔥', PACKED: '🚀' }
 
 // ── CSS animations ────────────────────────────────────────────────────────────
 
@@ -117,8 +122,6 @@ function Pill({ label, selected, onClick }: { label: string; selected: boolean; 
   )
 }
 
-const VIBE_EMOJI: Record<string, string> = { CHILL: '🧊', LIVE: '🔥', PACKED: '🚀' }
-
 function VibePill({ vibe, selected, onClick }: { vibe: string; selected: boolean; onClick: () => void }) {
   return (
     <button
@@ -138,16 +141,50 @@ function VibePill({ vibe, selected, onClick }: { vibe: string; selected: boolean
   )
 }
 
-// ── Venue card ────────────────────────────────────────────────────────────────
+// ── Section heading ───────────────────────────────────────────────────────────
 
-function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
+function SectionHeading({ children, dot }: { children: React.ReactNode; dot?: boolean }) {
+  return (
+    <div className="mb-8 flex items-center gap-3">
+      {dot && (
+        <span className="relative flex h-2 w-2 shrink-0">
+          <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-40" style={{ animation: 'liveDot 1.4s ease-in-out infinite' }} />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+        </span>
+      )}
+      <h2
+        className="text-xs font-bold tracking-[0.25em] text-white"
+        style={{ textTransform: 'uppercase', fontVariant: 'small-caps' }}
+      >
+        {children}
+      </h2>
+    </div>
+  )
+}
+
+// ── Venue card (shared across all tiers) ──────────────────────────────────────
+
+function VenueCard({
+  venueName,
+  tier,
+  report,
+  reportCount,
+  defaultEmoji,
+  delay,
+}: {
+  venueName: string
+  tier: 1 | 2 | 3
+  report: VibeReport | null
+  reportCount: number
+  defaultEmoji?: string
+  delay: number
+}) {
   const ref = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
 
   const [checkInOpen, setCheckInOpen] = useState(false)
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [gpsVerifiedForSubmit, setGpsVerifiedForSubmit] = useState(false)
-  const [showForm, setShowForm] = useState(false)
   const [vibe, setVibe] = useState<string | null>(null)
   const [seats, setSeats] = useState<string | null>(null)
   const [wait, setWait] = useState<string | null>(null)
@@ -168,10 +205,7 @@ function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
     return () => obs.disconnect()
   }, [])
 
-  const report = venue.latestReport
-  const hasRealReport = report !== null
-  // Use real report vibe if available, otherwise fall back to the preset default
-  const vibeName: Vibe | undefined = (report?.vibe as Vibe | undefined) ?? venue.defaultVibe ?? undefined
+  const vibeName = report?.vibe as Vibe | undefined
   const animClass = vibeName === 'CHILL' ? 'anim-chill' : vibeName === 'LIVE' ? 'anim-live' : vibeName === 'PACKED' ? 'anim-packed' : ''
 
   const minutesAgo = report
@@ -179,17 +213,16 @@ function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
     : null
   const timeLabel = minutesAgo === null ? '' :
     minutesAgo < 1 ? 'just now' :
-    minutesAgo < 60 ? `${minutesAgo} min ago` :
+    minutesAgo < 60 ? `${minutesAgo}m ago` :
     `${Math.floor(minutesAgo / 60)}h ago`
 
   function handleImHere() {
     if (checkInOpen) {
-      setCheckInOpen(false); setUserCoords(null); setShowForm(false)
+      setCheckInOpen(false); setUserCoords(null)
       setVibe(null); setSeats(null); setWait(null)
       return
     }
     setCheckInOpen(true)
-    setShowForm(true)
     setGpsVerifiedForSubmit(false)
 
     if (!navigator.geolocation) return
@@ -198,10 +231,9 @@ function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
         const userLat = pos.coords.latitude
         const userLng = pos.coords.longitude
         setUserCoords({ lat: userLat, lng: userLng })
-
         try {
           const res = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venue.name + ' NYC')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
+            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venueName + ' NYC')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
           )
           const data = await res.json()
           const venueLat: number | null = data.results?.[0]?.geometry?.location?.lat ?? null
@@ -212,7 +244,7 @@ function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
           }
         } catch { /* silent */ }
       },
-      () => { /* denied — form already shown */ },
+      () => {},
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     )
   }
@@ -232,7 +264,7 @@ function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
       body: JSON.stringify({
         userId: session?.user?.id ?? null,
         reporterEmail,
-        restaurantName: venue.name,
+        restaurantName: venueName,
         vibe, barSeats: seats, waitTime: wait,
         userLat: coords?.lat ?? null,
         userLng: coords?.lng ?? null,
@@ -252,18 +284,37 @@ function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
     setSubmitted(true)
   }
 
+  // Card border style varies by tier
+  const borderStyle = tier === 1
+    ? '1px solid rgba(255,255,255,0.3)'
+    : tier === 2
+    ? '1px solid rgba(255,255,255,0.1)'
+    : '1px solid rgba(255,255,255,0.06)'
+
+  const bgStyle = tier === 1
+    ? 'rgba(255,255,255,0.04)'
+    : tier === 2
+    ? 'rgba(255,255,255,0.02)'
+    : 'transparent'
+
   return (
     <div ref={ref} className={visible ? 'slide-up' : ''} style={{ animationDelay: `${delay}ms` }}>
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] transition-all duration-300 hover:border-white/25 hover:bg-white/[0.05]">
+      <div
+        className="rounded-2xl transition-all duration-300"
+        style={{ border: borderStyle, backgroundColor: bgStyle }}
+      >
         <div className="p-6">
 
           {/* Top row */}
           <div className="mb-3 flex items-start justify-between gap-3">
-            <h3 className="text-base font-bold text-white">{venue.name}</h3>
-            <div className="flex shrink-0 items-center gap-2">
-              {hasRealReport && (
-                <span className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
-                  Verified
+            <h3 className="text-base font-bold text-white">{venueName}</h3>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              {tier === 1 && (
+                <span
+                  className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                  style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}
+                >
+                  GPS Verified
                 </span>
               )}
               {vibeName && (
@@ -277,23 +328,23 @@ function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
             </div>
           </div>
 
-          {/* Emoji + meta */}
-          {vibeName && (
+          {/* Real report display (tiers 1 & 2) */}
+          {report && vibeName ? (
             <>
               <p className="mb-2 text-3xl">{VIBE_META[vibeName]?.emoji}</p>
               <p className="mb-1 text-xs" style={{ color: '#606060' }}>{VIBE_META[vibeName]?.tagline}</p>
-              <div className="mb-4 flex items-center gap-3 text-xs" style={{ color: '#404040' }}>
-                {hasRealReport ? (
-                  <>
-                    <span>Reported {timeLabel}</span>
-                    {venue.reportCount > 1 && <span>· {venue.reportCount} reports</span>}
-                    {report!.bar_seats && <span>· Seats: {report!.bar_seats}</span>}
-                    {report!.wait_time && <span>· Wait: {report!.wait_time}</span>}
-                  </>
-                ) : (
-                  <span>No live report yet — tap to be the first</span>
-                )}
+              <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: '#404040' }}>
+                <span>{timeLabel}</span>
+                {reportCount > 1 && <span>· {reportCount} reports</span>}
+                {report.bar_seats && <span>· Seats: {report.bar_seats}</span>}
+                {report.wait_time && <span>· Wait: {report.wait_time}</span>}
               </div>
+            </>
+          ) : (
+            /* Tier 3: no real report */
+            <>
+              <p className="mb-2 text-3xl">{defaultEmoji ?? '🍽️'}</p>
+              <p className="mb-4 text-xs" style={{ color: '#404040' }}>No reports yet tonight</p>
             </>
           )}
 
@@ -301,9 +352,14 @@ function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
           {!submitted && (
             <button
               onClick={handleImHere}
-              className="w-full rounded-full border border-white/20 py-2.5 text-xs font-semibold text-white transition-colors hover:border-white"
+              className="w-full rounded-full border py-2.5 text-xs font-semibold transition-colors"
+              style={
+                tier === 3 && !checkInOpen
+                  ? { backgroundColor: 'white', color: 'black', border: '1px solid white' }
+                  : { backgroundColor: 'transparent', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }
+              }
             >
-              {checkInOpen ? 'Cancel' : "I'm here right now 📍"}
+              {checkInOpen ? 'Cancel' : "I'm here 📍"}
             </button>
           )}
         </div>
@@ -312,55 +368,54 @@ function VenueCard({ venue, delay }: { venue: VenueDisplay; delay: number }) {
         {checkInOpen && !submitted && (
           <div className="border-t border-white/10 px-6 pb-6 pt-5">
             <p className="mb-5 text-sm font-semibold text-white">
-              You&apos;re at {venue.name}
+              You&apos;re at {venueName}
               {gpsVerifiedForSubmit && (
-                <span className="ml-2 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
+                <span
+                  className="ml-2 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                  style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}
+                >
                   GPS ✓
                 </span>
               )}
             </p>
 
-            {showForm && (
-              <>
-                <div className="mb-4">
-                  <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>What&apos;s the vibe?</p>
-                  <div className="flex flex-wrap gap-2">
-                    {['CHILL', 'LIVE', 'PACKED'].map(v => (
-                      <VibePill key={v} vibe={v} selected={vibe === v} onClick={() => setVibe(v)} />
-                    ))}
-                  </div>
-                </div>
+            <div className="mb-4">
+              <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>What&apos;s the vibe?</p>
+              <div className="flex flex-wrap gap-2">
+                {['CHILL', 'LIVE', 'PACKED'].map(v => (
+                  <VibePill key={v} vibe={v} selected={vibe === v} onClick={() => setVibe(v)} />
+                ))}
+              </div>
+            </div>
 
-                <div className="mb-4">
-                  <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Bar seats?</p>
-                  <div className="flex flex-wrap gap-2">
-                    {['Plenty', 'A few', 'None'].map(s => (
-                      <Pill key={s} label={s} selected={seats === s} onClick={() => setSeats(s)} />
-                    ))}
-                  </div>
-                </div>
+            <div className="mb-4">
+              <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Bar seats?</p>
+              <div className="flex flex-wrap gap-2">
+                {['Plenty', 'A few', 'None'].map(s => (
+                  <Pill key={s} label={s} selected={seats === s} onClick={() => setSeats(s)} />
+                ))}
+              </div>
+            </div>
 
-                <div className="mb-5">
-                  <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Wait time?</p>
-                  <div className="flex flex-wrap gap-2">
-                    {['No wait', '~15 min', '30+ min'].map(w => (
-                      <Pill key={w} label={w} selected={wait === w} onClick={() => setWait(w)} />
-                    ))}
-                  </div>
-                </div>
+            <div className="mb-5">
+              <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>Wait time?</p>
+              <div className="flex flex-wrap gap-2">
+                {['No wait', '~15 min', '30+ min'].map(w => (
+                  <Pill key={w} label={w} selected={wait === w} onClick={() => setWait(w)} />
+                ))}
+              </div>
+            </div>
 
-                {submitError && (
-                  <p className="mb-3 text-xs" style={{ color: '#f87171' }}>{submitError}</p>
-                )}
-                <button
-                  disabled={!vibe || submitting}
-                  onClick={handleSubmit}
-                  className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
-                >
-                  {submitting ? 'Submitting…' : gpsVerifiedForSubmit ? 'Share the vibe — earn 5 $SERVE 🍸' : 'Share the vibe — earn 1 $SERVE 🍸'}
-                </button>
-              </>
+            {submitError && (
+              <p className="mb-3 text-xs" style={{ color: '#f87171' }}>{submitError}</p>
             )}
+            <button
+              disabled={!vibe || submitting}
+              onClick={handleSubmit}
+              className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
+            >
+              {submitting ? 'Submitting…' : gpsVerifiedForSubmit ? 'Share the vibe — earn 5 $SERVE 🍸' : 'Share the vibe — earn 1 $SERVE 🍸'}
+            </button>
           </div>
         )}
 
@@ -589,58 +644,73 @@ function VenueSearch() {
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function LivePage() {
-  const [faqOpen, setFaqOpen] = useState(false)
-  const [venues, setVenues] = useState<VenueDisplay[]>([])
-  const [weeklyReportCount, setWeeklyReportCount] = useState(0)
-  const [weeklyVenueCount, setWeeklyVenueCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [tier1, setTier1] = useState<VenueDisplay[]>([])
+  const [tier2, setTier2] = useState<VenueDisplay[]>([])
+  const [tier3, setTier3] = useState<{ name: string; emoji: string }[]>([])
+  const [weeklyCount, setWeeklyCount] = useState(0)
 
   useEffect(() => {
     async function loadData() {
-      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const weekAgo  = new Date(Date.now() - 7  * 24 * 60 * 60 * 1000).toISOString()
 
-      const [recentRes, weeklyRes] = await Promise.all([
+      const [verifiedRes, unverifiedRes, weeklyRes] = await Promise.all([
         supabase
           .from('vibe_reports')
           .select('*')
           .eq('gps_verified', true)
-          .gte('created_at', fourHoursAgo)
+          .gte('created_at', since24h)
           .order('created_at', { ascending: false }),
         supabase
           .from('vibe_reports')
-          .select('id, restaurant_name')
+          .select('*')
+          .eq('gps_verified', false)
+          .gte('created_at', since24h)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('vibe_reports')
+          .select('id')
           .eq('gps_verified', true)
           .gte('created_at', weekAgo),
       ])
 
-      const recentReports: VibeReport[] = recentRes.data ?? []
-      const weekly = weeklyRes.data ?? []
-      setWeeklyReportCount(weekly.length)
-      setWeeklyVenueCount(new Set(weekly.map(r => r.restaurant_name)).size)
+      setWeeklyCount(weeklyRes.data?.length ?? 0)
 
-      // Build per-venue map from real reports
-      const reportsByVenue = new Map<string, VibeReport[]>()
-      for (const r of recentReports) {
-        if (!reportsByVenue.has(r.restaurant_name)) reportsByVenue.set(r.restaurant_name, [])
-        reportsByVenue.get(r.restaurant_name)!.push(r)
+      // Group verified reports by venue (most recent first per venue)
+      const verifiedMap = new Map<string, VibeReport[]>()
+      for (const r of (verifiedRes.data ?? []) as VibeReport[]) {
+        if (!verifiedMap.has(r.restaurant_name)) verifiedMap.set(r.restaurant_name, [])
+        verifiedMap.get(r.restaurant_name)!.push(r)
       }
 
-      // Venues with real reports — show first, ordered by most recent
-      const reportedNames = new Set(reportsByVenue.keys())
-      const withReports: VenueDisplay[] = Array.from(reportsByVenue.entries()).map(([name, reps]) => ({
+      // Group unverified reports, excluding venues already in verified
+      const unverifiedMap = new Map<string, VibeReport[]>()
+      for (const r of (unverifiedRes.data ?? []) as VibeReport[]) {
+        if (verifiedMap.has(r.restaurant_name)) continue // already in tier 1
+        if (!unverifiedMap.has(r.restaurant_name)) unverifiedMap.set(r.restaurant_name, [])
+        unverifiedMap.get(r.restaurant_name)!.push(r)
+      }
+
+      const reportedNames = new Set([...verifiedMap.keys(), ...unverifiedMap.keys()])
+
+      const t1: VenueDisplay[] = Array.from(verifiedMap.entries()).map(([name, reps]) => ({
         name,
         latestReport: reps[0],
         reportCount: reps.length,
-        defaultVibe: null,
       }))
 
-      // Default venues that have no real report — fill the rest with preset vibes
-      const withoutReports: VenueDisplay[] = DEFAULT_VENUES
-        .filter(v => !reportedNames.has(v.name))
-        .map(v => ({ name: v.name, latestReport: null, reportCount: 0, defaultVibe: v.vibe }))
+      const t2: VenueDisplay[] = Array.from(unverifiedMap.entries()).map(([name, reps]) => ({
+        name,
+        latestReport: reps[0],
+        reportCount: reps.length,
+      }))
 
-      setVenues([...withReports, ...withoutReports])
+      const t3 = DEFAULT_VENUES.filter(v => !reportedNames.has(v.name))
+
+      setTier1(t1)
+      setTier2(t2)
+      setTier3(t3)
       setLoading(false)
     }
 
@@ -657,7 +727,7 @@ export default function LivePage() {
 
       <main>
 
-        {/* ── Header ───────────────────────────────────────────────────── */}
+        {/* ── Page header ────────────────────────────────────────────────── */}
         <section className="relative px-8 pt-16 pb-12 lg:px-16 lg:pt-20">
           <div className="absolute right-8 top-6 flex items-center gap-2 lg:right-16">
             <span className="relative flex h-2 w-2">
@@ -673,11 +743,11 @@ export default function LivePage() {
               What&apos;s the vibe?
             </h1>
             <p className="mb-4 max-w-xl text-base leading-relaxed sm:text-lg" style={{ color: '#A0A0A0' }}>
-              Real time energy from NYC venues — reported by people who are there right now.
+              Real-time energy from NYC venues — reported by people who are there right now.
             </p>
-            {!loading && weeklyReportCount > 0 && (
+            {!loading && weeklyCount > 0 && (
               <p className="text-xs font-semibold" style={{ color: '#606060' }}>
-                {weeklyReportCount} verified {weeklyReportCount === 1 ? 'report' : 'reports'} across {weeklyVenueCount} {weeklyVenueCount === 1 ? 'venue' : 'venues'} this week
+                {weeklyCount} GPS-verified {weeklyCount === 1 ? 'report' : 'reports'} this week
               </p>
             )}
           </div>
@@ -685,70 +755,73 @@ export default function LivePage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── Vibe legend ──────────────────────────────────────────────── */}
-        <section className="px-8 py-12 lg:px-16 lg:py-16">
-          <div className="mx-auto max-w-5xl">
-            <div className="mb-8">
-              <h2 className="mb-2 text-xl font-bold tracking-tight text-white sm:text-2xl">Share the vibe. Earn $SERVE.</h2>
-              <p className="text-sm" style={{ color: '#606060' }}>
-                Search above or tap &ldquo;I&apos;m here right now&rdquo; on any venue below.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 sm:gap-4">
-              {(['CHILL', 'LIVE', 'PACKED'] as Vibe[]).map(v => (
-                <div key={v} className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center">
-                  <p className="mb-1 text-2xl">{VIBE_META[v].emoji}</p>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-white">{v}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4">
-              <button
-                onClick={() => setFaqOpen(o => !o)}
-                className="flex items-center gap-2 text-xs transition-colors hover:text-white"
-                style={{ color: '#606060' }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className={`h-3.5 w-3.5 transition-transform ${faqOpen ? 'rotate-90' : ''}`}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                </svg>
-                How do I earn $SERVE?
-              </button>
-              {faqOpen && (
-                <div className="mt-3 max-w-lg rounded-xl border border-white/10 px-5 py-4 text-xs leading-6" style={{ backgroundColor: 'rgba(255,255,255,0.03)', color: '#A0A0A0' }}>
-                  Submit a vibe report while you&apos;re physically at a venue and earn $SERVE tokens. GPS-verified reports earn 5 $SERVE. Reports are verified via GPS — your location is checked once and never stored. Cash out $SERVE to your bank account through Slate Pay.
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <div className="border-t border-white/10" />
-
-        {/* ── Venue feed ────────────────────────────────────────────────── */}
+        {/* ── Feed ────────────────────────────────────────────────────────── */}
         <section className="px-8 py-16 lg:px-16 lg:py-20">
           <div className="mx-auto max-w-5xl">
-            <div className="mb-10 flex items-center gap-3">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-40" style={{ animation: 'liveDot 1.4s ease-in-out infinite' }} />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
-              </span>
-              <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">NYC right now</h2>
-              {!loading && (
-                <span className="text-xs" style={{ color: '#404040' }}>
-                  · {venues.length} venues
-                </span>
-              )}
-            </div>
 
             {loading ? (
               <p className="text-sm" style={{ color: '#404040' }}>Loading…</p>
             ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {venues.map((venue, i) => (
-                  <VenueCard key={venue.name} venue={venue} delay={i * 40} />
-                ))}
+              <div className="space-y-16">
+
+                {/* Tier 1 — GPS Verified */}
+                {tier1.length > 0 && (
+                  <div>
+                    <SectionHeading dot>Live Tonight</SectionHeading>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {tier1.map((v, i) => (
+                        <VenueCard
+                          key={v.name}
+                          venueName={v.name}
+                          tier={1}
+                          report={v.latestReport}
+                          reportCount={v.reportCount}
+                          delay={i * 40}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tier 2 — Unverified */}
+                {tier2.length > 0 && (
+                  <div>
+                    <SectionHeading>Recently Reported</SectionHeading>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {tier2.map((v, i) => (
+                        <VenueCard
+                          key={v.name}
+                          venueName={v.name}
+                          tier={2}
+                          report={v.latestReport}
+                          reportCount={v.reportCount}
+                          delay={i * 40}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tier 3 — Default venues */}
+                {tier3.length > 0 && (
+                  <div>
+                    <SectionHeading>Discover NYC</SectionHeading>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {tier3.map((v, i) => (
+                        <VenueCard
+                          key={v.name}
+                          venueName={v.name}
+                          tier={3}
+                          report={null}
+                          reportCount={0}
+                          defaultEmoji={v.emoji}
+                          delay={i * 30}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
           </div>
