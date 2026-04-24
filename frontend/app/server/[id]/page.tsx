@@ -153,7 +153,8 @@ export default function ServerProfilePage() {
   }
 
   function shareOnX() {
-    const text = `Check out ${server.name} on Slate — NYC's first on-chain server reputation platform 🍸`
+    const serverName = server?.name || 'this server'
+    const text = `Check out ${serverName} on Slate — NYC's first on-chain server reputation platform 🍸`
     const url = `https://slatenow.xyz/server/${profileId}`
     window.open(
       `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
@@ -162,9 +163,13 @@ export default function ServerProfilePage() {
   }
 
   async function shareProfile() {
-    const url = `https://slatenow.xyz/server/${profileId}`
-    await navigator.clipboard.writeText(url)
-    alert('Profile link copied! Paste it in your Instagram story or bio.')
+    try {
+      const url = `https://slatenow.xyz/server/${profileId}`
+      await navigator.clipboard.writeText(url)
+      alert('Profile link copied! Paste it in your Instagram story.')
+    } catch (err) {
+      console.error('Copy failed:', err)
+    }
   }
 
   // ── Loading ───────────────────────────────────────────────────────────────
