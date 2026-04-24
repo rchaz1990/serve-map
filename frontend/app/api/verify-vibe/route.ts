@@ -32,6 +32,14 @@ export async function POST(request: Request) {
     distanceMeters,
   } = body
 
+  // ── CHECK 0 — Require authenticated reporter (Fix 4) ─────────────────────
+  if (!reporterEmail || reporterEmail === 'undefined' || reporterEmail === 'anonymous') {
+    return NextResponse.json(
+      { success: false, error: 'Please sign in to report vibes and earn $SERVE rewards.' },
+      { status: 401 }
+    )
+  }
+
   // ── CHECK 1 — Account age (server-authoritative via admin API) ──────────────
   let isNewAccount = true
   if (userId) {
@@ -104,7 +112,7 @@ export async function POST(request: Request) {
     (!isSuspicious ? 10 : 0)
 
   // ── CHECK 6 — $SERVE reward ────────────────────────────────────────────────
-  const serveReward = gpsVerified ? 5 : 2
+  const serveReward = gpsVerified ? 5 : 1
 
   // ── CHECK 7 — Persist ─────────────────────────────────────────────────────
   console.log('Attempting to insert vibe report...')

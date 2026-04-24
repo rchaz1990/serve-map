@@ -111,9 +111,10 @@ function RateForm() {
           server_id: serverId,
           score: rating,
           comment: comment || null,
-          guest_email: session?.user?.email ?? null,
+          tags: selectedTags.length > 0 ? selectedTags : null,
+          guest_email: session?.user?.email || 'anonymous',
           gps_verified: false,
-          verification_method: 'qr',
+          verification_method: 'qr_scan',
         })
 
       if (ratingError) {

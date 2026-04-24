@@ -62,6 +62,9 @@ export default function ScanPage() {
       return
     }
 
+    // Fix 7: prevent self-follow
+    if (session.user.id === serverId) return
+
     const { error: followError } = await supabase.from('follows').insert({
       follower_id: session.user.id,
       follower_email: session.user.email,
@@ -70,11 +73,8 @@ export default function ScanPage() {
     })
 
     if (!followError) {
-      await supabase
-        .from('servers')
-        .update({ follower_count: followerCount + 1 })
-        .eq('id', serverId)
-
+      // Fix 5: atomic increment instead of client-side value
+      await supabase.rpc('increment_follower_count', { server_uuid: serverId })
       setFollowerCount(prev => prev + 1)
       setIsFollowing(true)
     }

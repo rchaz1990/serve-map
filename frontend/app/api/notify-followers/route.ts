@@ -24,6 +24,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, notified: 0 })
   }
 
+  // Fix 8: cooldown — skip if shift_started notification sent in last 30 min
+  if (type === 'shift_started') {
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+    const { data: recentNotif } = await supabaseAdmin
+      .from('notifications')
+      .select('id')
+      .eq('server_id', serverId)
+      .eq('type', 'shift_started')
+      .gte('created_at', thirtyMinsAgo)
+      .maybeSingle()
+    if (recentNotif) {
+      return NextResponse.json({ success: true, notified: 0, message: 'Notifications already sent recently' })
+    }
+  }
+
   const firstName = serverName.split(' ')[0]
 
   let subject = ''
@@ -76,22 +91,23 @@ export async function POST(request: Request) {
     if (error) console.error('[notify-followers] DB insert error:', error)
   }
 
-  // Send emails to all followers
-  let notified = 0
-  for (const follower of followers) {
-    if (!follower.follower_email) continue
-    try {
-      await resend.emails.send({
-        from: 'Slate <team@slatenow.xyz>',
-        to: follower.follower_email,
-        subject,
-        html,
-      })
-      notified++
-    } catch (err) {
-      console.error('[notify-followers] Email failed for:', follower.follower_email, err)
-    }
-  }
+  // Fix 6: parallel email sending to avoid serverless timeout
+  const emailResults = await Promise.all(
+    followers
+      .filter(f => f.follower_email)
+      .map(follower =>
+        resend.emails.send({
+          from: 'Slate <team@slatenow.xyz>',
+          to: follower.follower_email!,
+          subject,
+          html,
+        }).catch(err => {
+          console.error('[notify-followers] Email failed for:', follower.follower_email, err)
+          return null
+        })
+      )
+  )
+  const notified = emailResults.filter(Boolean).length
 
   return NextResponse.json({ success: true, notified })
 }

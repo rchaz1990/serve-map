@@ -698,31 +698,6 @@ export default function DashboardPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  function shareProfileOnX() {
-    const serverId = serverProfile?.id ?? ''
-    const text = `Check out my profile on Slate — NYC's first on-chain server reputation platform 🍸`
-    const url = `https://slatenow.xyz/server/${serverId}`
-    window.open(
-      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
-      '_blank'
-    )
-  }
-
-  async function shareProfileOnInstagram() {
-    const serverId = serverProfile?.id ?? ''
-    const url = `https://slatenow.xyz/server/${serverId}`
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'My Slate Profile', text: 'Check out my profile on Slate 🍸', url })
-      } catch (err) {
-        console.error('Share failed:', err)
-      }
-    } else {
-      await navigator.clipboard.writeText(url)
-      alert('Profile link copied! Paste it in your Instagram story.')
-    }
-  }
-
   const handleStartShift = (restaurantName: string) => {
     // Activate immediately — GPS captured silently in the background
     activate()
@@ -745,6 +720,7 @@ export default function DashboardPage() {
 
     const insertShift = async (gpsVerified: boolean, distance: number | null, userLat: number | null, userLng: number | null) => {
       const { data, error } = await supabase.from('shifts').insert({
+        server_id: serverProfile?.id ?? null,
         restaurant_name: restaurantName,
         started_at: new Date().toISOString(),
         is_active: true,
