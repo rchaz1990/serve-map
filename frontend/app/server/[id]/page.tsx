@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
@@ -50,6 +50,7 @@ export default function ServerProfilePage() {
   const [followerEmail, setFollowerEmail] = useState<string | null>(null)
   const [followerCount, setFollowerCount] = useState(0)
   const [copied, setCopied] = useState(false)
+  const profileCardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const loadAll = async () => {
@@ -162,21 +163,34 @@ export default function ServerProfilePage() {
     )
   }
 
-  async function shareOnInstagram() {
+  async function shareToInstagram() {
     try {
+      const html2canvas = (await import('html2canvas')).default
+      if (!profileCardRef.current) return
+
+      const canvas = await html2canvas(profileCardRef.current, {
+        backgroundColor: '#000000',
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+      })
+
+      const link = document.createElement('a')
+      link.download = `${server?.name || 'slate'}-profile.png`
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+
+      alert('Profile card downloaded! Share it to your Instagram story 🍸')
+    } catch (err) {
+      console.error('Screenshot error:', err)
+      // Fallback to Web Share API
       const url = `https://slatenow.xyz/server/${profileId}`
       if (navigator.share) {
-        await navigator.share({
-          title: `${server?.name || 'Server'} on Slate`,
-          text: `Check out ${server?.name || 'this server'} on Slate 🍸`,
-          url,
-        })
+        await navigator.share({ title: 'My Slate Profile', text: `Follow me on Slate 🍸`, url })
       } else {
         await navigator.clipboard.writeText(url)
-        alert('Profile link copied! Paste it in your Instagram story or bio.')
+        alert('Link copied! Paste it in your Instagram story.')
       }
-    } catch (err) {
-      console.error('Share failed:', err)
     }
   }
 
@@ -220,7 +234,7 @@ export default function ServerProfilePage() {
       <main style={{ maxWidth: '680px', margin: '0 auto', padding: '80px 32px 120px' }}>
 
         {/* ── Header ── */}
-        <section style={{ marginBottom: '64px' }}>
+        <section ref={profileCardRef} style={{ marginBottom: '64px' }}>
 
           {/* Profile photo */}
           <div style={{ marginBottom: '24px' }}>
@@ -290,16 +304,7 @@ export default function ServerProfilePage() {
               Share on X
             </a>
             <button
-              onClick={async () => {
-                const url = `https://slatenow.xyz/server/${profileId}`
-                const text = `Follow me on Slate 🍸`
-                if (navigator.share) {
-                  await navigator.share({ title: 'My Slate Profile', text, url })
-                } else {
-                  await navigator.clipboard.writeText(url)
-                  alert('Link copied! Paste it in your Instagram story.')
-                }
-              }}
+              onClick={shareToInstagram}
               style={{
                 background: 'transparent', color: 'white', border: '1px solid #333',
                 padding: '12px 24px', fontSize: '11px', letterSpacing: '2px',
@@ -307,7 +312,7 @@ export default function ServerProfilePage() {
                 minHeight: '44px', touchAction: 'manipulation',
               }}
             >
-              Share on Instagram
+              Save for Instagram
             </button>
           </div>
 
