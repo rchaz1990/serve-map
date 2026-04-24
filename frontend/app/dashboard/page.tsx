@@ -698,6 +698,31 @@ export default function DashboardPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  function shareProfileOnX() {
+    const serverId = serverProfile?.id ?? ''
+    const text = `Check out my profile on Slate — NYC's first on-chain server reputation platform 🍸`
+    const url = `https://slatenow.xyz/server/${serverId}`
+    window.open(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+      '_blank'
+    )
+  }
+
+  async function shareProfileOnInstagram() {
+    const serverId = serverProfile?.id ?? ''
+    const url = `https://slatenow.xyz/server/${serverId}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'My Slate Profile', text: 'Check out my profile on Slate 🍸', url })
+      } catch (err) {
+        console.error('Share failed:', err)
+      }
+    } else {
+      await navigator.clipboard.writeText(url)
+      alert('Profile link copied! Paste it in your Instagram story.')
+    }
+  }
+
   const handleStartShift = (restaurantName: string) => {
     // Activate immediately — GPS captured silently in the background
     activate()
@@ -1347,21 +1372,30 @@ export default function DashboardPage() {
 
           {/* Social share buttons */}
           <div className="flex gap-3">
-            <button className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 py-2.5 text-xs font-medium text-white transition-colors hover:border-white">
-              {/* Instagram gradient icon simplified to white for B&W design */}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-4 w-4">
-                <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                <circle cx="12" cy="12" r="4" />
-                <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" />
-              </svg>
-              Instagram
-            </button>
-            <button className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/15 py-2.5 text-xs font-medium text-white transition-colors hover:border-white">
-              {/* X / Twitter */}
-              <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.259 5.63 5.905-5.63zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-              </svg>
+            <a
+              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent('Check out my Slate profile 🍸')}&url=${encodeURIComponent(`https://slatenow.xyz/server/${serverProfile?.id ?? ''}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex', flex: 1, alignItems: 'center', justifyContent: 'center',
+                color: 'white', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px',
+                padding: '10px', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase',
+                textDecoration: 'none', minHeight: '44px', background: 'transparent',
+              }}
+            >
               Share on X
+            </a>
+            <button
+              onClick={shareProfileOnInstagram}
+              style={{
+                display: 'inline-flex', flex: 1, alignItems: 'center', justifyContent: 'center',
+                color: 'white', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px',
+                padding: '10px', fontSize: '12px', letterSpacing: '2px', textTransform: 'uppercase',
+                cursor: 'pointer', minHeight: '44px', background: 'transparent',
+                touchAction: 'manipulation',
+              }}
+            >
+              Instagram
             </button>
           </div>
         </div>
