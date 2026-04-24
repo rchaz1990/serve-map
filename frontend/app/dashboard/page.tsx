@@ -305,7 +305,7 @@ function WorkerCouncilSection() {
     if (data) setSuggestions(data as Suggestion[])
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!title.trim()) return
     setSubmitting(true)
@@ -582,25 +582,55 @@ export default function DashboardPage() {
 
   const handlePhotoUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !serverProfile?.id) return
+    if (!file) {
+      console.log('No file selected')
+      return
+    }
+
+    console.log('File selected:', file.name, file.size, file.type)
+
+    const { data: { session } } = await supabase.auth.getSession()
+    console.log('Session:', session?.user?.email)
+
+    if (!session) {
+      alert('Please sign in to upload a photo')
+      return
+    }
 
     const fileExt = file.name.split('.').pop()
-    const fileName = `${serverProfile.id}-${Date.now()}.${fileExt}`
+    const fileName = `${session.user.id}-${Date.now()}.${fileExt}`
+    console.log('Uploading as:', fileName)
 
-    const { error: uploadError } = await supabase.storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
       .from('avatars')
-      .upload(fileName, file, { upsert: true })
+      .upload(fileName, file, { upsert: true, contentType: file.type })
+
+    console.log('Upload result:', uploadData, uploadError)
 
     if (uploadError) {
-      console.error('Upload error:', uploadError)
+      alert(`Upload failed: ${uploadError.message}`)
       return
     }
 
     const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName)
 
-    await supabase.from('servers').update({ photo_url: publicUrl }).eq('id', serverProfile.id)
+    console.log('Public URL:', publicUrl)
 
-    setServerProfile(prev => prev ? { ...prev, photo_url: publicUrl } : prev)
+    const { data: updateData, error: updateError } = await supabase
+      .from('servers')
+      .update({ photo_url: publicUrl })
+      .eq('wallet_address', session.user.id)
+      .select()
+
+    console.log('Update result:', updateData, updateError)
+
+    if (updateError) {
+      alert(`Failed to save photo: ${updateError.message}`)
+      return
+    }
+
+    alert('Photo updated successfully!')
+    window.location.reload()
   }
 
   const [copied, setCopied] = useState(false)
