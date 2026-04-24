@@ -433,13 +433,16 @@ export default function ServerProfilePage() {
               {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '24px', position: 'relative', zIndex: 10 }}>
             <button
               onClick={shareOnX}
               style={{
-                background: 'black', color: 'white', border: '1px solid #333',
-                padding: '10px 20px', fontSize: '12px', letterSpacing: '2px',
+                background: 'black', color: 'white', border: '1px solid #444',
+                padding: '12px 24px', fontSize: '12px', letterSpacing: '2px',
                 textTransform: 'uppercase', cursor: 'pointer',
+                WebkitAppearance: 'none', borderRadius: '0',
+                touchAction: 'manipulation', minHeight: '44px',
+                position: 'relative', zIndex: 10,
               }}
             >
               Share on X
@@ -447,9 +450,12 @@ export default function ServerProfilePage() {
             <button
               onClick={shareOnInstagram}
               style={{
-                background: 'transparent', color: 'white', border: '1px solid #333',
-                padding: '10px 20px', fontSize: '12px', letterSpacing: '2px',
+                background: 'transparent', color: 'white', border: '1px solid #444',
+                padding: '12px 24px', fontSize: '12px', letterSpacing: '2px',
                 textTransform: 'uppercase', cursor: 'pointer',
+                WebkitAppearance: 'none', borderRadius: '0',
+                touchAction: 'manipulation', minHeight: '44px',
+                position: 'relative', zIndex: 10,
               }}
             >
               Share on Instagram
