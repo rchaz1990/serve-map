@@ -602,7 +602,7 @@ export default function DashboardPage() {
     console.log('Uploading as:', fileName)
 
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('avatars')
+      .from('Avatars')
       .upload(fileName, file, { upsert: true, contentType: file.type })
 
     console.log('Upload result:', uploadData, uploadError)
@@ -612,7 +612,7 @@ export default function DashboardPage() {
       return
     }
 
-    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName)
+    const { data: { publicUrl } } = supabase.storage.from('Avatars').getPublicUrl(fileName)
 
     console.log('Public URL:', publicUrl)
 

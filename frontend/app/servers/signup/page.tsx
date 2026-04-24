@@ -178,12 +178,12 @@ export default function ServerSignupPage() {
         const fileExt = photoFile.name.split('.').pop()
         const fileName = `${authData.user.id}-${Date.now()}.${fileExt}`
         const { error: uploadError } = await supabase.storage
-          .from('avatars')
+          .from('Avatars')
           .upload(fileName, photoFile, { cacheControl: '3600', upsert: true })
         if (uploadError) {
           console.error('Photo upload error:', uploadError)
         } else {
-          const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName)
+          const { data: { publicUrl } } = supabase.storage.from('Avatars').getPublicUrl(fileName)
           photoUrl = publicUrl
         }
       }
