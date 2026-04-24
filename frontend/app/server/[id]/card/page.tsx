@@ -52,12 +52,13 @@ export default function ServerCardPage() {
   const [avgRating, setAvgRating] = useState<number | null>(null)
   const [totalRatings, setTotalRatings] = useState(0)
   const [followerCount, setFollowerCount] = useState(0)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!serverId) return
     supabase
       .from('servers')
-      .select('name, role, average_rating, total_ratings, follower_count')
+      .select('name, role, average_rating, total_ratings, follower_count, photo_url')
       .eq('id', serverId)
       .maybeSingle()
       .then(({ data }) => {
@@ -67,6 +68,7 @@ export default function ServerCardPage() {
         setAvgRating(data.average_rating ?? null)
         setTotalRatings(data.total_ratings ?? 0)
         setFollowerCount(data.follower_count ?? 0)
+        setPhotoUrl(data.photo_url ?? null)
       })
   }, [serverId])
 
@@ -134,9 +136,11 @@ export default function ServerCardPage() {
             <div className="flex flex-col items-center gap-4">
               {/* Avatar */}
               <div
-                className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-white/30 bg-white text-2xl font-bold text-black"
+                className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-white/30 overflow-hidden bg-white text-2xl font-bold text-black"
               >
-                {initials}
+                {photoUrl
+                  ? <img src={photoUrl} alt={serverName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : initials}
               </div>
 
               {/* Name */}

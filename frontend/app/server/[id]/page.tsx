@@ -303,17 +303,22 @@ export default function ServerProfilePage() {
             >
               Share on X
             </a>
-            <button
-              onClick={shareToInstagram}
-              style={{
-                background: 'transparent', color: 'white', border: '1px solid #333',
-                padding: '12px 24px', fontSize: '11px', letterSpacing: '2px',
-                textTransform: 'uppercase', cursor: 'pointer',
-                minHeight: '44px', touchAction: 'manipulation',
-              }}
-            >
-              Save for Instagram
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <button
+                onClick={() => window.open(`https://slatenow.xyz/server/${profileId}/card`, '_blank')}
+                style={{
+                  background: 'transparent', color: 'white', border: '1px solid #333',
+                  padding: '12px 24px', fontSize: '11px', letterSpacing: '2px',
+                  textTransform: 'uppercase', cursor: 'pointer',
+                  minHeight: '44px', touchAction: 'manipulation',
+                }}
+              >
+                Get Story Card
+              </button>
+              <p style={{ fontSize: '10px', color: '#444', letterSpacing: '1px', margin: 0 }}>
+                Screenshot and share to your Instagram story
+              </p>
+            </div>
           </div>
 
           {/* Stats row */}
