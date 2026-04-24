@@ -162,13 +162,21 @@ export default function ServerProfilePage() {
     )
   }
 
-  async function shareProfile() {
+  async function shareOnInstagram() {
     try {
       const url = `https://slatenow.xyz/server/${profileId}`
-      await navigator.clipboard.writeText(url)
-      alert('Profile link copied! Paste it in your Instagram story.')
+      if (navigator.share) {
+        await navigator.share({
+          title: `${server?.name || 'Server'} on Slate`,
+          text: `Check out ${server?.name || 'this server'} on Slate 🍸`,
+          url,
+        })
+      } else {
+        await navigator.clipboard.writeText(url)
+        alert('Profile link copied! Paste it in your Instagram story or bio.')
+      }
     } catch (err) {
-      console.error('Copy failed:', err)
+      console.error('Share failed:', err)
     }
   }
 
@@ -437,14 +445,14 @@ export default function ServerProfilePage() {
               Share on X
             </button>
             <button
-              onClick={shareProfile}
+              onClick={shareOnInstagram}
               style={{
                 background: 'transparent', color: 'white', border: '1px solid #333',
                 padding: '10px 20px', fontSize: '12px', letterSpacing: '2px',
                 textTransform: 'uppercase', cursor: 'pointer',
               }}
             >
-              Copy for Instagram
+              Share on Instagram
             </button>
           </div>
         </section>
