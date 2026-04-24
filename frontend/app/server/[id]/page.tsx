@@ -152,6 +152,21 @@ export default function ServerProfilePage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  function shareOnX() {
+    const text = `Check out ${server.name} on Slate — NYC's first on-chain server reputation platform 🍸`
+    const url = `https://slatenow.xyz/server/${profileId}`
+    window.open(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+      '_blank'
+    )
+  }
+
+  async function shareProfile() {
+    const url = `https://slatenow.xyz/server/${profileId}`
+    await navigator.clipboard.writeText(url)
+    alert('Profile link copied! Paste it in your Instagram story or bio.')
+  }
+
   // ── Loading ───────────────────────────────────────────────────────────────
 
   if (loading) return (
@@ -394,7 +409,7 @@ export default function ServerProfilePage() {
           <p style={{ fontSize: '10px', letterSpacing: '4px', color: '#444', textTransform: 'uppercase', marginBottom: '20px' }}>
             Share this profile
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1a1a1a', paddingBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1a1a1a', paddingBottom: '16px', marginBottom: '24px' }}>
             <span style={{ color: '#333', fontSize: '13px', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '16px' }}>
               {typeof window !== 'undefined' ? window.location.href : `slatenow.xyz/server/${profileId}`}
             </span>
@@ -403,6 +418,28 @@ export default function ServerProfilePage() {
               style={{ background: 'none', border: 'none', color: copied ? '#666' : 'white', fontSize: '13px', letterSpacing: '1px', cursor: 'pointer', flexShrink: 0, textTransform: 'uppercase' }}
             >
               {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={shareOnX}
+              style={{
+                background: 'black', color: 'white', border: '1px solid #333',
+                padding: '10px 20px', fontSize: '12px', letterSpacing: '2px',
+                textTransform: 'uppercase', cursor: 'pointer',
+              }}
+            >
+              Share on X
+            </button>
+            <button
+              onClick={shareProfile}
+              style={{
+                background: 'transparent', color: 'white', border: '1px solid #333',
+                padding: '10px 20px', fontSize: '12px', letterSpacing: '2px',
+                textTransform: 'uppercase', cursor: 'pointer',
+              }}
+            >
+              Copy for Instagram
             </button>
           </div>
         </section>
