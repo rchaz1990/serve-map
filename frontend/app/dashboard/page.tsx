@@ -458,7 +458,9 @@ export default function DashboardPage() {
     avg_rating: number
     follower_count: number
     serve_balance: number
+    photo_url: string | null
   } | null>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
   const [recentRatings, setRecentRatings] = useState<{
     id: string
     guest_name: string | null
@@ -486,7 +488,7 @@ export default function DashboardPage() {
       // Primary lookup: wallet_address = Supabase auth UID (set at signup)
       const { data: serverData, error } = await supabase
         .from('servers')
-        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance')
+        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance, photo_url')
         .eq('wallet_address', session.user.id)
         .maybeSingle()
 
@@ -496,7 +498,7 @@ export default function DashboardPage() {
         // Fallback: email match for accounts created before wallet_address was wired up
         const { data: byEmail } = await supabase
           .from('servers')
-          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance')
+          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance, photo_url')
           .ilike('email', session.user.email ?? '')
           .maybeSingle()
         if (!byEmail) { setProfileLoading(false); return }
@@ -510,7 +512,7 @@ export default function DashboardPage() {
 
     // Separate helper so both lookup paths share the same data-loading logic
     async function hydrateFromServerRow(
-      row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null; serve_balance?: number | null },
+      row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null; serve_balance?: number | null; photo_url?: string | null },
       authUserId: string
     ) {
       // Keep wallet_address in sync for future logins
@@ -556,6 +558,7 @@ export default function DashboardPage() {
         avg_rating: row.average_rating ?? 0,
         follower_count: followerCount,
         serve_balance: row.serve_balance ?? 0,
+        photo_url: row.photo_url ?? null,
       })
       setProfileLoading(false)
     }
@@ -575,6 +578,29 @@ export default function DashboardPage() {
     if (data != null) {
       setServerProfile(prev => prev ? { ...prev, serve_balance: data.serve_balance ?? 0 } : prev)
     }
+  }
+
+  const handlePhotoUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !serverProfile?.id) return
+
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${serverProfile.id}-${Date.now()}.${fileExt}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, file, { upsert: true })
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError)
+      return
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName)
+
+    await supabase.from('servers').update({ photo_url: publicUrl }).eq('id', serverProfile.id)
+
+    setServerProfile(prev => prev ? { ...prev, photo_url: publicUrl } : prev)
   }
 
   const [copied, setCopied] = useState(false)
@@ -989,22 +1015,45 @@ export default function DashboardPage() {
           </div>
         ) : (
         <div className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Welcome back, {serverProfile.name.split(' ')[0]}
-              </h1>
-              {/* Verified badge */}
-              <span title="Verified on-chain profile">
-                <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 shrink-0">
-                  <circle cx="12" cy="12" r="12" fill="white" />
-                  <path d="M7 12.5l3.5 3.5 6.5-7" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </span>
+          <div className="flex items-center gap-5">
+            {/* Profile photo */}
+            <div className="shrink-0 text-center">
+              {serverProfile.photo_url ? (
+                <img
+                  src={serverProfile.photo_url}
+                  alt={serverProfile.name}
+                  style={{ width: '72px', height: '72px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #222' }}
+                />
+              ) : (
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#111', border: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>
+                  👤
+                </div>
+              )}
+              <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoUpdate} style={{ display: 'none' }} />
+              <button
+                onClick={() => photoInputRef.current?.click()}
+                style={{ marginTop: '6px', color: '#666', fontSize: '11px', letterSpacing: '1.5px', textTransform: 'uppercase', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%' }}
+              >
+                {serverProfile.photo_url ? 'Update' : 'Add photo'}
+              </button>
             </div>
-            <p className="mt-1 text-sm font-medium" style={{ color: '#4ade80' }}>
-              Your profile is live on Slate ✓
-            </p>
+            {/* Name + status */}
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                  Welcome back, {serverProfile.name.split(' ')[0]}
+                </h1>
+                <span title="Verified on-chain profile">
+                  <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 shrink-0">
+                    <circle cx="12" cy="12" r="12" fill="white" />
+                    <path d="M7 12.5l3.5 3.5 6.5-7" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+              </div>
+              <p className="mt-1 text-sm font-medium" style={{ color: '#4ade80' }}>
+                Your profile is live on Slate ✓
+              </p>
+            </div>
           </div>
           <a
             href={`/server/${serverProfile.id}`}
