@@ -270,6 +270,7 @@ function CommentsSection({ venueName }: { venueName: string }) {
   const [text, setText] = useState('')
   const [name, setName] = useState('')
   const [posting, setPosting] = useState(false)
+  const [postError, setPostError] = useState('')
   const [session, setSession] = useState<{ user: { id: string; email?: string } } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -295,19 +296,30 @@ function CommentsSection({ venueName }: { venueName: string }) {
     const trimmed = text.trim()
     if (!trimmed) return
     setPosting(true)
-    const { data: { session: s } } = await supabase.auth.getSession()
-    const commenterEmail = s?.user?.email ?? null
-    const commenterName = name.trim() || (commenterEmail ? commenterEmail.split('@')[0] : 'Anonymous')
-    const { error } = await supabase.from('venue_comments').insert({
-      restaurant_name: venueName,
-      comment: trimmed,
-      commenter_email: commenterEmail,
-      commenter_name: commenterName,
-    })
-    setPosting(false)
-    if (!error) {
+    setPostError('')
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession()
+      const commenterEmail = s?.user?.email ?? null
+      const commenterName = name.trim() || (commenterEmail ? commenterEmail.split('@')[0] : 'Anonymous')
+      const { error } = await supabase.from('venue_comments').insert({
+        restaurant_name: decodeURIComponent(venueName),
+        comment: trimmed,
+        commenter_email: commenterEmail,
+        commenter_name: commenterName,
+      })
+      if (error) {
+        console.error('[CommentsSection] insert error:', error)
+        setPostError(error.message)
+        return
+      }
       setText('')
-      loadComments()
+      await loadComments()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unexpected error'
+      console.error('[CommentsSection] unexpected error:', err)
+      setPostError(msg)
+    } finally {
+      setPosting(false)
     }
   }
 
@@ -347,6 +359,9 @@ function CommentsSection({ venueName }: { venueName: string }) {
           style={{ borderRadius: '6px' }}
           onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handlePost() }}
         />
+        {postError && (
+          <p className="mt-2 text-xs" style={{ color: '#f87171' }}>{postError}</p>
+        )}
         <div className="mt-3 flex items-center justify-between">
           <p className="text-[10px]" style={{ color: '#404040' }}>⌘↵ to post</p>
           <button
