@@ -170,24 +170,6 @@ function SectionHeading({ children, dot }: { children: React.ReactNode; dot?: bo
   )
 }
 
-// ── GPS helper — never hangs ──────────────────────────────────────────────────
-
-interface GpsResult {
-  coords: { latitude: number; longitude: number } | null
-  timedOut: boolean
-}
-
-function getLocationWithTimeout(ms = 5000): Promise<GpsResult> {
-  return new Promise(resolve => {
-    const timer = setTimeout(() => resolve({ coords: null, timedOut: true }), ms)
-    navigator.geolocation.getCurrentPosition(
-      pos => { clearTimeout(timer); resolve({ coords: pos.coords, timedOut: false }) },
-      ()  => { clearTimeout(timer); resolve({ coords: null,      timedOut: false }) },
-      { enableHighAccuracy: false, timeout: ms, maximumAge: 60000 }
-    )
-  })
-}
-
 // ── Venue card ────────────────────────────────────────────────────────────────
 
 function VenueCard({
@@ -252,29 +234,42 @@ function VenueCard({
       setVibe(null); setSeats(null); setWait(null)
       return
     }
+
+    // Show form immediately — never wait for GPS
     setCheckInOpen(true)
     setGpsVerifiedForSubmit(false)
 
-    // GPS runs silently in background — never blocks the UI
     if (!navigator.geolocation) return
-    getLocationWithTimeout(3000).then(async ({ coords }) => {
-      if (!coords) return
-      const userLat = coords.latitude
-      const userLng = coords.longitude
-      setUserCoords({ lat: userLat, lng: userLng })
-      try {
-        const res = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venueName + ' NYC')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
-        )
-        const data = await res.json()
-        const venueLat: number | null = data.results?.[0]?.geometry?.location?.lat ?? null
-        const venueLng: number | null = data.results?.[0]?.geometry?.location?.lng ?? null
-        if (venueLat !== null && venueLng !== null) {
-          const dist = getDistanceMeters(userLat, userLng, venueLat, venueLng)
-          if (dist <= 500) setGpsVerifiedForSubmit(true)
-        }
-      } catch { /* silent */ }
-    })
+
+    const gpsTimeout = setTimeout(() => {
+      // GPS timed out — form already open, nothing to do
+    }, 3000)
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        clearTimeout(gpsTimeout)
+        const userLat = position.coords.latitude
+        const userLng = position.coords.longitude
+        setUserCoords({ lat: userLat, lng: userLng })
+        try {
+          const res = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venueName + ' NYC')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
+          )
+          const data = await res.json()
+          const venueLat: number | null = data.results?.[0]?.geometry?.location?.lat ?? null
+          const venueLng: number | null = data.results?.[0]?.geometry?.location?.lng ?? null
+          if (venueLat !== null && venueLng !== null) {
+            const dist = getDistanceMeters(userLat, userLng, venueLat, venueLng)
+            if (dist <= 500) setGpsVerifiedForSubmit(true)
+          }
+        } catch { /* silent */ }
+      },
+      () => {
+        clearTimeout(gpsTimeout)
+        // GPS denied — form already open, submit unverified
+      },
+      { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+    )
   }
 
   async function handleSubmit() {
