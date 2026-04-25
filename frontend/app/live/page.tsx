@@ -192,10 +192,12 @@ function VenueCard({
   hotCount?: number
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const gpsVerifiedRef = useRef(false)
   const [visible, setVisible] = useState(false)
   const [checkInOpen, setCheckInOpen] = useState(false)
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [gpsVerifiedForSubmit, setGpsVerifiedForSubmit] = useState(false)
+  const [gpsChecking, setGpsChecking] = useState(false)
   const [vibe, setVibe] = useState<string | null>(null)
   const [seats, setSeats] = useState<string | null>(null)
   const [wait, setWait] = useState<string | null>(null)
@@ -230,24 +232,24 @@ function VenueCard({
   function handleImHere() {
     if (checkInOpen) {
       setCheckInOpen(false); setUserCoords(null)
+      gpsVerifiedRef.current = false
       setGpsVerifiedForSubmit(false)
+      setGpsChecking(false)
       setVibe(null); setSeats(null); setWait(null)
       return
     }
 
     // Show form immediately — never wait for GPS
+    gpsVerifiedRef.current = false
     setCheckInOpen(true)
     setGpsVerifiedForSubmit(false)
 
     if (!navigator.geolocation) return
 
-    const gpsTimeout = setTimeout(() => {
-      // GPS timed out — form already open, nothing to do
-    }, 3000)
+    setGpsChecking(true)
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        clearTimeout(gpsTimeout)
         const userLat = position.coords.latitude
         const userLng = position.coords.longitude
         setUserCoords({ lat: userLat, lng: userLng })
@@ -260,15 +262,19 @@ function VenueCard({
           const venueLng: number | null = data.results?.[0]?.geometry?.location?.lng ?? null
           if (venueLat !== null && venueLng !== null) {
             const dist = getDistanceMeters(userLat, userLng, venueLat, venueLng)
-            if (dist <= 500) setGpsVerifiedForSubmit(true)
+            if (dist <= 500) {
+              gpsVerifiedRef.current = true
+              setGpsVerifiedForSubmit(true)
+            }
           }
         } catch { /* silent */ }
+        setGpsChecking(false)
       },
       () => {
-        clearTimeout(gpsTimeout)
-        // GPS denied — form already open, submit unverified
+        gpsVerifiedRef.current = false
+        setGpsChecking(false)
       },
-      { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
     )
   }
 
@@ -276,6 +282,7 @@ function VenueCard({
     if (!vibe) return
     setSubmitting(true)
     setSubmitError('')
+    const isGpsVerified = gpsVerifiedRef.current
     const { data: { session } } = await supabase.auth.getSession()
     const reporterEmail = session?.user?.email ?? localStorage.getItem('slateUserEmail') ?? undefined
     const coords = userCoords
@@ -290,7 +297,7 @@ function VenueCard({
         userLat: coords?.lat ?? null,
         userLng: coords?.lng ?? null,
         restaurantLat: null, restaurantLng: null,
-        gpsVerified: gpsVerifiedForSubmit,
+        gpsVerified: isGpsVerified,
         distanceMeters: null,
       }),
     })
@@ -406,16 +413,15 @@ function VenueCard({
         {/* Check-in panel */}
         {checkInOpen && !submitted && (
           <div className="border-t border-white/10 px-6 pb-6 pt-5">
-            <p className="mb-5 text-sm font-semibold text-white">
+            <p className="mb-3 text-sm font-semibold text-white">
               You&apos;re at {venueName}
-              {gpsVerifiedForSubmit && (
-                <span
-                  className="ml-2 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
-                  style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}
-                >
-                  GPS ✓
-                </span>
-              )}
+            </p>
+            <p className="mb-5 text-[11px]" style={{ color: gpsVerifiedForSubmit ? '#4ade80' : gpsChecking ? '#606060' : '#505050' }}>
+              {gpsVerifiedForSubmit
+                ? '✅ GPS Verified — earn 5 $SERVE'
+                : gpsChecking
+                ? '📍 Checking location…'
+                : '📍 Not verified — earn 1 $SERVE'}
             </p>
             <div className="mb-4">
               <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>What&apos;s the vibe?</p>
@@ -450,11 +456,7 @@ function VenueCard({
               onClick={handleSubmit}
               className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
             >
-              {submitting
-                ? 'Submitting…'
-                : gpsVerifiedForSubmit
-                ? 'Share the vibe — earn 5 $SERVE 🍸'
-                : 'Share the vibe — earn 1 $SERVE 🍸'}
+              {submitting ? 'Submitting…' : 'Share the vibe 🍸'}
             </button>
           </div>
         )}
