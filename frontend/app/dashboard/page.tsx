@@ -534,12 +534,12 @@ export default function DashboardPage() {
       setRestaurants(rows)
       if (rows.length === 1) setSelectedRestaurant(rows[0].restaurant_name)
 
-      // Followers
+      // Followers — use the DB column as source of truth (maintained by atomic RPC)
       const { data: followRows } = await supabase
         .from('follows')
         .select('id, created_at')
         .eq('server_id', row.id)
-      const followerCount = followRows?.length ?? (row.follower_count ?? 0)
+      const followerCount = row.follower_count ?? followRows?.length ?? 0
       setRecentFollowers((followRows ?? []).slice(0, 5) as { id: string; created_at: string }[])
 
       // Ratings
