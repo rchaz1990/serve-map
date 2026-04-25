@@ -170,6 +170,24 @@ function SectionHeading({ children, dot }: { children: React.ReactNode; dot?: bo
   )
 }
 
+// ── GPS helper — never hangs ──────────────────────────────────────────────────
+
+interface GpsResult {
+  coords: { latitude: number; longitude: number } | null
+  timedOut: boolean
+}
+
+function getLocationWithTimeout(ms = 5000): Promise<GpsResult> {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve({ coords: null, timedOut: true }), ms)
+    navigator.geolocation.getCurrentPosition(
+      pos => { clearTimeout(timer); resolve({ coords: pos.coords, timedOut: false }) },
+      ()  => { clearTimeout(timer); resolve({ coords: null,      timedOut: false }) },
+      { enableHighAccuracy: false, timeout: ms, maximumAge: 60000 }
+    )
+  })
+}
+
 // ── Venue card ────────────────────────────────────────────────────────────────
 
 function VenueCard({
@@ -204,6 +222,8 @@ function VenueCard({
   const [serveEarned, setServeEarned] = useState<number | null>(null)
   const [submitMessage, setSubmitMessage] = useState('')
   const [submitError, setSubmitError] = useState('')
+  const [gpsChecking, setGpsChecking] = useState(false)
+  const [showFallback, setShowFallback] = useState(false)
 
   useEffect(() => {
     const el = ref.current
@@ -230,33 +250,45 @@ function VenueCard({
   function handleImHere() {
     if (checkInOpen) {
       setCheckInOpen(false); setUserCoords(null)
+      setGpsChecking(false); setShowFallback(false)
       setVibe(null); setSeats(null); setWait(null)
       return
     }
     setCheckInOpen(true)
     setGpsVerifiedForSubmit(false)
+    setShowFallback(false)
+
     if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const userLat = pos.coords.latitude
-        const userLng = pos.coords.longitude
-        setUserCoords({ lat: userLat, lng: userLng })
-        try {
-          const res = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venueName + ' NYC')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
-          )
-          const data = await res.json()
-          const venueLat: number | null = data.results?.[0]?.geometry?.location?.lat ?? null
-          const venueLng: number | null = data.results?.[0]?.geometry?.location?.lng ?? null
-          if (venueLat !== null && venueLng !== null) {
-            const dist = getDistanceMeters(userLat, userLng, venueLat, venueLng)
-            if (dist <= 500) setGpsVerifiedForSubmit(true)
-          }
-        } catch { /* silent */ }
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    )
+
+    setGpsChecking(true)
+
+    // Show "Submit anyway" fallback after 3 s if GPS is still pending
+    const fallbackTimer = setTimeout(() => setShowFallback(true), 3000)
+
+    getLocationWithTimeout(5000).then(async ({ coords }) => {
+      clearTimeout(fallbackTimer)
+      setGpsChecking(false)
+      setShowFallback(false)
+
+      if (!coords) return // timed out or denied — proceed unverified
+
+      const userLat = coords.latitude
+      const userLng = coords.longitude
+      setUserCoords({ lat: userLat, lng: userLng })
+
+      try {
+        const res = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venueName + ' NYC')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
+        )
+        const data = await res.json()
+        const venueLat: number | null = data.results?.[0]?.geometry?.location?.lat ?? null
+        const venueLng: number | null = data.results?.[0]?.geometry?.location?.lng ?? null
+        if (venueLat !== null && venueLng !== null) {
+          const dist = getDistanceMeters(userLat, userLng, venueLat, venueLng)
+          if (dist <= 500) setGpsVerifiedForSubmit(true)
+        }
+      } catch { /* silent — submit proceeds unverified */ }
+    })
   }
 
   async function handleSubmit() {
@@ -395,12 +427,22 @@ function VenueCard({
           <div className="border-t border-white/10 px-6 pb-6 pt-5">
             <p className="mb-5 text-sm font-semibold text-white">
               You&apos;re at {venueName}
-              {gpsVerifiedForSubmit && (
+              {gpsChecking && (
+                <span className="ml-2 text-[9px] font-semibold uppercase tracking-wider" style={{ color: '#606060' }}>
+                  Getting location…
+                </span>
+              )}
+              {!gpsChecking && gpsVerifiedForSubmit && (
                 <span
                   className="ml-2 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
                   style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}
                 >
                   GPS ✓
+                </span>
+              )}
+              {!gpsChecking && !gpsVerifiedForSubmit && checkInOpen && (
+                <span className="ml-2 text-[9px] uppercase tracking-wider" style={{ color: '#404040' }}>
+                  Unverified
                 </span>
               )}
             </p>
@@ -431,12 +473,34 @@ function VenueCard({
             {submitError && (
               <p className="mb-3 text-xs" style={{ color: '#f87171' }}>{submitError}</p>
             )}
+
+            {/* Fallback shown after 3 s if GPS is still pending */}
+            {showFallback && gpsChecking && vibe && (
+              <div className="mb-3 rounded-xl border border-white/10 px-4 py-3">
+                <p className="mb-2 text-xs" style={{ color: '#606060' }}>
+                  Taking too long? Submit without GPS verification.
+                </p>
+                <button
+                  onClick={handleSubmit}
+                  className="text-xs font-semibold text-white underline underline-offset-2 transition-opacity hover:opacity-70"
+                >
+                  Submit anyway
+                </button>
+              </div>
+            )}
+
             <button
               disabled={!vibe || submitting}
               onClick={handleSubmit}
               className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
             >
-              {submitting ? 'Submitting…' : gpsVerifiedForSubmit ? 'Share the vibe — earn 5 $SERVE 🍸' : 'Share the vibe — earn 1 $SERVE 🍸'}
+              {submitting
+                ? 'Submitting…'
+                : gpsChecking
+                ? 'Checking location…'
+                : gpsVerifiedForSubmit
+                ? 'Share the vibe — earn 5 $SERVE 🍸'
+                : 'Share the vibe — earn 1 $SERVE 🍸'}
             </button>
           </div>
         )}
