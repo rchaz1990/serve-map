@@ -52,7 +52,7 @@ type ServerRow = {
   role: string | null
   average_rating: number | null
   total_ratings: number | null
-  serve_balance: number | null
+  slate_points: number | null
 }
 
 function RateForm() {
@@ -74,7 +74,7 @@ function RateForm() {
     const loadServer = async () => {
       const { data } = await supabase
         .from('servers')
-        .select('id, name, role, average_rating, total_ratings, serve_balance')
+        .select('id, name, role, average_rating, total_ratings, slate_points')
         .eq('id', serverId)
         .maybeSingle()
       console.log('serverData:', data)
@@ -126,7 +126,7 @@ function RateForm() {
       // Update server stats — best-effort, non-blocking
       const { data: fresh, error: fetchErr } = await supabase
         .from('servers')
-        .select('average_rating, total_ratings, serve_balance')
+        .select('average_rating, total_ratings, slate_points')
         .eq('id', serverId)
         .maybeSingle()
 
@@ -141,7 +141,7 @@ function RateForm() {
           .update({
             average_rating: parseFloat(newAverage.toFixed(1)),
             total_ratings: newTotal,
-            serve_balance: (fresh.serve_balance || 0) + 25,
+            slate_points: (fresh.slate_points || 0) + 25,
           })
           .eq('id', serverId)
 
@@ -196,7 +196,7 @@ function RateForm() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
             </svg>
             <p className="text-xs" style={{ color: '#A0A0A0' }}>
-              {serverFirstName} earned <span className="font-semibold text-white">25 $SERVE</span> for your rating.
+              {serverFirstName} earned <span className="font-semibold text-white">25 Slate Points</span> for your rating.
             </p>
           </div>
           <a href="/" className="mt-8 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80">
@@ -305,7 +305,7 @@ function RateForm() {
             </div>
             <div>
               <p className="text-sm font-semibold text-white">
-                Your rating earns {serverFirstName} $SERVE token rewards
+                Your rating earns {serverFirstName} Slate Points
               </p>
               <p className="mt-1 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
                 Every rating you leave builds {serverFirstName}&apos;s permanent on-chain reputation.

@@ -71,8 +71,8 @@ export default function ForServersPage() {
                   body: 'Guests follow you — not the restaurant. When you move your followers get notified automatically. The relationship is yours.',
                 },
                 {
-                  title: '$SERVE rewards',
-                  body: 'Every verified rating you earn converts to $SERVE — the on-chain proof that you showed up and delivered. This isn\'t a points program. It\'s ownership.',
+                  title: 'Slate Points',
+                  body: 'Every verified rating earns you Slate Points — redeemable 1:1 for $SERVE tokens at launch. The on-chain proof that you showed up and delivered.',
                 },
                 {
                   title: 'Your QR code',
@@ -103,16 +103,16 @@ export default function ForServersPage() {
               <p>
                 Every rating you receive is stored permanently on Solana.
                 Every shift you work builds a credential no employer can delete.
-                And every verified rating you earn converts to $SERVE —
-                the on-chain proof that you showed up and delivered.
+                And every verified rating earns you Slate Points —
+                redeemable 1:1 for $SERVE tokens when we launch.
               </p>
               <p className="font-semibold text-white">
-                This isn&apos;t a points program. It&apos;s ownership.
+                No speculation. No crypto knowledge required. Just real rewards for real hospitality.
               </p>
               <p>
+                $SERVE launches after Slate hits its traction milestones — not before.
+                Until then, every point you earn is locked in and waiting.
                 When you hold $SERVE you hold a piece of the platform you helped build.
-                You vote on how Slate grows. You decide what gets built next.
-                You are not a user on Slate. You are a stakeholder.
               </p>
             </div>
           </div>

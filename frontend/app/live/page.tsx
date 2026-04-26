@@ -418,10 +418,10 @@ function VenueCard({
             </p>
             <p className="mb-5 text-[11px]" style={{ color: gpsVerifiedForSubmit ? '#4ade80' : gpsChecking ? '#606060' : '#505050' }}>
               {gpsVerifiedForSubmit
-                ? '✅ GPS Verified — earn 5 $SERVE'
+                ? 'GPS Verified — earn 5 pts'
                 : gpsChecking
-                ? '📍 Checking location…'
-                : '📍 Not verified — earn 1 $SERVE'}
+                ? 'Checking location…'
+                : 'Not verified — earn 1 pt'}
             </p>
             <div className="mb-4">
               <p className="mb-2 text-xs font-medium" style={{ color: '#A0A0A0' }}>What&apos;s the vibe?</p>
@@ -646,7 +646,7 @@ function VenueSearch() {
                   onClick={handleSubmit}
                   className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
                 >
-                  {submitting ? 'Verifying…' : 'Share the vibe — earn 5 $SERVE'}
+                  {submitting ? 'Verifying…' : 'Share the vibe — earn 5 pts'}
                 </button>
               </>
             )}

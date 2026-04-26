@@ -52,7 +52,7 @@ export default function Home() {
               The reputation layer for the people who make hospitality great.
             </p>
             <p className="mb-10 max-w-2xl text-sm leading-relaxed sm:text-base" style={{ color: '#606060' }}>
-              Servers and bartenders lose their reputation every time they change jobs. Slate fixes that — portable on-chain profiles, verified guest ratings, and automatic $SERVE rewards. Free forever for every hospitality worker.
+              Servers and bartenders lose their reputation every time they change jobs. Slate fixes that — portable on-chain profiles, verified guest ratings, and Slate Points that convert 1:1 to $SERVE tokens at launch. Free forever for every hospitality worker.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <a
@@ -202,7 +202,7 @@ export default function Home() {
               Are you a server or bartender?
             </h2>
             <p className="mx-auto mb-10 max-w-xl text-base leading-relaxed" style={{ color: '#606060' }}>
-              Your reputation belongs to you. Not your employer. Not Yelp. Claim your free profile and start earning $SERVE rewards for every great shift.
+              Your reputation belongs to you. Not your employer. Not Yelp. Claim your free profile and start earning Slate Points — redeemable 1:1 for $SERVE tokens at launch — for every great shift.
             </p>
             <a
               href="/servers/signup"
@@ -214,6 +214,36 @@ export default function Home() {
             <p className="mt-3 text-xs" style={{ color: '#404040' }}>
               Every follow request requires your approval. Block anyone at any time. You are always in control.
             </p>
+          </div>
+        </section>
+
+        <div className="border-t border-white/10" />
+
+        {/* ── How $SERVE Works ─────────────────────────────────────────── */}
+        <section className="px-6 py-20 lg:px-24 lg:py-28" style={{ backgroundColor: '#050505' }}>
+          <div className="mx-auto max-w-4xl">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
+              The token
+            </p>
+            <h2 className="mb-8 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              How $SERVE Works
+            </h2>
+            <p className="mb-6 max-w-2xl text-base leading-8" style={{ color: '#C0C0C0' }}>
+              Every rating, every shift, every great night earns you Slate Points. Points convert 1:1 into $SERVE tokens when we launch the token after hitting our traction milestones. No speculation, no crypto knowledge required — just real rewards for real hospitality.
+            </p>
+            <div className="grid grid-cols-1 gap-px bg-white/10 sm:grid-cols-3">
+              {[
+                { label: 'Earn now', body: 'Every verified rating and shift earns Slate Points, starting today.' },
+                { label: 'Convert 1:1', body: 'When $SERVE launches, every point you hold becomes one token. No math, no discount.' },
+                { label: 'Launch on traction', body: 'We launch after hitting real milestones — not hype. Your points are locked in and waiting.' },
+              ].map(item => (
+                <div key={item.label} className="px-8 py-8" style={{ backgroundColor: '#050505' }}>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-white">{item.label}</p>
+                  <div className="mb-4 h-px w-6 bg-white/30" />
+                  <p className="text-sm leading-7" style={{ color: '#808080' }}>{item.body}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -279,6 +309,10 @@ export default function Home() {
           </div>
 
           <div className="border-t border-white/10 pt-6">
+            <p className="mb-4 text-xs leading-6" style={{ color: '#404040' }}>
+              <span className="font-semibold" style={{ color: '#606060' }}>When does $SERVE launch?</span>
+              {' '}After we hit our traction milestones. Until then, every point you earn is locked in and waiting for you.
+            </p>
             <p className="text-xs" style={{ color: '#404040' }}>
               © 2026 Slate ·{' '}
               <a href="/privacy" className="transition-colors hover:text-white">Privacy Policy</a>

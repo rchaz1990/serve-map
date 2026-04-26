@@ -141,38 +141,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 })
   }
 
-  // ── Reward — update $SERVE balance ───────────────────────────────────────
+  // ── Reward — update Slate Points ─────────────────────────────────────────
   if (serveReward > 0 && reporterEmail) {
     const { data: serverRow } = await supabase
       .from('servers')
-      .select('id, serve_balance, email')
+      .select('id, slate_points, email')
       .ilike('email', reporterEmail)
       .maybeSingle()
 
     if (serverRow) {
-      const newBalance = (serverRow.serve_balance ?? 0) + serveReward
+      const newBalance = (serverRow.slate_points ?? 0) + serveReward
       const { error: updateError } = await supabase
         .from('servers')
-        .update({ serve_balance: newBalance })
+        .update({ slate_points: newBalance })
         .eq('id', serverRow.id)
       if (updateError) console.error('[verify-vibe] server balance update error:', updateError)
       else console.log(`Updated server ${reporterEmail} balance to ${newBalance}`)
     } else {
       const { data: guestRow } = await supabase
         .from('guest_rewards')
-        .select('serve_balance')
+        .select('slate_points')
         .ilike('email', reporterEmail)
         .maybeSingle()
 
       if (guestRow) {
         await supabase
           .from('guest_rewards')
-          .update({ serve_balance: (guestRow.serve_balance ?? 0) + serveReward })
+          .update({ slate_points: (guestRow.slate_points ?? 0) + serveReward })
           .ilike('email', reporterEmail)
       } else {
         await supabase
           .from('guest_rewards')
-          .insert({ email: reporterEmail, serve_balance: serveReward })
+          .insert({ email: reporterEmail, slate_points: serveReward })
       }
       console.log(`Updated guest ${reporterEmail} balance by ${serveReward}`)
     }

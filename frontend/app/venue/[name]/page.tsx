@@ -254,7 +254,7 @@ function VibeForm({ venueName, onSubmitted }: { venueName: string; onSubmitted: 
             onClick={handleSubmit}
             className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
           >
-            {submitting ? 'Submitting…' : gpsVerified ? 'Share the vibe — earn 5 $SERVE 🍸' : 'Share the vibe — earn 1 $SERVE 🍸'}
+            {submitting ? 'Submitting…' : gpsVerified ? 'Share the vibe — earn 5 pts' : 'Share the vibe — earn 1 pt'}
           </button>
         </div>
       )}

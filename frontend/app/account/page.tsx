@@ -94,12 +94,12 @@ export default function AccountPage() {
           .order('reported_at', { ascending: false }),
         supabase
           .from('guest_rewards')
-          .select('serve_balance')
+          .select('slate_points')
           .eq('email', authUser.email)
           .maybeSingle(),
       ])
 
-      if (rewards?.serve_balance != null) setServeBalance(rewards.serve_balance)
+      if (rewards?.slate_points != null) setServeBalance(rewards.slate_points)
 
       if (rats) setRatingsLeft(rats as RatingLeft[])
       if (vibes) setVibeReports(vibes as VibeReport[])
@@ -171,7 +171,10 @@ export default function AccountPage() {
             Member since {formatDate(user.created_at)}
           </p>
           {serveBalance > 0 && (
-            <p className="text-sm font-semibold text-white">{serveBalance} $SERVE earned</p>
+            <div>
+              <p className="text-sm font-semibold text-white">{serveBalance} Slate Points earned</p>
+              <p className="text-xs" style={{ color: '#606060' }}>Converts 1:1 to $SERVE at token launch</p>
+            </div>
           )}
         </div>
 
@@ -301,33 +304,34 @@ export default function AccountPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── Section 4: $SERVE activity ───────────────────────────────────── */}
+        {/* ── Section 4: Slate Points activity ─────────────────────────────── */}
         <section className="py-12">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-            $SERVE activity
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
+            Slate Points
           </p>
+          <p className="mb-6 text-xs" style={{ color: '#606060' }}>Converts 1:1 to $SERVE at token launch</p>
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-4">
               <div>
                 <p className="text-sm font-medium text-white">Ratings left</p>
-                <p className="text-xs" style={{ color: '#606060' }}>10 $SERVE per verified rating</p>
+                <p className="text-xs" style={{ color: '#606060' }}>10 points per verified rating</p>
               </div>
-              <p className="text-sm font-bold text-white">+{ratingsLeft.length * 10} $SERVE</p>
+              <p className="text-sm font-bold text-white">+{ratingsLeft.length * 10} pts</p>
             </div>
             <div className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-4">
               <div>
                 <p className="text-sm font-medium text-white">Vibe reports</p>
-                <p className="text-xs" style={{ color: '#606060' }}>1–5 $SERVE per report</p>
+                <p className="text-xs" style={{ color: '#606060' }}>1–5 points per report</p>
               </div>
-              <p className="text-sm font-bold text-white">+{vibeReports.length > 0 ? `~${vibeReports.length * 3}` : 0} $SERVE</p>
+              <p className="text-sm font-bold text-white">+{vibeReports.length > 0 ? `~${vibeReports.length * 3}` : 0} pts</p>
             </div>
             <div className="flex items-center justify-between rounded-xl border border-white/25 px-4 py-4">
               <p className="text-sm font-semibold text-white">Total earned</p>
-              <p className="text-base font-bold text-white">{serveBalance} $SERVE</p>
+              <p className="text-base font-bold text-white">{serveBalance} pts</p>
             </div>
           </div>
           <p className="mt-5 text-xs leading-6" style={{ color: '#404040' }}>
-            Redeemable when Slate launches on mainnet.
+            Every point is locked in and waiting. $SERVE launches after Slate hits its traction milestones.
           </p>
         </section>
 

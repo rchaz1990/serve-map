@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         role,
         wallet_address: userId ?? null,
         is_founding_member: true,
-        serve_balance: 50,  // Founding member bonus
+        slate_points: 50,  // Founding member bonus
         photo_url: photoUrl ?? null,
       })
       .select('id, name')
