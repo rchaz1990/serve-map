@@ -41,6 +41,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [showNotifications, setShowNotifications] = useState(false)
+  const [pendingFollowerCount, setPendingFollowerCount] = useState(0)
   const bellRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -92,6 +93,17 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
             setNotifications(notifs as Notification[])
             setUnreadCount(notifs.length)
           }
+        }
+
+        // Load pending follower count for servers
+        const sid = localStorage.getItem('slateServerId')
+        if (sid) {
+          const { count } = await supabase
+            .from('follows')
+            .select('id', { count: 'exact', head: true })
+            .eq('server_id', sid)
+            .eq('status', 'pending')
+          setPendingFollowerCount(count ?? 0)
         }
       } else {
         // No active session — clear any stale cache
@@ -232,6 +244,20 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
             </a>
             <a href="/dashboard" className="text-xs font-medium text-white/50 transition-colors hover:text-white">
               Dashboard
+            </a>
+            <a href="/dashboard/followers" className="relative text-xs font-medium text-white/50 transition-colors hover:text-white">
+              Followers
+              {pendingFollowerCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: -6, right: -10,
+                  background: 'white', color: 'black',
+                  borderRadius: '50%', width: 14, height: 14,
+                  fontSize: 8, display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', fontWeight: 700, lineHeight: 1,
+                }}>
+                  {pendingFollowerCount > 9 ? '9+' : pendingFollowerCount}
+                </span>
+              )}
             </a>
           </>
         )}
@@ -377,6 +403,18 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
                 </a>
                 <a href="/dashboard" onClick={() => setMenuOpen(false)} className="border-b border-white/10 py-5 text-2xl font-semibold text-white">
                   Dashboard
+                </a>
+                <a href="/dashboard/followers" onClick={() => setMenuOpen(false)} className="flex items-center justify-between border-b border-white/10 py-5 text-2xl font-semibold text-white">
+                  Followers
+                  {pendingFollowerCount > 0 && (
+                    <span style={{
+                      background: 'white', color: 'black',
+                      borderRadius: '999px', padding: '2px 8px',
+                      fontSize: 12, fontWeight: 700,
+                    }}>
+                      {pendingFollowerCount}
+                    </span>
+                  )}
                 </a>
               </>
             )}

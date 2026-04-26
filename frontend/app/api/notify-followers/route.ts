@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     .from('follows')
     .select('follower_email')
     .eq('server_id', serverId)
+    .eq('status', 'approved')
 
   if (!followers || followers.length === 0) {
     return NextResponse.json({ success: true, notified: 0 })

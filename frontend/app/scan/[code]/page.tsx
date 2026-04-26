@@ -11,7 +11,7 @@ export default function ScanPage() {
   const [server, setServer] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [isFollowing, setIsFollowing] = useState(false)
+  const [followStatus, setFollowStatus] = useState<'none' | 'pending' | 'approved'>('none')
   const [followerCount, setFollowerCount] = useState(0)
 
   useEffect(() => {
@@ -38,16 +38,18 @@ export default function ScanPage() {
       setServer(data)
       setFollowerCount(data.follower_count || 0)
 
-      // Check if current user is already following
+      // Check existing follow status
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user?.id) {
         const { data: existingFollow } = await supabase
           .from('follows')
-          .select('id')
+          .select('id, status')
           .eq('follower_id', session.user.id)
           .eq('server_id', serverId)
           .maybeSingle()
-        setIsFollowing(!!existingFollow)
+        if (existingFollow) {
+          setFollowStatus(existingFollow.status === 'approved' ? 'approved' : 'pending')
+        }
       }
     } else {
       setError('Server not found. Please scan the QR code again.')
@@ -70,13 +72,11 @@ export default function ScanPage() {
       follower_email: session.user.email,
       server_id: serverId,
       follower_type: 'guest'
+      // status defaults to 'pending' — follower_count only increments on approval
     })
 
     if (!followError) {
-      // Fix 5: atomic increment instead of client-side value
-      await supabase.rpc('increment_follower_count', { server_uuid: serverId })
-      setFollowerCount(prev => prev + 1)
-      setIsFollowing(true)
+      setFollowStatus('pending')
     }
   }
 
@@ -180,16 +180,21 @@ export default function ScanPage() {
 
           <button
             onClick={handleFollow}
-            disabled={isFollowing}
+            disabled={followStatus !== 'none'}
             style={{
               width: '100%', background: 'transparent', color: 'white',
               border: '1px solid #333', padding: '16px',
               fontSize: '14px', letterSpacing: '2px',
-              textTransform: 'uppercase', cursor: isFollowing ? 'default' : 'pointer',
-              opacity: isFollowing ? 0.5 : 1
+              textTransform: 'uppercase',
+              cursor: followStatus !== 'none' ? 'default' : 'pointer',
+              opacity: followStatus !== 'none' ? 0.5 : 1
             }}
           >
-            {isFollowing ? 'Following ✓' : `Follow ${server?.name?.split(' ')[0]}`}
+            {followStatus === 'approved'
+              ? 'Following'
+              : followStatus === 'pending'
+              ? 'Request sent'
+              : `Follow ${server?.name?.split(' ')[0]}`}
           </button>
         </div>
       </div>

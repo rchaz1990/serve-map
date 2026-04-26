@@ -451,6 +451,7 @@ export default function DashboardPage() {
   const router = useRouter()
 
   // Server profile + activity data
+  const [pendingFollowerCount, setPendingFollowerCount] = useState(0)
   const [serverProfile, setServerProfile] = useState<{
     id: string
     name: string
@@ -539,8 +540,17 @@ export default function DashboardPage() {
         .from('follows')
         .select('id, created_at')
         .eq('server_id', row.id)
+        .eq('status', 'approved')
       const followerCount = row.follower_count ?? followRows?.length ?? 0
       setRecentFollowers((followRows ?? []).slice(0, 5) as { id: string; created_at: string }[])
+
+      // Pending follow requests count for banner
+      const { count: pendingCount } = await supabase
+        .from('follows')
+        .select('id', { count: 'exact', head: true })
+        .eq('server_id', row.id)
+        .eq('status', 'pending')
+      setPendingFollowerCount(pendingCount ?? 0)
 
       // Ratings
       const { data: ratingRows } = await supabase
@@ -1093,6 +1103,30 @@ export default function DashboardPage() {
             View public profile →
           </a>
         </div>
+        )}
+
+        {/* ── Pending followers banner ────────────────────────────────── */}
+        {pendingFollowerCount > 0 && (
+          <a
+            href="/dashboard/followers"
+            className="mb-6 flex items-center justify-between rounded-2xl border border-white/20 px-5 py-4 transition-colors hover:border-white/40"
+            style={{ backgroundColor: '#0a0a0a', textDecoration: 'none' }}
+          >
+            <div className="flex items-center gap-3">
+              <span
+                className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-black"
+                style={{ backgroundColor: 'white' }}
+              >
+                {pendingFollowerCount > 9 ? '9+' : pendingFollowerCount}
+              </span>
+              <span className="text-sm font-semibold text-white">
+                {pendingFollowerCount === 1
+                  ? '1 pending follow request'
+                  : `${pendingFollowerCount} pending follow requests`}
+              </span>
+            </div>
+            <span className="text-xs" style={{ color: '#606060' }}>Review →</span>
+          </a>
         )}
 
         {/* ── Stats row ───────────────────────────────────────────────── */}

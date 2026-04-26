@@ -44,7 +44,7 @@ export default function ServerProfilePage() {
   const [ratings, setRatings] = useState<Rating[]>([])
   const [loading, setLoading] = useState(true)
   const [isOwnProfile, setIsOwnProfile] = useState(false)
-  const [following, setFollowing] = useState(false)
+  const [followStatus, setFollowStatus] = useState<'none' | 'pending' | 'approved'>('none')
   const [followLoading, setFollowLoading] = useState(false)
   const [followerId, setFollowerId] = useState<string | null>(null)
   const [followerEmail, setFollowerEmail] = useState<string | null>(null)
@@ -97,14 +97,16 @@ export default function ServerProfilePage() {
           .maybeSingle()
         setIsOwnProfile(currentServer?.id === profileId)
 
-        // Check existing follow (any logged-in user)
+        // Check existing follow status
         const { data: followRow } = await supabase
           .from('follows')
-          .select('id')
+          .select('id, status')
           .eq('follower_id', session.user.id)
           .eq('server_id', profileId)
           .maybeSingle()
-        if (followRow) setFollowing(true)
+        if (followRow) {
+          setFollowStatus(followRow.status === 'approved' ? 'approved' : 'pending')
+        }
       }
 
       setLoading(false)
@@ -116,17 +118,18 @@ export default function ServerProfilePage() {
   async function handleFollow() {
     if (!followerId) { window.location.href = '/login'; return }
     setFollowLoading(true)
-    if (following) {
+    if (followStatus === 'approved') {
+      // Unfollow: delete row + atomically decrement
       await supabase.from('follows').delete().eq('follower_id', followerId).eq('server_id', profileId)
-      const { data: serverData } = await supabase
-        .from('servers').select('follower_count').eq('id', profileId).maybeSingle()
-      await supabase
-        .from('servers')
-        .update({ follower_count: Math.max(0, (serverData?.follower_count || 1) - 1) })
-        .eq('id', profileId)
-      setFollowing(false)
+      await supabase.rpc('decrement_follower_count', { server_uuid: profileId })
+      setFollowStatus('none')
       setFollowerCount(prev => Math.max(0, prev - 1))
+    } else if (followStatus === 'pending') {
+      // Cancel pending request — no count change
+      await supabase.from('follows').delete().eq('follower_id', followerId).eq('server_id', profileId)
+      setFollowStatus('none')
     } else {
+      // New follow request — inserts as 'pending', no count increment until approved
       const { error: followError } = await supabase.from('follows').insert({
         follower_id: followerId,
         follower_email: followerEmail,
@@ -134,14 +137,7 @@ export default function ServerProfilePage() {
         follower_type: localStorage.getItem('slateUserType') ?? 'guest',
       })
       if (!followError) {
-        const { data: serverData } = await supabase
-          .from('servers').select('follower_count').eq('id', profileId).maybeSingle()
-        await supabase
-          .from('servers')
-          .update({ follower_count: (serverData?.follower_count || 0) + 1 })
-          .eq('id', profileId)
-        setFollowing(true)
-        setFollowerCount(prev => prev + 1)
+        setFollowStatus('pending')
       }
     }
     setFollowLoading(false)
@@ -348,9 +344,9 @@ export default function ServerProfilePage() {
                 disabled={followLoading}
                 style={{
                   padding: '11px 28px',
-                  background: following ? 'transparent' : 'white',
-                  color: following ? '#555' : '#000',
-                  border: following ? '1px solid #2a2a2a' : '1px solid white',
+                  background: followStatus === 'none' ? 'white' : 'transparent',
+                  color: followStatus === 'none' ? '#000' : '#555',
+                  border: followStatus === 'none' ? '1px solid white' : '1px solid #2a2a2a',
                   fontSize: '13px',
                   letterSpacing: '1.5px',
                   textTransform: 'uppercase',
@@ -359,7 +355,11 @@ export default function ServerProfilePage() {
                   opacity: followLoading ? 0.5 : 1,
                 }}
               >
-                {following ? 'Following ✓' : 'Follow'}
+                {followStatus === 'approved'
+                  ? 'Following'
+                  : followStatus === 'pending'
+                  ? 'Request sent'
+                  : 'Follow'}
               </button>
             )}
             <button
