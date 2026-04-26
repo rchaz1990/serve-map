@@ -1,8 +1,17 @@
 import Navbar from '@/app/components/Navbar'
+import PrintButton from '@/app/components/PrintButton'
 
 export default function WhitepaperPage() {
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+      {/* Running header — hidden on screen, fixed on every printed page */}
+      <div className="print-running-header">
+        <span>Slate Whitepaper</span>
+        <span>Version 1.0 — April 2026</span>
+      </div>
+      {/* Running footer — hidden on screen, shows page number on every printed page */}
+      <div className="print-running-footer" />
+
       <Navbar />
       <div className="border-t border-white/10" />
 
@@ -20,15 +29,7 @@ export default function WhitepaperPage() {
             Version 1.0 — April 2026
           </p>
           <div className="mt-8">
-            <a
-              href="#"
-              className="inline-flex items-center gap-2 rounded-full border border-white/20 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:border-white"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-4 w-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-              </svg>
-              Download PDF
-            </a>
+            <PrintButton />
           </div>
         </div>
 
@@ -273,83 +274,66 @@ export default function WhitepaperPage() {
         {/* ── $SERVE Token ─────────────────────────────────────────────────── */}
         <section className="py-12">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>06</p>
-          <h2 className="mb-6 text-2xl font-bold tracking-tight text-white sm:text-3xl">$SERVE Token</h2>
+          <h2 className="mb-6 text-2xl font-bold tracking-tight text-white sm:text-3xl">$SERVE Token: A Phased Approach</h2>
 
-          <p className="mb-6 text-base leading-8" style={{ color: '#C0C0C0' }}>
-            $SERVE is not a reward feature. It is the infrastructure that makes portable reputation permanent.
-          </p>
-          <p className="mb-6 text-base leading-8" style={{ color: '#C0C0C0' }}>
-            Without $SERVE, a server&apos;s reputation is stored in a database that someone else controls. An employer can delete it. A platform can shut down. A company can change its terms.
-          </p>
           <p className="mb-10 text-base leading-8" style={{ color: '#C0C0C0' }}>
-            With $SERVE, reputation becomes economically meaningful and worker-owned. The token is what separates a profile that follows you from a profile that belongs to you.
+            Most consumer crypto projects launch tokens before they have users. This attracts speculators, distorts product feedback, and burns out real communities before the product has a chance to find its footing. Slate inverts this. We earn our token launch by earning our users first.
           </p>
 
-          <h3 className="mb-6 text-base font-semibold text-white">How $SERVE strengthens the network</h3>
+          {/* Phase 1 */}
+          <h3 className="mb-4 text-base font-semibold text-white">Phase 1 — Slate Points (Launch)</h3>
+          <div className="mb-8 space-y-4 text-base leading-8" style={{ color: '#C0C0C0' }}>
+            <p>
+              At launch, every rating, every shift verification, and every quality interaction earns Slate Points. Points are tracked transparently in our database, tied to the user&apos;s account, and fully auditable. They are non-transferable and non-tradeable. There is no speculation, no secondary market, no crypto knowledge required. Just a clean ledger of contribution to the Slate ecosystem.
+            </p>
+            <p>
+              This is intentional. We want our earliest users — the servers building their reputations and the guests rating them — to be the ones rewarded when the token launches. Not traders who showed up for an airdrop.
+            </p>
+          </div>
 
-          <div className="mb-10 space-y-5">
+          {/* Phase 2 */}
+          <h3 className="mb-4 text-base font-semibold text-white">Phase 2 — $SERVE Token Generation Event</h3>
+          <p className="mb-6 text-base leading-8" style={{ color: '#C0C0C0' }}>
+            When Slate hits its traction milestones, we deploy the $SERVE SPL token on Solana and conduct a one-time conversion event. Every Slate Point converts 1:1 into a real $SERVE token.
+          </p>
+
+          <p className="mb-4 text-base leading-8" style={{ color: '#C0C0C0' }}>
+            The four milestones that trigger Phase 2:
+          </p>
+
+          <div className="mb-8 space-y-3">
             {[
-              {
-                title: 'Behavior retention',
-                body: 'Servers who consistently earn high ratings accumulate $SERVE over time. This creates a compounding incentive to show up, perform, and stay on the platform — not because of a points system, but because their token balance reflects years of verified excellence.',
-              },
-              {
-                title: 'Quality signaling',
-                body: 'A server with 500 $SERVE earned through verified guest ratings is objectively different from a server with zero. $SERVE becomes a credential — the first on-chain proof of hospitality excellence that travels with the worker, not the venue.',
-              },
-              {
-                title: 'Loyalty without lock-in',
-                body: 'Guests who follow servers and leave verified ratings earn $SERVE too. This creates a loyalty loop that benefits everyone — without forcing anyone into a subscription or a program they don\'t want to be on.',
-              },
-              {
-                title: 'Governance',
-                body: 'Servers who hold $SERVE earn voting rights in the Worker Council. The people who built their careers on Slate shape its future. Not investors. Not the company. The workers.',
-              },
-            ].map(block => (
-              <div key={block.title} className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
-                <p className="mb-2 text-sm font-semibold text-white">{block.title}</p>
-                <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>{block.body}</p>
+              { n: '1', text: '1,000 active server profiles — proves the worker side of the marketplace exists at meaningful scale' },
+              { n: '2', text: '10,000 verified ratings — proves the rating loop is actually being used, not just signed up for' },
+              { n: '3', text: 'Presence in at least two cities — proves the model isn\'t NYC-specific and can replicate' },
+              { n: '4', text: 'First active restaurant subscription revenue — proves the business model works, not just the user numbers' },
+            ].map(v => (
+              <div key={v.n} className="flex items-start gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-5 py-4">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/20 font-mono text-[10px] text-white">
+                  {v.n}
+                </span>
+                <p className="text-sm leading-6" style={{ color: '#A0A0A0' }}>{v.text}</p>
               </div>
             ))}
           </div>
 
-          {/* Supply */}
-          <div className="mb-6 rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>Total Supply</p>
-            <p className="text-2xl font-bold text-white">100,000,000 $SERVE</p>
-            <p className="mt-1 text-xs" style={{ color: '#606060' }}>Fixed forever</p>
+          <div className="mb-10 rounded-xl border border-white/10 bg-white/[0.03] px-6 py-5">
+            <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>
+              All four must be met before TGE. Realistically, this means 12 to 18 months post-launch, though we will not commit to a calendar date. We commit to the metrics. The smart contract has been architected and tested on Solana devnet. Deployment is a configuration change, not an engineering project. We are choosing to wait until the network has earned it.
+            </p>
           </div>
 
-          <p className="mb-10 text-base leading-8" style={{ color: '#C0C0C0' }}>
-            35% allocated to server rewards over 6 years with emission decay — founding members earn significantly more per rating than servers who join later. Early participation is permanently recognized on-chain.
-          </p>
-
-          {/* Allocation */}
-          <h3 className="mb-4 text-base font-semibold text-white">Allocation</h3>
-          <div className="mb-10 space-y-2">
-            {[
-              { pct: '35%', label: 'Server rewards', note: 'Vested over 6 years, emissions decay over time — founding members earn more per rating' },
-              { pct: '20%', label: 'Ecosystem and liquidity', note: '10M for Raydium liquidity pool, 10M for grants and partnerships' },
-              { pct: '20%', label: 'Treasury', note: 'Controlled by multisig, spent only through community governance' },
-              { pct: '15%', label: 'Team and founder', note: '1 year cliff, 4 year linear vest' },
-              { pct: '10%', label: 'Early community', note: 'Earned through verified activity — first 1,000 servers with 10+ verified ratings' },
-            ].map(row => (
-              <div key={row.label} className="flex items-start gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-5 py-4">
-                <span className="w-10 shrink-0 font-mono text-sm font-bold text-white">{row.pct}</span>
-                <div>
-                  <p className="text-sm font-semibold text-white">{row.label}</p>
-                  <p className="text-xs leading-5" style={{ color: '#606060' }}>{row.note}</p>
-                </div>
-              </div>
-            ))}
+          {/* Why This Matters */}
+          <h3 className="mb-4 text-base font-semibold text-white">Why This Matters</h3>
+          <div className="mb-8 space-y-4 text-base leading-8" style={{ color: '#C0C0C0' }}>
+            <p>
+              Phasing the token launch protects real users from speculators, gives us time to validate token economics against actual usage data, and reduces regulatory complexity during the most fragile period of the company&apos;s life. It also produces a healthier launch: the initial $SERVE supply is held by people who actually contributed to the network, not people who farmed it.
+            </p>
           </div>
 
           <div className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-6">
-            <p className="mb-4 text-sm leading-7" style={{ color: '#A0A0A0' }}>
-              The question investors ask is: does this product work without the token?
-            </p>
-            <p className="text-sm leading-7 text-white">
-              The answer is no — not the way we intend it to. Without $SERVE there is no trustless way to reward workers automatically without going through an employer. Without $SERVE reputation is just a database row someone else owns. The token is not optional. It is the point.
+            <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>
+              The portable on-chain reputation — server profiles, ratings, verified ownership of one&apos;s hospitality identity — is live on Solana from day one. That is the moat. The token is the reward layer that activates once the moat has water in it.
             </p>
           </div>
         </section>
