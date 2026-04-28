@@ -88,17 +88,20 @@ export default function ServerProfilePage() {
           .limit(10)
         setRatings((rats ?? []) as Rating[])
 
-        // Active shift (for "On shift tonight" indicator)
-        const { data: shiftRow } = await supabase
+        // Active shift (for "On shift tonight" indicator) — only show
+        // shifts started within the last 12 hours so stale rows that were
+        // never explicitly ended don't display as active.
+        const { data: activeShift } = await supabase
           .from('shifts')
-          .select('restaurant_name')
+          .select('restaurant_name, started_at')
           .eq('server_id', profileId)
           .eq('is_active', true)
+          .gte('started_at', new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString())
           .order('started_at', { ascending: false })
           .limit(1)
           .maybeSingle()
-        if (shiftRow?.restaurant_name) {
-          setCurrentShift({ restaurant_name: shiftRow.restaurant_name })
+        if (activeShift?.restaurant_name) {
+          setCurrentShift({ restaurant_name: activeShift.restaurant_name })
         }
       }
 
