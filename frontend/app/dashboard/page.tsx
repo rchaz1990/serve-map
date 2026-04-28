@@ -341,6 +341,109 @@ function ProfilePreferencesSection({
   )
 }
 
+// ── Worker Council suggestion form ────────────────────────────────────────────
+
+function WorkerCouncilSection({ serverId }: { serverId: string | null }) {
+  const [suggestion, setSuggestion] = useState('')
+  const [suggestionSent, setSuggestionSent] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  const FONT_MONO = '"Space Mono", ui-monospace, SFMono-Regular, monospace'
+
+  const handleSubmitSuggestion = async () => {
+    if (!suggestion.trim() || !serverId) return
+    setSubmitting(true)
+    const { error } = await supabase
+      .from('suggestions')
+      .insert({
+        server_id: serverId,
+        title: suggestion.slice(0, 100),
+        description: suggestion,
+        status: 'pending',
+      })
+    setSubmitting(false)
+    if (!error) {
+      setSuggestion('')
+      setSuggestionSent(true)
+      setTimeout(() => setSuggestionSent(false), 3000)
+    } else {
+      console.error('[WorkerCouncilSection] submit:', error)
+    }
+  }
+
+  return (
+    <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+      <p
+        style={{
+          fontFamily: FONT_MONO,
+          fontSize: '10px',
+          letterSpacing: '3px',
+          textTransform: 'uppercase',
+          color: '#444',
+          marginBottom: '8px',
+        }}
+      >
+        Worker Council
+      </p>
+      <p style={{ color: '#555', fontSize: '14px', lineHeight: 1.55, marginBottom: '20px' }}>
+        Have a suggestion for how Slate should grow? Submit it to the Worker Council.
+      </p>
+
+      <textarea
+        value={suggestion}
+        onChange={(e) => setSuggestion(e.target.value)}
+        placeholder="Share your idea..."
+        style={{
+          width: '100%',
+          background: '#050505',
+          border: '1px solid #111',
+          color: 'white',
+          padding: '16px',
+          fontSize: '14px',
+          fontFamily: 'Georgia, serif',
+          minHeight: '80px',
+          resize: 'none',
+          marginBottom: '12px',
+          outline: 'none',
+        }}
+      />
+
+      <button
+        onClick={handleSubmitSuggestion}
+        disabled={submitting || !suggestion.trim() || !serverId}
+        style={{
+          background: 'transparent',
+          color: '#555',
+          border: '1px solid #222',
+          padding: '10px 24px',
+          fontSize: '11px',
+          letterSpacing: '2px',
+          textTransform: 'uppercase',
+          cursor: submitting || !suggestion.trim() ? 'not-allowed' : 'pointer',
+          opacity: submitting || !suggestion.trim() || !serverId ? 0.5 : 1,
+        }}
+      >
+        {submitting ? 'Submitting…' : 'Submit Suggestion'}
+      </button>
+
+      {suggestionSent && (
+        <p
+          style={{
+            marginTop: '14px',
+            fontFamily: FONT_MONO,
+            fontSize: '10px',
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+            color: '#4ade80',
+          }}
+        >
+          Suggestion submitted to the Worker Council ✓
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const router = useRouter()
 
@@ -1008,6 +1111,9 @@ export default function DashboardPage() {
           initialSpecialties={profileSpecialties}
           initialOpenToOpportunities={profileOpenToOpportunities}
         />
+
+        {/* ── Worker Council ──────────────────────────────────────────── */}
+        <WorkerCouncilSection serverId={serverProfile?.id ?? null} />
 
       </main>
 
