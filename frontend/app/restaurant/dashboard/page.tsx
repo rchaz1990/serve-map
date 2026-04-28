@@ -118,34 +118,192 @@ function startOfLastMonth() {
   return r
 }
 
-// ── Toggle (large, iPad-friendly) ──────────────────────────────────────────────
+// ── Talent card (with hover state) ────────────────────────────────────────────
 
-function ShiftToggle({
-  on,
-  busy,
-  onChange,
+function TalentCard({
+  t,
+  contacted,
+  contacting,
+  onContact,
 }: {
-  on: boolean
-  busy: boolean
-  onChange: (next: boolean) => void
+  t: TalentServer
+  contacted: boolean
+  contacting: boolean
+  onContact: () => void
 }) {
+  const [hovered, setHovered] = useState(false)
   return (
-    <button
-      role="switch"
-      aria-checked={on}
-      disabled={busy}
-      onClick={() => onChange(!on)}
-      className="relative h-12 w-24 shrink-0 rounded-full border transition-colors disabled:opacity-50"
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
-        backgroundColor: on ? '#22c55e' : 'rgba(255,255,255,0.08)',
-        borderColor: on ? '#22c55e' : 'rgba(255,255,255,0.2)',
+        background: hovered ? '#0a0a0a' : 'transparent',
+        border: '1px solid #0d0d0d',
+        padding: '24px',
+        transition: 'background 0.15s',
       }}
     >
-      <span
-        className="absolute top-1 h-10 w-10 rounded-full bg-white shadow-md transition-transform"
-        style={{ transform: on ? 'translateX(48px)' : 'translateX(4px)' }}
-      />
-    </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ flexShrink: 0 }}>
+          {t.photo_url ? (
+            <Image
+              src={t.photo_url}
+              alt={t.name}
+              width={56}
+              height={56}
+              unoptimized
+              style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #1a1a1a' }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '50%',
+                background: '#0a0a0a',
+                border: '1px solid #1a1a1a',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#444',
+                fontSize: '18px',
+                fontFamily: 'Georgia, serif',
+              }}
+            >
+              {initials(t.name)}
+            </div>
+          )}
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p
+            style={{
+              fontFamily: 'Georgia, "Times New Roman", serif',
+              fontSize: '18px',
+              color: 'white',
+              lineHeight: 1.2,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {t.name}
+          </p>
+          <p
+            style={{
+              marginTop: '6px',
+              fontFamily: '"Space Mono", ui-monospace, monospace',
+              fontSize: '10px',
+              letterSpacing: '0.25em',
+              textTransform: 'uppercase',
+              color: '#444',
+            }}
+          >
+            {t.role ?? 'Server'}
+          </p>
+          <div
+            style={{
+              marginTop: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '14px',
+              fontSize: '12px',
+              fontFamily: '"Space Mono", ui-monospace, monospace',
+              color: '#555',
+            }}
+          >
+            <span>
+              <span style={{ color: 'white', fontWeight: 700 }}>
+                {t.average_rating > 0 ? t.average_rating.toFixed(1) : '—'}
+              </span>{' '}
+              ({t.total_ratings})
+            </span>
+            <span>·</span>
+            <span>{t.follower_count} followers</span>
+          </div>
+        </div>
+      </div>
+
+      {t.primary_restaurant && (
+        <p
+          style={{
+            marginTop: '20px',
+            fontSize: '12px',
+            fontFamily: '"Space Mono", ui-monospace, monospace',
+            letterSpacing: '0.05em',
+            color: '#444',
+          }}
+        >
+          Currently at <span style={{ color: '#888' }}>{t.primary_restaurant}</span>
+        </p>
+      )}
+
+      {t.specialties.length > 0 && (
+        <div style={{ marginTop: '14px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          {t.specialties.map(spec => (
+            <span
+              key={spec}
+              style={{
+                border: '1px solid #1a1a1a',
+                padding: '4px 10px',
+                fontSize: '10px',
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                fontFamily: '"Space Mono", ui-monospace, monospace',
+                color: '#666',
+              }}
+            >
+              {spec}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginTop: '24px', display: 'flex', gap: '8px', flexDirection: 'row' }}>
+        <a
+          href={`/server/${t.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            flex: 1,
+            background: '#FFFFFF',
+            color: '#000000',
+            padding: '12px 18px',
+            fontSize: '10px',
+            letterSpacing: '0.25em',
+            textTransform: 'uppercase',
+            fontFamily: '"Space Mono", ui-monospace, monospace',
+            fontWeight: 700,
+            textAlign: 'center',
+            textDecoration: 'none',
+            transition: 'opacity 0.15s',
+          }}
+        >
+          View Profile
+        </a>
+        <button
+          onClick={onContact}
+          disabled={contacting || contacted || !t.email}
+          style={{
+            flex: 1,
+            background: 'transparent',
+            color: contacted ? '#4ade80' : !t.email ? '#333' : '#FFFFFF',
+            padding: '12px 18px',
+            fontSize: '10px',
+            letterSpacing: '0.25em',
+            textTransform: 'uppercase',
+            fontFamily: '"Space Mono", ui-monospace, monospace',
+            fontWeight: 700,
+            border: '1px solid #FFFFFF',
+            borderColor: contacted ? '#4ade80' : !t.email ? '#1a1a1a' : '#FFFFFF',
+            cursor: contacting || contacted || !t.email ? 'default' : 'pointer',
+            opacity: contacting ? 0.5 : 1,
+            transition: 'all 0.15s',
+          }}
+        >
+          {contacted ? 'Message Sent' : contacting ? 'Sending…' : !t.email ? 'No Email' : 'Contact'}
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -528,41 +686,99 @@ export default function RestaurantManagerDashboard() {
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
-      {/* Playfair Display for premium headings */}
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" />
+      {/* Editorial fonts */}
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
+      />
 
       <Navbar />
-      <div className="border-t border-white/10" />
+      {/* Thin white top border on the page */}
+      <div style={{ height: '1px', background: 'rgba(255,255,255,0.7)' }} />
 
       <main className="mx-auto max-w-3xl px-8 py-12 lg:py-16">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="mb-10">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: '#606060' }}>
+        <div className="mb-8">
+          <p
+            className="mb-4"
+            style={{
+              fontFamily: '"Space Mono", ui-monospace, SFMono-Regular, monospace',
+              fontSize: '10px',
+              letterSpacing: '0.3em',
+              textTransform: 'uppercase',
+              color: '#444',
+            }}
+          >
             Staff Dashboard
           </p>
           <h1
-            className="text-4xl text-white sm:text-5xl"
-            style={{ fontFamily: '"Playfair Display", Georgia, serif', fontWeight: 600, letterSpacing: '-0.01em' }}
+            className="text-white"
+            style={{
+              fontFamily: '"Playfair Display", Georgia, serif',
+              fontWeight: 600,
+              fontSize: '32px',
+              lineHeight: 1.1,
+              letterSpacing: '-0.01em',
+            }}
           >
             {restaurantName ?? '…'}
           </h1>
-          <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>{todayDate}</p>
-          {managerName && (
-            <p className="mt-1 text-xs" style={{ color: '#606060' }}>Signed in as {managerName}</p>
-          )}
 
-          <div className="mt-8 flex items-baseline gap-3">
-            <span className="text-3xl font-bold tabular-nums text-white">{onShiftCount}</span>
-            <span className="text-sm" style={{ color: '#A0A0A0' }}>
-              {onShiftCount === 1 ? 'staff working tonight' : 'staff working tonight'}
+          <div className="mt-3 flex items-baseline gap-3">
+            <span
+              style={{
+                fontFamily: '"Space Mono", ui-monospace, monospace',
+                fontSize: '11px',
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
+                color: '#666',
+              }}
+            >
+              {todayDate}
+            </span>
+            {managerName && (
+              <>
+                <span style={{ color: '#222' }}>·</span>
+                <span style={{ fontSize: '11px', color: '#444' }}>Signed in as {managerName}</span>
+              </>
+            )}
+          </div>
+
+          <div className="mt-7 flex items-baseline gap-3">
+            <span
+              className="text-white"
+              style={{
+                fontFamily: '"Playfair Display", Georgia, serif',
+                fontWeight: 600,
+                fontSize: '40px',
+                lineHeight: 1,
+              }}
+            >
+              {onShiftCount}
+            </span>
+            <span
+              style={{
+                fontFamily: '"Space Mono", ui-monospace, monospace',
+                fontSize: '10px',
+                letterSpacing: '0.25em',
+                textTransform: 'uppercase',
+                color: '#666',
+              }}
+            >
+              Staff Working Tonight
             </span>
           </div>
-          <p className="mt-2 text-xs" style={{ color: '#606060' }}>Auto-refreshes every 60 seconds</p>
+          <p className="mt-2 text-xs" style={{ color: '#333', fontFamily: '"Space Mono", ui-monospace, monospace', letterSpacing: '0.1em' }}>
+            Auto-refreshes every 60s
+          </p>
         </div>
 
-        {/* ── Tabs ────────────────────────────────────────────────────────── */}
-        <div className="mb-2 flex items-center gap-1 border-b border-white/10 overflow-x-auto">
+        {/* Thin white divider below header */}
+        <div style={{ height: '1px', background: 'rgba(255,255,255,0.85)', marginBottom: '0' }} />
+
+        {/* ── Tabs (minimal text links, white underline on active) ───────── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '32px', borderBottom: '1px solid #0d0d0d' }}>
           {([
             { key: 'staff' as const, label: 'Staff' },
             { key: 'intelligence' as const, label: 'Intelligence' },
@@ -573,11 +789,34 @@ export default function RestaurantManagerDashboard() {
               <button
                 key={t.key}
                 onClick={() => setActiveTab(t.key)}
-                className="relative whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-[0.15em] transition-colors"
-                style={{ color: active ? '#FFFFFF' : '#606060' }}
+                style={{
+                  position: 'relative',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '20px 0',
+                  fontSize: '11px',
+                  letterSpacing: '0.2em',
+                  textTransform: 'uppercase',
+                  fontFamily: '"Space Mono", ui-monospace, monospace',
+                  color: active ? '#FFFFFF' : '#444',
+                  transition: 'color 0.2s',
+                  whiteSpace: 'nowrap',
+                }}
               >
                 {t.label}
-                {active && <span className="absolute -bottom-px left-0 right-0 h-[2px] bg-white" />}
+                {active && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      bottom: '-1px',
+                      left: 0,
+                      right: 0,
+                      height: '1px',
+                      background: '#FFFFFF',
+                    }}
+                  />
+                )}
               </button>
             )
           })}
@@ -610,15 +849,15 @@ export default function RestaurantManagerDashboard() {
                       style={{
                         display: 'grid',
                         gridTemplateColumns: '56px 1fr auto',
-                        gap: '20px',
-                        padding: '24px 0',
+                        gap: '24px',
+                        padding: '28px 0',
                         borderBottom: '1px solid #0d0d0d',
                         alignItems: 'center',
                         opacity: busy ? 0.6 : 1,
                       }}
                     >
                       {/* Photo */}
-                      <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#111', overflow: 'hidden' }}>
+                      <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#0a0a0a', overflow: 'hidden', border: '1px solid #1a1a1a' }}>
                         {member.photo_url ? (
                           <Image
                             src={member.photo_url}
@@ -629,7 +868,7 @@ export default function RestaurantManagerDashboard() {
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           />
                         ) : (
-                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontSize: '20px' }}>
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontSize: '20px', fontFamily: '"Playfair Display", Georgia, serif' }}>
                             {member.name?.[0]?.toUpperCase()}
                           </div>
                         )}
@@ -637,53 +876,92 @@ export default function RestaurantManagerDashboard() {
 
                       {/* Info */}
                       <div>
-                        <div style={{ color: 'white', fontSize: '16px', fontFamily: '"Playfair Display", Georgia, serif' }}>
-                          {member.name}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span
+                            style={{
+                              color: 'white',
+                              fontSize: '18px',
+                              fontFamily: 'Georgia, "Times New Roman", serif',
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {member.name}
+                          </span>
+                          {isActive && (
+                            <span
+                              aria-label="On shift"
+                              style={{
+                                width: '7px',
+                                height: '7px',
+                                borderRadius: '50%',
+                                background: '#4ade80',
+                                boxShadow: '0 0 6px rgba(74, 222, 128, 0.5)',
+                              }}
+                            />
+                          )}
                         </div>
-                        <div style={{ color: '#444', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '2px' }}>
+                        <div
+                          style={{
+                            color: '#444',
+                            fontSize: '10px',
+                            letterSpacing: '3px',
+                            textTransform: 'uppercase',
+                            marginTop: '6px',
+                            fontFamily: '"Space Mono", ui-monospace, monospace',
+                          }}
+                        >
                           {member.role ?? 'Server'}
                         </div>
-                        <div style={{ display: 'flex', gap: '16px', marginTop: '6px' }}>
-                          <span style={{ color: '#555', fontSize: '12px' }}>
+                        <div style={{ display: 'flex', gap: '20px', marginTop: '10px' }}>
+                          <span style={{ color: '#555', fontSize: '12px', fontFamily: '"Space Mono", ui-monospace, monospace' }}>
                             {member.average_rating > 0 ? member.average_rating.toFixed(1) : '—'} rating
                           </span>
-                          <span style={{ color: '#555', fontSize: '12px' }}>
+                          <span style={{ color: '#555', fontSize: '12px', fontFamily: '"Space Mono", ui-monospace, monospace' }}>
                             {member.follower_count || 0} followers
                           </span>
                         </div>
                       </div>
 
-                      {/* Toggle */}
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                      {/* Toggle — hero element */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                         <button
                           onClick={() => handleToggle(member, !isActive)}
                           disabled={busy}
                           style={{
-                            width: '64px',
-                            height: '32px',
-                            borderRadius: '16px',
-                            background: isActive ? 'white' : '#111',
-                            border: isActive ? 'none' : '1px solid #222',
+                            width: '76px',
+                            height: '40px',
+                            borderRadius: '20px',
+                            background: isActive ? '#FFFFFF' : 'transparent',
+                            border: isActive ? '1px solid #FFFFFF' : '1px solid #1a1a1a',
                             cursor: busy ? 'wait' : 'pointer',
                             position: 'relative',
-                            transition: 'all 0.2s',
+                            transition: 'all 0.25s ease',
+                            padding: 0,
                           }}
                           aria-label={isActive ? `End ${member.name}'s shift` : `Start ${member.name}'s shift`}
                         >
                           <div
                             style={{
-                              width: '24px',
-                              height: '24px',
+                              width: '30px',
+                              height: '30px',
                               borderRadius: '50%',
-                              background: isActive ? 'black' : '#333',
+                              background: isActive ? '#000000' : '#1a1a1a',
                               position: 'absolute',
                               top: '4px',
-                              left: isActive ? '36px' : '4px',
-                              transition: 'all 0.2s',
+                              left: isActive ? '41px' : '4px',
+                              transition: 'all 0.25s ease',
                             }}
                           />
                         </button>
-                        <span style={{ color: isActive ? 'white' : '#333', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                        <span
+                          style={{
+                            color: isActive ? '#FFFFFF' : '#333',
+                            fontSize: '9px',
+                            letterSpacing: '2.5px',
+                            textTransform: 'uppercase',
+                            fontFamily: '"Space Mono", ui-monospace, monospace',
+                          }}
+                        >
                           {isActive ? 'On Shift' : 'Off'}
                         </span>
                       </div>
@@ -698,36 +976,84 @@ export default function RestaurantManagerDashboard() {
         {/* ── INTELLIGENCE TAB ────────────────────────────────────────────── */}
         {activeTab === 'intelligence' && (
         <>
-        <div className="border-t border-white/10" />
-
-        <section className="pt-12 pb-2">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: '#A0A0A0' }}>
+        <section style={{ paddingTop: '40px', paddingBottom: '8px' }}>
+          <p
+            style={{
+              fontFamily: '"Space Mono", ui-monospace, monospace',
+              fontSize: '10px',
+              letterSpacing: '0.3em',
+              textTransform: 'uppercase',
+              color: '#444',
+              marginBottom: '8px',
+            }}
+          >
             Staff Intelligence
           </p>
-          <p className="text-sm" style={{ color: '#606060' }}>
+          <p
+            className="text-white"
+            style={{
+              fontFamily: '"Playfair Display", Georgia, serif',
+              fontSize: '24px',
+              fontWeight: 500,
+              lineHeight: 1.2,
+            }}
+          >
             Performance and venue signals across your team
           </p>
         </section>
 
-        {/* Section 1 — Overview Stats */}
-        <section className="py-10">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>
+        {/* Section 1 — Overview Stats (2x2) */}
+        <section style={{ paddingTop: '32px', paddingBottom: '40px' }}>
+          <p
+            style={{
+              fontFamily: '"Space Mono", ui-monospace, monospace',
+              fontSize: '9px',
+              letterSpacing: '0.3em',
+              textTransform: 'uppercase',
+              color: '#444',
+              marginBottom: '20px',
+            }}
+          >
             Overview
           </p>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3">
             {[
               { label: 'Total Ratings This Month', value: analytics?.totalRatingsThisMonth ?? 0 },
-              { label: 'Average Staff Rating', value: analytics ? analytics.avgStaffRating.toFixed(1) : '—' },
-              { label: 'Total Followers', value: analytics?.totalFollowers ?? 0 },
-              { label: 'Vibe Reports This Month', value: analytics?.vibesThisMonth ?? 0 },
+              { label: 'Average Staff Rating',     value: analytics ? analytics.avgStaffRating.toFixed(1) : '—' },
+              { label: 'Total Followers',          value: analytics?.totalFollowers ?? 0 },
+              { label: 'Vibe Reports This Month',  value: analytics?.vibesThisMonth ?? 0 },
             ].map(stat => (
               <div
                 key={stat.label}
-                className="rounded-2xl border border-white/10 px-5 py-5"
-                style={{ backgroundColor: '#0a0a0a' }}
+                style={{
+                  background: '#050505',
+                  border: '1px solid #111',
+                  padding: '28px 24px',
+                }}
               >
-                <p className="text-3xl font-bold tabular-nums text-white">{stat.value}</p>
-                <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: '#606060' }}>
+                <p
+                  className="text-white"
+                  style={{
+                    fontFamily: '"Playfair Display", Georgia, serif',
+                    fontSize: '36px',
+                    fontWeight: 500,
+                    lineHeight: 1,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {stat.value}
+                </p>
+                <p
+                  style={{
+                    marginTop: '14px',
+                    fontFamily: '"Space Mono", ui-monospace, monospace',
+                    fontSize: '9px',
+                    letterSpacing: '0.25em',
+                    textTransform: 'uppercase',
+                    color: '#444',
+                    lineHeight: 1.4,
+                  }}
+                >
                   {stat.label}
                 </p>
               </div>
@@ -736,13 +1062,21 @@ export default function RestaurantManagerDashboard() {
         </section>
 
         {/* Section 2 — Staff Leaderboard */}
-        <div className="border-t border-white/10" />
-        <section className="py-10">
-          <div className="mb-6 flex items-baseline justify-between gap-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>
+        <div style={{ height: '1px', background: '#0d0d0d' }} />
+        <section style={{ paddingTop: '40px', paddingBottom: '40px' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '16px', marginBottom: '24px' }}>
+            <p
+              style={{
+                fontFamily: '"Space Mono", ui-monospace, monospace',
+                fontSize: '9px',
+                letterSpacing: '0.3em',
+                textTransform: 'uppercase',
+                color: '#444',
+              }}
+            >
               Leaderboard
             </p>
-            <div className="flex items-center gap-1 rounded-full border border-white/10 p-1 text-[10px] font-semibold uppercase tracking-widest">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #111', padding: '3px' }}>
               {([
                 { key: 'rating', label: 'Rating' },
                 { key: 'followers', label: 'Followers' },
@@ -751,10 +1085,17 @@ export default function RestaurantManagerDashboard() {
                 <button
                   key={opt.key}
                   onClick={() => setLeaderboardSort(opt.key)}
-                  className="rounded-full px-3 py-1.5 transition-colors"
                   style={{
-                    backgroundColor: leaderboardSort === opt.key ? '#FFFFFF' : 'transparent',
-                    color: leaderboardSort === opt.key ? '#000000' : '#A0A0A0',
+                    padding: '6px 12px',
+                    fontSize: '9px',
+                    letterSpacing: '0.18em',
+                    textTransform: 'uppercase',
+                    fontFamily: '"Space Mono", ui-monospace, monospace',
+                    background: leaderboardSort === opt.key ? '#FFFFFF' : 'transparent',
+                    color: leaderboardSort === opt.key ? '#000000' : '#666',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
                   }}
                 >
                   {opt.label}
@@ -764,9 +1105,9 @@ export default function RestaurantManagerDashboard() {
           </div>
 
           {staff.length === 0 ? (
-            <p className="text-sm" style={{ color: '#606060' }}>No staff to rank yet.</p>
+            <p style={{ fontSize: '13px', color: '#444' }}>No staff to rank yet.</p>
           ) : (
-            <div className="flex flex-col divide-y divide-white/10">
+            <div>
               {[...staff]
                 .sort((a, b) => {
                   if (leaderboardSort === 'followers') return b.follower_count - a.follower_count
@@ -776,36 +1117,70 @@ export default function RestaurantManagerDashboard() {
                 .map((member, i) => {
                   const trend = analytics?.trendingByServerId[member.server_id] ?? null
                   const trendIcon = trend === 'up' ? '↑' : trend === 'down' ? '↓' : trend === 'flat' ? '–' : ''
-                  const trendColor = trend === 'up' ? '#4ade80' : trend === 'down' ? '#f87171' : '#606060'
+                  const trendColor = trend === 'up' ? '#4ade80' : trend === 'down' ? '#f87171' : '#444'
+                  const isTopRank = i === 0
                   return (
-                    <div key={member.server_id} className="flex items-center gap-4 py-4">
-                      <span className="w-6 shrink-0 font-mono text-sm font-semibold" style={{ color: '#606060' }}>
+                    <div
+                      key={member.server_id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '20px',
+                        padding: '18px 20px',
+                        borderBottom: '1px solid #0d0d0d',
+                        border: isTopRank ? '1px solid rgba(255,255,255,0.4)' : undefined,
+                        borderBottomColor: isTopRank ? 'rgba(255,255,255,0.4)' : '#0d0d0d',
+                        marginBottom: isTopRank ? '4px' : undefined,
+                        background: isTopRank ? '#050505' : 'transparent',
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: '24px',
+                          flexShrink: 0,
+                          fontFamily: '"Space Mono", ui-monospace, monospace',
+                          fontSize: '14px',
+                          fontWeight: 700,
+                          color: isTopRank ? '#FFFFFF' : '#222',
+                          textAlign: 'center',
+                        }}
+                      >
                         {i + 1}
                       </span>
-                      <div className="shrink-0">
+                      <div style={{ flexShrink: 0 }}>
                         {member.photo_url ? (
-                          <Image src={member.photo_url} alt={member.name} width={40} height={40} className="h-10 w-10 rounded-full object-cover" unoptimized />
+                          <Image src={member.photo_url} alt={member.name} width={40} height={40} unoptimized style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
                         ) : (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white">
+                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#0a0a0a', border: '1px solid #1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444', fontSize: '13px', fontFamily: 'Georgia, serif' }}>
                             {initials(member.name)}
                           </div>
                         )}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-white">{member.name}</p>
-                        <p className="text-xs" style={{ color: '#606060' }}>
-                          {member.total_ratings} {member.total_ratings === 1 ? 'rating' : 'ratings'} · {member.follower_count} {member.follower_count === 1 ? 'follower' : 'followers'}
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <p style={{ fontFamily: 'Georgia, serif', fontSize: '15px', color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {member.name}
+                        </p>
+                        <p style={{ marginTop: '3px', fontSize: '10px', fontFamily: '"Space Mono", ui-monospace, monospace', letterSpacing: '0.1em', color: '#444' }}>
+                          {member.total_ratings} ratings · {member.follower_count} followers
                         </p>
                       </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <span className="font-semibold text-white tabular-nums">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span
+                          style={{
+                            fontFamily: '"Playfair Display", Georgia, serif',
+                            fontSize: '18px',
+                            fontWeight: 600,
+                            color: 'white',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
                           {member.average_rating > 0 ? member.average_rating.toFixed(1) : '—'}
                         </span>
-                        <span className="text-xs" style={{ color: '#A0A0A0' }}>
+                        <span style={{ fontSize: '11px', color: '#444' }}>
                           {'★'.repeat(Math.round(member.average_rating))}{'☆'.repeat(Math.max(0, 5 - Math.round(member.average_rating)))}
                         </span>
                         {trendIcon && (
-                          <span className="ml-1 text-sm font-semibold" style={{ color: trendColor }}>{trendIcon}</span>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: trendColor }}>{trendIcon}</span>
                         )}
                       </div>
                     </div>
@@ -816,15 +1191,15 @@ export default function RestaurantManagerDashboard() {
         </section>
 
         {/* Section 3 — Venue Intelligence */}
-        <div className="border-t border-white/10" />
+        <div style={{ height: '1px', background: '#0d0d0d' }} />
         <section className="py-10">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>
+          <p className="mb-6" style={{ fontFamily: '"Space Mono", ui-monospace, monospace', fontSize: '9px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#444' }}>
             Venue Intelligence
           </p>
 
           {/* Day-of-week */}
           <div className="mb-10">
-            <p className="mb-4 text-xs font-medium" style={{ color: '#A0A0A0' }}>Vibe by day of week (last 30 days)</p>
+            <p className="mb-4" style={{ fontFamily: '"Space Mono", ui-monospace, monospace', fontSize: '10px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#666' }}>Vibe by day of week — Last 30 days</p>
             {(() => {
               const vibes = analytics?.last30dVibes ?? []
               if (vibes.length === 0) {
@@ -863,7 +1238,7 @@ export default function RestaurantManagerDashboard() {
 
           {/* Vibe percentage breakdown */}
           <div className="mb-10">
-            <p className="mb-4 text-xs font-medium" style={{ color: '#A0A0A0' }}>Vibe mix (last 30 days)</p>
+            <p className="mb-4" style={{ fontFamily: '"Space Mono", ui-monospace, monospace', fontSize: '10px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#666' }}>Vibe mix — Last 30 days</p>
             {(() => {
               const vibes = analytics?.last30dVibes ?? []
               const total = vibes.length
@@ -896,7 +1271,7 @@ export default function RestaurantManagerDashboard() {
 
           {/* Recent guest comments */}
           <div>
-            <p className="mb-4 text-xs font-medium" style={{ color: '#A0A0A0' }}>Recent guest comments</p>
+            <p className="mb-4" style={{ fontFamily: '"Space Mono", ui-monospace, monospace', fontSize: '10px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#666' }}>Recent guest comments</p>
             {(() => {
               const comments = analytics?.comments ?? []
               if (comments.length === 0) {
@@ -920,9 +1295,9 @@ export default function RestaurantManagerDashboard() {
         </section>
 
         {/* Section 4 — Recent Ratings */}
-        <div className="border-t border-white/10" />
+        <div style={{ height: '1px', background: '#0d0d0d' }} />
         <section className="py-10">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>
+          <p className="mb-6" style={{ fontFamily: '"Space Mono", ui-monospace, monospace', fontSize: '9px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#444' }}>
             Recent Ratings
           </p>
           {(() => {
@@ -971,9 +1346,9 @@ export default function RestaurantManagerDashboard() {
         </section>
 
         {/* Section 5 — Recent Vibe Reports */}
-        <div className="border-t border-white/10" />
+        <div style={{ height: '1px', background: '#0d0d0d' }} />
         <section className="py-10">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>
+          <p className="mb-6" style={{ fontFamily: '"Space Mono", ui-monospace, monospace', fontSize: '9px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#444' }}>
             Recent Vibe Reports
           </p>
           {(() => {
@@ -1023,66 +1398,110 @@ export default function RestaurantManagerDashboard() {
 
         {/* ── TALENT DISCOVERY TAB ────────────────────────────────────────── */}
         {activeTab === 'talent' && (
-          <section className="py-6">
-            {/* Filters */}
-            <div className="mb-8 flex flex-col gap-4">
+          <section style={{ paddingTop: '40px', paddingBottom: '40px' }}>
+            {/* Filter bar — minimal dropdown selects */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '24px',
+                flexWrap: 'wrap',
+                marginBottom: '32px',
+                paddingBottom: '24px',
+                borderBottom: '1px solid #0d0d0d',
+              }}
+            >
               {[
                 {
                   label: 'Role',
-                  options: [
-                    { key: 'all' as RoleFilter,        label: 'All' },
-                    { key: 'bartender' as RoleFilter,  label: 'Bartender' },
-                    { key: 'server' as RoleFilter,     label: 'Server' },
-                  ],
                   value: roleFilter,
-                  set: (k: RoleFilter) => setRoleFilter(k),
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  onChange: (v: string) => setRoleFilter(v as any),
+                  options: [
+                    { value: 'all', label: 'All Roles' },
+                    { value: 'bartender', label: 'Bartender' },
+                    { value: 'server', label: 'Server' },
+                  ],
                 },
                 {
                   label: 'Min Rating',
-                  options: [
-                    { key: 'any' as RatingFilter, label: 'Any' },
-                    { key: '4.0' as RatingFilter, label: '4.0+' },
-                    { key: '4.5' as RatingFilter, label: '4.5+' },
-                    { key: '5.0' as RatingFilter, label: '5.0' },
-                  ],
                   value: ratingFilter,
-                  set: (k: RatingFilter) => setRatingFilter(k),
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  onChange: (v: string) => setRatingFilter(v as any),
+                  options: [
+                    { value: 'any', label: 'Any rating' },
+                    { value: '4.0', label: '4.0+' },
+                    { value: '4.5', label: '4.5+' },
+                    { value: '5.0', label: '5.0' },
+                  ],
                 },
                 {
                   label: 'Min Followers',
-                  options: [
-                    { key: 'any' as FollowersFilter, label: 'Any' },
-                    { key: '10' as FollowersFilter,  label: '10+' },
-                    { key: '50' as FollowersFilter,  label: '50+' },
-                    { key: '100' as FollowersFilter, label: '100+' },
-                  ],
                   value: followersFilter,
-                  set: (k: FollowersFilter) => setFollowersFilter(k),
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  onChange: (v: string) => setFollowersFilter(v as any),
+                  options: [
+                    { value: 'any', label: 'Any followers' },
+                    { value: '10', label: '10+' },
+                    { value: '50', label: '50+' },
+                    { value: '100', label: '100+' },
+                  ],
                 },
               ].map(group => (
-                <div key={group.label} className="flex flex-wrap items-center gap-3">
-                  <span className="w-28 shrink-0 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>
+                <div key={group.label} style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '140px' }}>
+                  <span
+                    style={{
+                      fontFamily: '"Space Mono", ui-monospace, monospace',
+                      fontSize: '9px',
+                      letterSpacing: '0.3em',
+                      textTransform: 'uppercase',
+                      color: '#444',
+                    }}
+                  >
                     {group.label}
                   </span>
-                  <div className="flex flex-wrap items-center gap-1 rounded-full border border-white/10 p-1">
-                    {group.options.map(opt => {
-                      const active = group.value === opt.key
-                      return (
-                        <button
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          key={opt.key as any}
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          onClick={() => (group.set as any)(opt.key)}
-                          className="rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest transition-colors"
-                          style={{
-                            backgroundColor: active ? '#FFFFFF' : 'transparent',
-                            color: active ? '#000000' : '#A0A0A0',
-                          }}
-                        >
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      value={group.value}
+                      onChange={e => group.onChange(e.target.value)}
+                      style={{
+                        appearance: 'none',
+                        WebkitAppearance: 'none',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: '1px solid #1a1a1a',
+                        color: '#FFFFFF',
+                        fontSize: '14px',
+                        fontFamily: 'Georgia, serif',
+                        padding: '6px 24px 6px 0',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        width: '100%',
+                      }}
+                    >
+                      {group.options.map(opt => (
+                        <option key={opt.value} value={opt.value} style={{ background: '#000', color: '#fff' }}>
                           {opt.label}
-                        </button>
-                      )
-                    })}
+                        </option>
+                      ))}
+                    </select>
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                      style={{
+                        position: 'absolute',
+                        right: '0',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: '12px',
+                        height: '12px',
+                        color: '#666',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                    </svg>
                   </div>
                 </div>
               ))}
@@ -1090,93 +1509,24 @@ export default function RestaurantManagerDashboard() {
 
             {/* Results */}
             {talentLoading ? (
-              <p className="text-sm" style={{ color: '#606060' }}>Loading talent…</p>
+              <p style={{ fontSize: '13px', color: '#444' }}>Loading talent…</p>
             ) : filteredTalent.length === 0 ? (
-              <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>
+              <p style={{ fontSize: '13px', color: '#666', lineHeight: 1.7 }}>
                 No servers match these filters. Try widening the criteria.
               </p>
             ) : (
-              <div className="flex flex-col gap-4">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {filteredTalent.map(t => {
                   const contacted = contactedIds.has(t.id)
                   const contacting = contactingId === t.id
                   return (
-                    <div
+                    <TalentCard
                       key={t.id}
-                      className="rounded-2xl border border-white/10 p-5"
-                      style={{ backgroundColor: '#0a0a0a' }}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="shrink-0">
-                          {t.photo_url ? (
-                            <Image src={t.photo_url} alt={t.name} width={56} height={56} unoptimized className="h-14 w-14 rounded-full object-cover" />
-                          ) : (
-                            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-base font-bold text-white">
-                              {initials(t.name)}
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className="truncate text-base text-white"
-                            style={{ fontFamily: '"Playfair Display", Georgia, serif', fontWeight: 600 }}
-                          >
-                            {t.name}
-                          </p>
-                          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: '#606060' }}>
-                            {t.role ?? 'Server'}
-                          </p>
-                          <div className="mt-1 flex items-center gap-3 text-xs" style={{ color: '#A0A0A0' }}>
-                            <span>
-                              <span className="font-semibold text-white">
-                                {t.average_rating > 0 ? t.average_rating.toFixed(1) : '—'}
-                              </span>{' '}
-                              ★ ({t.total_ratings})
-                            </span>
-                            <span>·</span>
-                            <span>{t.follower_count} {t.follower_count === 1 ? 'follower' : 'followers'}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {t.primary_restaurant && (
-                        <p className="mt-4 text-xs" style={{ color: '#606060' }}>
-                          Currently at <span className="text-white">{t.primary_restaurant}</span>
-                        </p>
-                      )}
-
-                      {t.specialties.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {t.specialties.map(spec => (
-                            <span
-                              key={spec}
-                              className="rounded-full border border-white/15 px-2.5 py-0.5 text-[10px] font-medium"
-                              style={{ color: '#A0A0A0' }}
-                            >
-                              {spec}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                        <a
-                          href={`/server/${t.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 rounded-full border border-white/25 py-2.5 text-center text-xs font-semibold text-white transition-colors hover:border-white"
-                        >
-                          View Profile
-                        </a>
-                        <button
-                          onClick={() => handleContact(t)}
-                          disabled={contacting || contacted || !t.email}
-                          className="flex-1 rounded-full bg-white py-2.5 text-center text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-50"
-                        >
-                          {contacted ? 'Message sent ✓' : contacting ? 'Sending…' : !t.email ? 'No email on file' : 'Contact'}
-                        </button>
-                      </div>
-                    </div>
+                      t={t}
+                      contacted={contacted}
+                      contacting={contacting}
+                      onContact={() => handleContact(t)}
+                    />
                   )
                 })}
               </div>
@@ -1184,13 +1534,26 @@ export default function RestaurantManagerDashboard() {
           </section>
         )}
 
-        <div className="border-t border-white/10 py-8">
+        <div style={{ height: '1px', background: '#0d0d0d', marginTop: '8px' }} />
+        <div style={{ paddingTop: '32px', paddingBottom: '32px' }}>
           <button
             onClick={async () => { await supabase.auth.signOut(); router.push('/') }}
-            className="text-xs font-medium transition-colors hover:text-white"
-            style={{ color: '#404040' }}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+              fontFamily: '"Space Mono", ui-monospace, monospace',
+              fontSize: '10px',
+              letterSpacing: '0.25em',
+              textTransform: 'uppercase',
+              color: '#444',
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#FFFFFF')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#444')}
           >
-            Sign out →
+            Sign Out →
           </button>
         </div>
       </main>
