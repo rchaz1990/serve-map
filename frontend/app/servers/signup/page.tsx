@@ -126,6 +126,21 @@ export default function ServerSignupPage() {
   const [photoError, setPhotoError] = useState<string | null>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
 
+  // Specialties multi-select
+  const specialtyOptions = [
+    'Cocktails', 'Wine', 'Beer', 'Whiskey',
+    'Fine Dining', 'Casual Dining', 'Nightlife',
+    'Events & Catering',
+  ]
+  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([])
+  const toggleSpecialty = (specialty: string) => {
+    setSelectedSpecialties(prev =>
+      prev.includes(specialty)
+        ? prev.filter(s => s !== specialty)
+        : [...prev, specialty]
+    )
+  }
+
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     setPhotoError(null)
@@ -205,6 +220,7 @@ export default function ServerSignupPage() {
           city2: city2 || confirmedPlace2?.address || undefined,
           userId: authData.user?.id,  // Supabase auth UID → saved to wallet_address
           photoUrl,
+          specialties: selectedSpecialties,
         }),
       })
 
@@ -530,6 +546,34 @@ export default function ServerSignupPage() {
                     <span className="shrink-0 text-sm" style={{ color: '#606060' }}>@</span>
                     <input type="text" value={instagram} onChange={e => setInstagram(e.target.value)} placeholder="yourusername"
                       className="flex-1 bg-transparent text-sm text-white placeholder-white/25 outline-none" />
+                  </div>
+                </div>
+
+                {/* Specialties */}
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>
+                    Specialties <span style={{ color: '#606060' }}>(optional)</span>
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', margin: '-4px' }}>
+                    {specialtyOptions.map(specialty => (
+                      <button
+                        key={specialty}
+                        type="button"
+                        onClick={() => toggleSpecialty(specialty)}
+                        style={{
+                          background: selectedSpecialties.includes(specialty) ? 'white' : 'transparent',
+                          color: selectedSpecialties.includes(specialty) ? 'black' : '#555',
+                          border: '1px solid #333',
+                          padding: '8px 16px',
+                          fontSize: '12px',
+                          letterSpacing: '1px',
+                          cursor: 'pointer',
+                          margin: '4px',
+                        }}
+                      >
+                        {specialty}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>

@@ -364,6 +364,151 @@ function WorkplaceSection({ serverId, serverName }: { serverId: string | null; s
   )
 }
 
+// ── Profile preferences (specialties + visibility) ───────────────────────────
+
+const SPECIALTY_OPTIONS = [
+  'Cocktails', 'Wine', 'Beer', 'Whiskey',
+  'Fine Dining', 'Casual Dining', 'Nightlife',
+  'Events & Catering',
+]
+
+function ProfilePreferencesSection({
+  serverId,
+  initialSpecialties,
+  initialOpenToOpportunities,
+}: {
+  serverId: string | null
+  initialSpecialties: string[]
+  initialOpenToOpportunities: boolean
+}) {
+  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>(initialSpecialties)
+  const [openToOpportunities, setOpenToOpportunities] = useState<boolean>(initialOpenToOpportunities)
+  const [savingSpecs, setSavingSpecs] = useState(false)
+  const [savedSpecs, setSavedSpecs] = useState(false)
+  const [busyToggle, setBusyToggle] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Re-sync if parent props change (initial load races)
+  useEffect(() => { setSelectedSpecialties(initialSpecialties) }, [initialSpecialties])
+  useEffect(() => { setOpenToOpportunities(initialOpenToOpportunities) }, [initialOpenToOpportunities])
+
+  function toggleSpecialty(specialty: string) {
+    setSelectedSpecialties(prev =>
+      prev.includes(specialty)
+        ? prev.filter(s => s !== specialty)
+        : [...prev, specialty]
+    )
+  }
+
+  async function saveSpecialties() {
+    if (!serverId) return
+    setSavingSpecs(true)
+    setError(null)
+    const { error: updateErr } = await supabase
+      .from('servers')
+      .update({ specialties: selectedSpecialties })
+      .eq('id', serverId)
+    setSavingSpecs(false)
+    if (updateErr) {
+      setError(updateErr.message)
+      return
+    }
+    setSavedSpecs(true)
+    setTimeout(() => setSavedSpecs(false), 2000)
+  }
+
+  async function toggleOpenToOpportunities(next: boolean) {
+    if (!serverId) return
+    setBusyToggle(true)
+    setError(null)
+    const { error: updateErr } = await supabase
+      .from('servers')
+      .update({ open_to_opportunities: next })
+      .eq('id', serverId)
+    setBusyToggle(false)
+    if (updateErr) {
+      setError(updateErr.message)
+      return
+    }
+    setOpenToOpportunities(next)
+  }
+
+  return (
+    <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+      {/* Specialties */}
+      <div className="mb-8">
+        <p className="text-sm font-semibold text-white">Specialties</p>
+        <p className="mb-4 mt-0.5 text-xs" style={{ color: '#A0A0A0' }}>
+          What guests should know you for
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', margin: '-4px' }}>
+          {SPECIALTY_OPTIONS.map(specialty => (
+            <button
+              key={specialty}
+              type="button"
+              onClick={() => toggleSpecialty(specialty)}
+              style={{
+                background: selectedSpecialties.includes(specialty) ? 'white' : 'transparent',
+                color: selectedSpecialties.includes(specialty) ? 'black' : '#555',
+                border: '1px solid #333',
+                padding: '8px 16px',
+                fontSize: '12px',
+                letterSpacing: '1px',
+                cursor: 'pointer',
+                margin: '4px',
+              }}
+            >
+              {specialty}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={saveSpecialties}
+          disabled={savingSpecs || !serverId}
+          className="mt-4 rounded-full bg-white px-5 py-2 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-50"
+        >
+          {savingSpecs ? 'Updating…' : savedSpecs ? 'Updated ✓' : 'Update'}
+        </button>
+      </div>
+
+      <div className="border-t border-white/10" />
+
+      {/* Open to opportunities */}
+      <div className="mt-6 flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-white">Appear in restaurant talent search</p>
+          <p className="mt-0.5 text-xs leading-6" style={{ color: '#A0A0A0' }}>
+            Let restaurants discover your profile when hiring.
+          </p>
+          <p className="mt-1 text-[11px] font-semibold uppercase tracking-widest" style={{ color: openToOpportunities ? '#4ade80' : '#606060' }}>
+            {openToOpportunities ? 'Visible' : 'Hidden'}
+          </p>
+        </div>
+        <button
+          role="switch"
+          aria-checked={openToOpportunities}
+          disabled={busyToggle || !serverId}
+          onClick={() => toggleOpenToOpportunities(!openToOpportunities)}
+          className="relative h-8 w-14 shrink-0 rounded-full border transition-colors disabled:opacity-50"
+          style={{
+            backgroundColor: openToOpportunities ? '#22c55e' : 'rgba(255,255,255,0.08)',
+            borderColor: openToOpportunities ? '#22c55e' : 'rgba(255,255,255,0.2)',
+          }}
+        >
+          <span
+            className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-md transition-transform"
+            style={{ transform: openToOpportunities ? 'translateX(28px)' : 'translateX(2px)' }}
+          />
+        </button>
+      </div>
+
+      {error && (
+        <p className="mt-4 text-xs text-red-400">{error}</p>
+      )}
+    </div>
+  )
+}
+
 // ── Worker Council / Suggestions ──────────────────────────────────────────────
 
 type Suggestion = {
@@ -575,6 +720,10 @@ export default function DashboardPage() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>('')
   const [showRestaurantPicker, setShowRestaurantPicker] = useState(false)
 
+  // Profile preferences (specialties + visibility) — loaded with serverData
+  const [profileSpecialties, setProfileSpecialties] = useState<string[]>([])
+  const [profileOpenToOpportunities, setProfileOpenToOpportunities] = useState<boolean>(false)
+
 
   // Load all dashboard data scoped to the logged-in server
   useEffect(() => {
@@ -587,7 +736,7 @@ export default function DashboardPage() {
       // Primary lookup: wallet_address = Supabase auth UID (set at signup)
       const { data: serverData, error } = await supabase
         .from('servers')
-        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, slate_points, photo_url')
+        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, slate_points, photo_url, specialties, open_to_opportunities')
         .eq('wallet_address', session.user.id)
         .maybeSingle()
 
@@ -597,7 +746,7 @@ export default function DashboardPage() {
         // Fallback: email match for accounts created before wallet_address was wired up
         const { data: byEmail } = await supabase
           .from('servers')
-          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, slate_points, photo_url')
+          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, slate_points, photo_url, specialties, open_to_opportunities')
           .ilike('email', session.user.email ?? '')
           .maybeSingle()
         if (!byEmail) { setProfileLoading(false); return }
@@ -611,7 +760,7 @@ export default function DashboardPage() {
 
     // Separate helper so both lookup paths share the same data-loading logic
     async function hydrateFromServerRow(
-      row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null; slate_points?: number | null; photo_url?: string | null },
+      row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null; slate_points?: number | null; photo_url?: string | null; specialties?: string[] | null; open_to_opportunities?: boolean | null },
       authUserId: string
     ) {
       // Keep wallet_address in sync for future logins
@@ -668,6 +817,8 @@ export default function DashboardPage() {
         slate_points: row.slate_points ?? 0,
         photo_url: row.photo_url ?? null,
       })
+      setProfileSpecialties(row.specialties ?? [])
+      setProfileOpenToOpportunities(row.open_to_opportunities ?? false)
       setProfileLoading(false)
     }
 
@@ -1139,6 +1290,13 @@ export default function DashboardPage() {
 
         {/* ── Update workplace ────────────────────────────────────────── */}
         <WorkplaceSection serverId={serverProfile?.id ?? null} serverName={serverProfile?.name ?? ''} />
+
+        {/* ── Profile preferences ─────────────────────────────────────── */}
+        <ProfilePreferencesSection
+          serverId={serverProfile?.id ?? null}
+          initialSpecialties={profileSpecialties}
+          initialOpenToOpportunities={profileOpenToOpportunities}
+        />
 
         {/* ── Header ──────────────────────────────────────────────────── */}
         {profileLoading ? (

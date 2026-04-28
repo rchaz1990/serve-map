@@ -14,6 +14,8 @@ export default function RestaurantManagerSignupPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [role, setRole] = useState('')
   const [restaurantName, setRestaurantName] = useState('')
   const [confirmedPlace, setConfirmedPlace] = useState<{ name: string; address: string } | null>(null)
 
@@ -22,6 +24,8 @@ export default function RestaurantManagerSignupPage() {
   const [googleLoaded, setGoogleLoaded] = useState(false)
 
   const venueInputRef = useRef<HTMLInputElement>(null)
+
+  const ROLE_OPTIONS = ['General Manager', 'Assistant Manager', 'Host', 'Owner']
 
   // Google Places autocomplete
   useEffect(() => {
@@ -62,12 +66,25 @@ export default function RestaurantManagerSignupPage() {
     if (venueInputRef.current) venueInputRef.current.value = ''
   }
 
-  const canSubmit = !!(name && email && password.length >= 6 && restaurantName)
+  const canSubmit = !!(
+    name &&
+    email &&
+    password.length >= 6 &&
+    confirmPassword.length >= 6 &&
+    restaurantName &&
+    role
+  )
 
   async function handleSubmit() {
-    if (!canSubmit) return
-    setLoading(true)
     setError(null)
+    if (!name.trim()) { setError('Please enter your name.'); return }
+    if (!email.trim()) { setError('Please enter your email.'); return }
+    if (!restaurantName) { setError('Please select your restaurant.'); return }
+    if (!role) { setError('Please select your role.'); return }
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
+    if (password !== confirmPassword) { setError('Passwords do not match.'); return }
+
+    setLoading(true)
     try {
       // 1. Create Supabase auth account
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -86,6 +103,7 @@ export default function RestaurantManagerSignupPage() {
           name,
           restaurant_name: restaurantName,
           auth_id: authData.user.id,
+          role,
         })
       if (insertError) throw new Error(insertError.message)
 
@@ -173,6 +191,35 @@ export default function RestaurantManagerSignupPage() {
                 />
               </div>
 
+              {/* Role */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>
+                  Your role
+                </label>
+                <div className="relative">
+                  <select
+                    value={role}
+                    onChange={e => setRole(e.target.value)}
+                    className="w-full appearance-none rounded-xl border border-white/15 bg-white/5 px-4 py-3 pr-10 text-sm text-white outline-none transition-colors focus:border-white/40"
+                    style={{ color: role ? '#FFFFFF' : 'rgba(255,255,255,0.4)' }}
+                  >
+                    <option value="" disabled style={{ color: '#000' }}>Select your role…</option>
+                    {ROLE_OPTIONS.map(opt => (
+                      <option key={opt} value={opt} style={{ color: '#000' }}>{opt}</option>
+                    ))}
+                  </select>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </div>
+              </div>
+
               {/* Email */}
               <div>
                 <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>
@@ -202,6 +249,21 @@ export default function RestaurantManagerSignupPage() {
                 />
               </div>
 
+              {/* Confirm password */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>
+                  Confirm password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Repeat your password"
+                  minLength={6}
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
+                />
+              </div>
+
               {error && (
                 <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
                   <p className="text-xs text-red-400">{error}</p>
@@ -218,7 +280,7 @@ export default function RestaurantManagerSignupPage() {
 
               <p className="mt-2 text-center text-xs" style={{ color: '#606060' }}>
                 Already have an account?{' '}
-                <a href="/login" className="text-white underline-offset-2 hover:underline">
+                <a href="/restaurant/login" className="text-white underline-offset-2 hover:underline">
                   Sign in
                 </a>
               </p>

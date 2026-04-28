@@ -52,14 +52,41 @@ type Analytics = {
   vibesThisMonth: number
   monthlyRatings: RatingRow[]
   last30dVibes: VibeRow[]
+  recentVibesList: VibeListRow[]
   comments: CommentRow[]
   trendingByServerId: Record<string, Trending>
 }
 
-const REFRESH_MS = 5 * 60 * 1000
+type VibeListRow = {
+  id: string
+  vibe: string | null
+  created_at: string
+  gps_verified: boolean | null
+}
+
+type TalentServer = {
+  id: string
+  name: string
+  role: string | null
+  photo_url: string | null
+  average_rating: number
+  total_ratings: number
+  follower_count: number
+  email: string | null
+  specialties: string[]
+  primary_restaurant: string | null
+}
+
+type RoleFilter = 'all' | 'bartender' | 'server'
+type RatingFilter = 'any' | '4.0' | '4.5' | '5.0'
+type FollowersFilter = 'any' | '10' | '50' | '100'
+type DashboardTab = 'staff' | 'intelligence' | 'talent'
+
+const REFRESH_MS = 60 * 1000
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const VIBE_KEYS = ['PACKED', 'LIVE', 'CHILL'] as const
 const VIBE_LABEL: Record<string, string> = { PACKED: 'Packed', LIVE: 'Live', CHILL: 'Chill' }
+const VIBE_EMOJI: Record<string, string> = { PACKED: '🚀', LIVE: '🔥', CHILL: '🧊' }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -128,6 +155,7 @@ export default function RestaurantManagerDashboard() {
   const router = useRouter()
   const [restaurantName, setRestaurantName] = useState<string | null>(null)
   const [managerName, setManagerName] = useState<string>('')
+  const [managerEmail, setManagerEmail] = useState<string>('')
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [loading, setLoading] = useState(true)
   const [busyServerId, setBusyServerId] = useState<string | null>(null)
@@ -137,6 +165,16 @@ export default function RestaurantManagerDashboard() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null)
   const [leaderboardSort, setLeaderboardSort] = useState<LeaderboardSort>('rating')
 
+  // Tab + talent discovery
+  const [activeTab, setActiveTab] = useState<DashboardTab>('staff')
+  const [talent, setTalent] = useState<TalentServer[]>([])
+  const [talentLoading, setTalentLoading] = useState(false)
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
+  const [ratingFilter, setRatingFilter] = useState<RatingFilter>('any')
+  const [followersFilter, setFollowersFilter] = useState<FollowersFilter>('any')
+  const [contactingId, setContactingId] = useState<string | null>(null)
+  const [contactedIds, setContactedIds] = useState<Set<string>>(new Set())
+
   const loadAnalytics = useCallback(async (rName: string, current: StaffMember[]) => {
     const ids = current.map(s => s.server_id)
     const monthStart = startOfMonth().toISOString()
@@ -145,9 +183,10 @@ export default function RestaurantManagerDashboard() {
 
     if (ids.length === 0) {
       // No staff yet — still pull venue-level data
-      const [vibeCountRes, last30dVibesRes, commentsRes] = await Promise.all([
+      const [vibeCountRes, last30dVibesRes, recentVibesRes, commentsRes] = await Promise.all([
         supabase.from('vibe_reports').select('id', { count: 'exact', head: true }).eq('restaurant_name', rName).gte('created_at', monthStart),
         supabase.from('vibe_reports').select('id, vibe, created_at').eq('restaurant_name', rName).gte('created_at', since30d),
+        supabase.from('vibe_reports').select('id, vibe, created_at, gps_verified').eq('restaurant_name', rName).order('created_at', { ascending: false }).limit(10),
         supabase.from('venue_comments').select('id, comment, commenter_name, created_at').eq('restaurant_name', rName).order('created_at', { ascending: false }).limit(10),
       ])
       setAnalytics({
@@ -157,6 +196,7 @@ export default function RestaurantManagerDashboard() {
         vibesThisMonth: vibeCountRes.count ?? 0,
         monthlyRatings: [],
         last30dVibes: (last30dVibesRes.data ?? []) as VibeRow[],
+        recentVibesList: (recentVibesRes.data ?? []) as VibeListRow[],
         comments: (commentsRes.data ?? []) as CommentRow[],
         trendingByServerId: {},
       })
@@ -168,6 +208,7 @@ export default function RestaurantManagerDashboard() {
       allScoresRes,
       vibeCountRes,
       last30dVibesRes,
+      recentVibesRes,
       commentsRes,
     ] = await Promise.all([
       supabase
@@ -190,6 +231,12 @@ export default function RestaurantManagerDashboard() {
         .select('id, vibe, created_at')
         .eq('restaurant_name', rName)
         .gte('created_at', since30d),
+      supabase
+        .from('vibe_reports')
+        .select('id, vibe, created_at, gps_verified')
+        .eq('restaurant_name', rName)
+        .order('created_at', { ascending: false })
+        .limit(10),
       supabase
         .from('venue_comments')
         .select('id, comment, commenter_name, created_at')
@@ -240,9 +287,49 @@ export default function RestaurantManagerDashboard() {
       vibesThisMonth: vibeCountRes.count ?? 0,
       monthlyRatings,
       last30dVibes: (last30dVibesRes.data ?? []) as VibeRow[],
+      recentVibesList: (recentVibesRes.data ?? []) as VibeListRow[],
       comments: (commentsRes.data ?? []) as CommentRow[],
       trendingByServerId,
     })
+  }, [])
+
+  // Talent discovery — servers with open_to_opportunities=true, excluding current staff
+  const loadTalent = useCallback(async (currentStaff: StaffMember[]) => {
+    setTalentLoading(true)
+    const staffIds = new Set(currentStaff.map(s => s.server_id))
+
+    const { data, error: tErr } = await supabase
+      .from('servers')
+      .select('id, name, role, photo_url, average_rating, total_ratings, follower_count, email, specialties, server_restaurants(restaurant_name, is_primary)')
+      .eq('open_to_opportunities', true)
+
+    if (tErr) {
+      console.error('[manager dashboard] talent load:', tErr)
+      setTalentLoading(false)
+      return
+    }
+
+    const mapped: TalentServer[] = (data ?? [])
+      .filter((row: Record<string, unknown>) => !staffIds.has(row.id as string))
+      .map((row: Record<string, unknown>) => {
+        const restaurants = (row.server_restaurants as { restaurant_name: string; is_primary: boolean }[]) ?? []
+        const primary = restaurants.find(r => r.is_primary)?.restaurant_name ?? restaurants[0]?.restaurant_name ?? null
+        return {
+          id: row.id as string,
+          name: (row.name as string) ?? 'Unnamed',
+          role: (row.role as string) ?? null,
+          photo_url: (row.photo_url as string) ?? null,
+          average_rating: (row.average_rating as number) ?? 0,
+          total_ratings: (row.total_ratings as number) ?? 0,
+          follower_count: (row.follower_count as number) ?? 0,
+          email: (row.email as string) ?? null,
+          specialties: (row.specialties as string[]) ?? [],
+          primary_restaurant: primary,
+        }
+      })
+
+    setTalent(mapped)
+    setTalentLoading(false)
   }, [])
 
   const loadData = useCallback(async (rName?: string) => {
@@ -290,11 +377,14 @@ export default function RestaurantManagerDashboard() {
     setStaff(merged)
     setLoading(false)
 
-    // Fire analytics in parallel — don't block staff render
+    // Fire analytics + talent in parallel — don't block staff render
     loadAnalytics(targetName, merged).catch(err => {
       console.error('[manager dashboard] analytics:', err)
     })
-  }, [restaurantName, loadAnalytics])
+    loadTalent(merged).catch(err => {
+      console.error('[manager dashboard] talent:', err)
+    })
+  }, [restaurantName, loadAnalytics, loadTalent])
 
   // Initial auth + manager lookup
   useEffect(() => {
@@ -307,7 +397,7 @@ export default function RestaurantManagerDashboard() {
 
       const { data: manager, error: mErr } = await supabase
         .from('restaurant_managers')
-        .select('name, restaurant_name')
+        .select('name, restaurant_name, email')
         .eq('auth_id', session.user.id)
         .maybeSingle()
 
@@ -323,6 +413,7 @@ export default function RestaurantManagerDashboard() {
       }
 
       setManagerName(manager.name ?? '')
+      setManagerEmail(manager.email ?? session.user.email ?? '')
       setRestaurantName(manager.restaurant_name)
       await loadData(manager.restaurant_name)
     }
@@ -387,41 +478,110 @@ export default function RestaurantManagerDashboard() {
     }
   }
 
+  async function handleContact(server: TalentServer) {
+    if (!restaurantName || !managerName || !server.email) {
+      setError('Missing details — refresh the page and try again.')
+      return
+    }
+    setContactingId(server.id)
+    try {
+      const res = await fetch('/api/contact-server', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serverEmail: server.email,
+          serverName: server.name,
+          restaurantName,
+          managerName,
+          managerEmail,
+        }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || 'Failed to send message.')
+      setContactedIds(prev => {
+        const next = new Set(prev)
+        next.add(server.id)
+        return next
+      })
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setError(msg)
+    } finally {
+      setContactingId(null)
+    }
+  }
+
+  // Filtered talent
+  const filteredTalent = talent.filter(t => {
+    if (roleFilter !== 'all') {
+      const r = (t.role ?? '').toLowerCase()
+      if (roleFilter === 'bartender' && !r.includes('bartender')) return false
+      if (roleFilter === 'server' && !r.includes('server')) return false
+    }
+    if (ratingFilter !== 'any' && t.average_rating < parseFloat(ratingFilter)) return false
+    if (followersFilter !== 'any' && t.follower_count < parseInt(followersFilter, 10)) return false
+    return true
+  })
+
   const onShiftCount = staff.filter(s => s.is_on_shift).length
+  const todayDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+      {/* Playfair Display for premium headings */}
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap" />
+
       <Navbar />
       <div className="border-t border-white/10" />
 
       <main className="mx-auto max-w-3xl px-8 py-12 lg:py-16">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="mb-12">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#606060' }}>
-            Manager Dashboard
+        <div className="mb-10">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: '#606060' }}>
+            Staff Dashboard
           </p>
-          <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+          <h1
+            className="text-4xl text-white sm:text-5xl"
+            style={{ fontFamily: '"Playfair Display", Georgia, serif', fontWeight: 600, letterSpacing: '-0.01em' }}
+          >
             {restaurantName ?? '…'}
           </h1>
+          <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>{todayDate}</p>
           {managerName && (
-            <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>
-              Signed in as {managerName}
-            </p>
+            <p className="mt-1 text-xs" style={{ color: '#606060' }}>Signed in as {managerName}</p>
           )}
 
           <div className="mt-8 flex items-baseline gap-3">
-            <span className="text-3xl font-bold text-white tabular-nums">{onShiftCount}</span>
+            <span className="text-3xl font-bold tabular-nums text-white">{onShiftCount}</span>
             <span className="text-sm" style={{ color: '#A0A0A0' }}>
               {onShiftCount === 1 ? 'staff working tonight' : 'staff working tonight'}
             </span>
           </div>
-          <p className="mt-2 text-xs" style={{ color: '#606060' }}>
-            Auto-refreshes every 5 minutes
-          </p>
+          <p className="mt-2 text-xs" style={{ color: '#606060' }}>Auto-refreshes every 60 seconds</p>
         </div>
 
-        <div className="border-t border-white/10" />
+        {/* ── Tabs ────────────────────────────────────────────────────────── */}
+        <div className="mb-2 flex items-center gap-1 border-b border-white/10 overflow-x-auto">
+          {([
+            { key: 'staff' as const, label: 'Staff' },
+            { key: 'intelligence' as const, label: 'Intelligence' },
+            { key: 'talent' as const, label: 'Talent Discovery' },
+          ]).map(t => {
+            const active = activeTab === t.key
+            return (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className="relative whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-[0.15em] transition-colors"
+                style={{ color: active ? '#FFFFFF' : '#606060' }}
+              >
+                {t.label}
+                {active && <span className="absolute -bottom-px left-0 right-0 h-[2px] bg-white" />}
+              </button>
+            )
+          })}
+        </div>
 
         {/* ── Error ───────────────────────────────────────────────────────── */}
         {error && (
@@ -430,98 +590,114 @@ export default function RestaurantManagerDashboard() {
           </div>
         )}
 
-        {/* ── Staff list ──────────────────────────────────────────────────── */}
-        <section className="py-10">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>
-            Staff
-          </p>
-
-          {loading ? (
-            <p className="text-sm" style={{ color: '#606060' }}>Loading…</p>
-          ) : staff.length === 0 ? (
-            <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>
-              No staff are linked to this restaurant yet. Once your servers list this restaurant on their Slate profile, they&apos;ll appear here.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {staff.map(member => {
-                const busy = busyServerId === member.server_id
-                return (
-                  <div
-                    key={member.server_id}
-                    className="flex items-center gap-5 rounded-2xl border border-white/10 px-5 py-5"
-                    style={{ backgroundColor: '#0a0a0a' }}
-                  >
-                    {/* Photo */}
-                    <div className="shrink-0">
-                      {member.photo_url ? (
-                        <Image
-                          src={member.photo_url}
-                          alt={member.name}
-                          width={56}
-                          height={56}
-                          className="h-14 w-14 rounded-full object-cover"
-                          unoptimized
-                        />
-                      ) : (
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-base font-bold text-white">
-                          {initials(member.name)}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-3">
-                        <p className="truncate text-base font-semibold text-white">{member.name}</p>
-                        {member.is_on_shift ? (
-                          <span
-                            className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest"
-                            style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.4)' }}
-                          >
-                            On Shift
-                          </span>
+        {/* ── STAFF TAB ───────────────────────────────────────────────────── */}
+        {activeTab === 'staff' && (
+          <section className="py-6">
+            {loading ? (
+              <p className="text-sm py-6" style={{ color: '#606060' }}>Loading…</p>
+            ) : staff.length === 0 ? (
+              <p className="text-sm leading-7 py-6" style={{ color: '#A0A0A0' }}>
+                No staff are linked to this restaurant yet. Once your servers list this restaurant on their Slate profile, they&apos;ll appear here.
+              </p>
+            ) : (
+              <div>
+                {staff.map(member => {
+                  const isActive = member.is_on_shift
+                  const busy = busyServerId === member.server_id
+                  return (
+                    <div
+                      key={member.server_id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '56px 1fr auto',
+                        gap: '20px',
+                        padding: '24px 0',
+                        borderBottom: '1px solid #0d0d0d',
+                        alignItems: 'center',
+                        opacity: busy ? 0.6 : 1,
+                      }}
+                    >
+                      {/* Photo */}
+                      <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#111', overflow: 'hidden' }}>
+                        {member.photo_url ? (
+                          <Image
+                            src={member.photo_url}
+                            alt={member.name}
+                            width={56}
+                            height={56}
+                            unoptimized
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
                         ) : (
-                          <span
-                            className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest"
-                            style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: '#A0A0A0', border: '1px solid rgba(255,255,255,0.15)' }}
-                          >
-                            Not Working
-                          </span>
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333', fontSize: '20px' }}>
+                            {member.name?.[0]?.toUpperCase()}
+                          </div>
                         )}
                       </div>
-                      <p className="mt-0.5 text-xs capitalize" style={{ color: '#A0A0A0' }}>
-                        {member.role ?? 'Server'}
-                      </p>
-                      <div className="mt-2 flex items-center gap-2 text-xs" style={{ color: '#606060' }}>
-                        {member.average_rating > 0 && (
-                          <>
-                            <span className="font-semibold text-white">
-                              {member.average_rating.toFixed(1)} ★
-                            </span>
-                            <span>·</span>
-                          </>
-                        )}
-                        <span>
-                          {member.follower_count} {member.follower_count === 1 ? 'follower' : 'followers'}
+
+                      {/* Info */}
+                      <div>
+                        <div style={{ color: 'white', fontSize: '16px', fontFamily: '"Playfair Display", Georgia, serif' }}>
+                          {member.name}
+                        </div>
+                        <div style={{ color: '#444', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '2px' }}>
+                          {member.role ?? 'Server'}
+                        </div>
+                        <div style={{ display: 'flex', gap: '16px', marginTop: '6px' }}>
+                          <span style={{ color: '#555', fontSize: '12px' }}>
+                            {member.average_rating > 0 ? member.average_rating.toFixed(1) : '—'} rating
+                          </span>
+                          <span style={{ color: '#555', fontSize: '12px' }}>
+                            {member.follower_count || 0} followers
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Toggle */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          onClick={() => handleToggle(member, !isActive)}
+                          disabled={busy}
+                          style={{
+                            width: '64px',
+                            height: '32px',
+                            borderRadius: '16px',
+                            background: isActive ? 'white' : '#111',
+                            border: isActive ? 'none' : '1px solid #222',
+                            cursor: busy ? 'wait' : 'pointer',
+                            position: 'relative',
+                            transition: 'all 0.2s',
+                          }}
+                          aria-label={isActive ? `End ${member.name}'s shift` : `Start ${member.name}'s shift`}
+                        >
+                          <div
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              background: isActive ? 'black' : '#333',
+                              position: 'absolute',
+                              top: '4px',
+                              left: isActive ? '36px' : '4px',
+                              transition: 'all 0.2s',
+                            }}
+                          />
+                        </button>
+                        <span style={{ color: isActive ? 'white' : '#333', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                          {isActive ? 'On Shift' : 'Off'}
                         </span>
                       </div>
                     </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
-                    {/* Toggle */}
-                    <ShiftToggle
-                      on={member.is_on_shift}
-                      busy={busy}
-                      onChange={next => handleToggle(member, next)}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* ── STAFF INTELLIGENCE ─────────────────────────────────────────── */}
+        {/* ── INTELLIGENCE TAB ────────────────────────────────────────────── */}
+        {activeTab === 'intelligence' && (
+        <>
         <div className="border-t border-white/10" />
 
         <section className="pt-12 pb-2">
@@ -793,6 +969,220 @@ export default function RestaurantManagerDashboard() {
             )
           })()}
         </section>
+
+        {/* Section 5 — Recent Vibe Reports */}
+        <div className="border-t border-white/10" />
+        <section className="py-10">
+          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>
+            Recent Vibe Reports
+          </p>
+          {(() => {
+            const recent = analytics?.recentVibesList ?? []
+            if (recent.length === 0) {
+              return <p className="text-sm" style={{ color: '#606060' }}>No vibe reports yet.</p>
+            }
+            return (
+              <div className="flex flex-col divide-y divide-white/10">
+                {recent.map(v => {
+                  const key = (v.vibe ?? '').toUpperCase()
+                  return (
+                    <div key={v.id} className="flex items-center justify-between gap-3 py-4">
+                      <div className="flex items-center gap-3">
+                        <span style={{ fontSize: '20px' }}>{VIBE_EMOJI[key] ?? '✨'}</span>
+                        <div>
+                          <p className="text-sm font-semibold capitalize text-white">
+                            {VIBE_LABEL[key] ?? (v.vibe ?? 'reported').toLowerCase()}
+                          </p>
+                          <p className="text-xs" style={{ color: '#606060' }}>{timeAgo(v.created_at)}</p>
+                        </div>
+                      </div>
+                      {v.gps_verified ? (
+                        <span
+                          className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest"
+                          style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.4)' }}
+                        >
+                          GPS Verified
+                        </span>
+                      ) : (
+                        <span
+                          className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest"
+                          style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: '#606060', border: '1px solid rgba(255,255,255,0.15)' }}
+                        >
+                          Unverified
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
+        </section>
+        </>
+        )}
+
+        {/* ── TALENT DISCOVERY TAB ────────────────────────────────────────── */}
+        {activeTab === 'talent' && (
+          <section className="py-6">
+            {/* Filters */}
+            <div className="mb-8 flex flex-col gap-4">
+              {[
+                {
+                  label: 'Role',
+                  options: [
+                    { key: 'all' as RoleFilter,        label: 'All' },
+                    { key: 'bartender' as RoleFilter,  label: 'Bartender' },
+                    { key: 'server' as RoleFilter,     label: 'Server' },
+                  ],
+                  value: roleFilter,
+                  set: (k: RoleFilter) => setRoleFilter(k),
+                },
+                {
+                  label: 'Min Rating',
+                  options: [
+                    { key: 'any' as RatingFilter, label: 'Any' },
+                    { key: '4.0' as RatingFilter, label: '4.0+' },
+                    { key: '4.5' as RatingFilter, label: '4.5+' },
+                    { key: '5.0' as RatingFilter, label: '5.0' },
+                  ],
+                  value: ratingFilter,
+                  set: (k: RatingFilter) => setRatingFilter(k),
+                },
+                {
+                  label: 'Min Followers',
+                  options: [
+                    { key: 'any' as FollowersFilter, label: 'Any' },
+                    { key: '10' as FollowersFilter,  label: '10+' },
+                    { key: '50' as FollowersFilter,  label: '50+' },
+                    { key: '100' as FollowersFilter, label: '100+' },
+                  ],
+                  value: followersFilter,
+                  set: (k: FollowersFilter) => setFollowersFilter(k),
+                },
+              ].map(group => (
+                <div key={group.label} className="flex flex-wrap items-center gap-3">
+                  <span className="w-28 shrink-0 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: '#606060' }}>
+                    {group.label}
+                  </span>
+                  <div className="flex flex-wrap items-center gap-1 rounded-full border border-white/10 p-1">
+                    {group.options.map(opt => {
+                      const active = group.value === opt.key
+                      return (
+                        <button
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          key={opt.key as any}
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          onClick={() => (group.set as any)(opt.key)}
+                          className="rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest transition-colors"
+                          style={{
+                            backgroundColor: active ? '#FFFFFF' : 'transparent',
+                            color: active ? '#000000' : '#A0A0A0',
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Results */}
+            {talentLoading ? (
+              <p className="text-sm" style={{ color: '#606060' }}>Loading talent…</p>
+            ) : filteredTalent.length === 0 ? (
+              <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>
+                No servers match these filters. Try widening the criteria.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {filteredTalent.map(t => {
+                  const contacted = contactedIds.has(t.id)
+                  const contacting = contactingId === t.id
+                  return (
+                    <div
+                      key={t.id}
+                      className="rounded-2xl border border-white/10 p-5"
+                      style={{ backgroundColor: '#0a0a0a' }}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="shrink-0">
+                          {t.photo_url ? (
+                            <Image src={t.photo_url} alt={t.name} width={56} height={56} unoptimized className="h-14 w-14 rounded-full object-cover" />
+                          ) : (
+                            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 text-base font-bold text-white">
+                              {initials(t.name)}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className="truncate text-base text-white"
+                            style={{ fontFamily: '"Playfair Display", Georgia, serif', fontWeight: 600 }}
+                          >
+                            {t.name}
+                          </p>
+                          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: '#606060' }}>
+                            {t.role ?? 'Server'}
+                          </p>
+                          <div className="mt-1 flex items-center gap-3 text-xs" style={{ color: '#A0A0A0' }}>
+                            <span>
+                              <span className="font-semibold text-white">
+                                {t.average_rating > 0 ? t.average_rating.toFixed(1) : '—'}
+                              </span>{' '}
+                              ★ ({t.total_ratings})
+                            </span>
+                            <span>·</span>
+                            <span>{t.follower_count} {t.follower_count === 1 ? 'follower' : 'followers'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {t.primary_restaurant && (
+                        <p className="mt-4 text-xs" style={{ color: '#606060' }}>
+                          Currently at <span className="text-white">{t.primary_restaurant}</span>
+                        </p>
+                      )}
+
+                      {t.specialties.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {t.specialties.map(spec => (
+                            <span
+                              key={spec}
+                              className="rounded-full border border-white/15 px-2.5 py-0.5 text-[10px] font-medium"
+                              style={{ color: '#A0A0A0' }}
+                            >
+                              {spec}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                        <a
+                          href={`/server/${t.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 rounded-full border border-white/25 py-2.5 text-center text-xs font-semibold text-white transition-colors hover:border-white"
+                        >
+                          View Profile
+                        </a>
+                        <button
+                          onClick={() => handleContact(t)}
+                          disabled={contacting || contacted || !t.email}
+                          className="flex-1 rounded-full bg-white py-2.5 text-center text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-50"
+                        >
+                          {contacted ? 'Message sent ✓' : contacting ? 'Sending…' : !t.email ? 'No email on file' : 'Contact'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
         <div className="border-t border-white/10 py-8">
           <button

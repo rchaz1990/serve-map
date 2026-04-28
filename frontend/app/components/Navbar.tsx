@@ -24,10 +24,10 @@ const LOGO = (
 )
 
 const NAV_LINKS = [
-  { href: '/live',            label: "What's Live", pulse: true },
-  { href: '/for-servers',     label: 'For Servers',     pulse: false },
-  { href: '/for-restaurants', label: 'For Restaurants', pulse: false },
-  { href: '/whitepaper',      label: 'Whitepaper',      pulse: false },
+  { href: '/live',              label: "What's Live",     pulse: true },
+  { href: '/for-servers',       label: 'For Servers',     pulse: false },
+  { href: '/restaurant/signup', label: 'For Restaurants', pulse: false },
+  { href: '/whitepaper',        label: 'Whitepaper',      pulse: false },
 ]
 
 type ServerRow = { id: string; name: string | null }
