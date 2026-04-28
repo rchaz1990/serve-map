@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Script from 'next/script'
 import QRCode from 'react-qr-code'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
@@ -75,294 +74,6 @@ function useQRCode() {
   return { qrCode, msLeft, activate, deactivate, formatCountdown }
 }
 
-// ── Restaurant QR card (static QR for table tents) ────────────────────────────
-
-function RestaurantQRCard({ restaurantName, url }: { restaurantName: string; url: string }) {
-  const qrWrapRef = useRef<HTMLDivElement>(null)
-  const [downloading, setDownloading] = useState(false)
-
-  async function handleDownload() {
-    const svg = qrWrapRef.current?.querySelector('svg')
-    if (!svg) return
-    setDownloading(true)
-    try {
-      const SIZE = 1024
-      const PADDING = 64
-      const clone = svg.cloneNode(true) as SVGSVGElement
-      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-      clone.setAttribute('width', String(SIZE))
-      clone.setAttribute('height', String(SIZE))
-      const svgString = new XMLSerializer().serializeToString(clone)
-      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
-      const svgUrl = URL.createObjectURL(svgBlob)
-
-      const img = new window.Image()
-      img.crossOrigin = 'anonymous'
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve()
-        img.onerror = () => reject(new Error('Failed to load QR image'))
-        img.src = svgUrl
-      })
-
-      const canvas = document.createElement('canvas')
-      canvas.width = SIZE + PADDING * 2
-      canvas.height = SIZE + PADDING * 2
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Canvas 2D context unavailable')
-      ctx.fillStyle = '#ffffff'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(img, PADDING, PADDING, SIZE, SIZE)
-      URL.revokeObjectURL(svgUrl)
-
-      const blob: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
-      if (!blob) throw new Error('Failed to encode PNG')
-
-      const downloadUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      const slug = restaurantName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-      a.href = downloadUrl
-      a.download = `slate-qr-${slug || 'restaurant'}.png`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(downloadUrl)
-    } catch (err) {
-      console.error('[RestaurantQRCard] download failed:', err)
-    } finally {
-      setDownloading(false)
-    }
-  }
-
-  return (
-    <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
-      <div className="mb-5">
-        <p className="text-sm font-semibold text-white">Restaurant QR Code</p>
-        <p className="mt-0.5 text-xs" style={{ color: '#A0A0A0' }}>
-          Always shows whoever is on shift at {restaurantName} tonight
-        </p>
-      </div>
-
-      <div className="mb-5 flex flex-col items-center gap-5">
-        <div ref={qrWrapRef} className="rounded-2xl bg-white p-5">
-          <QRCode
-            value={url}
-            size={200}
-            bgColor="#ffffff"
-            fgColor="#000000"
-          />
-        </div>
-        <p className="max-w-xs text-center text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
-          Share this QR code with your restaurant manager. Place it on tables so guests can see who&apos;s working tonight.
-        </p>
-      </div>
-
-      <div className="mb-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-        <span className="flex-1 truncate font-mono text-xs" style={{ color: '#606060' }}>
-          slatenow.xyz/restaurant/{encodeURIComponent(restaurantName)}/tonight
-        </span>
-      </div>
-
-      <button
-        onClick={handleDownload}
-        disabled={downloading}
-        className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-50"
-      >
-        {downloading ? 'Preparing…' : 'Download QR Code'}
-      </button>
-    </div>
-  )
-}
-
-// ── Workplace section ──────────────────────────────────────────────────────────
-
-type Workplace = { id: string; restaurant_name: string; is_primary: boolean; currently_working: boolean }
-
-function WorkplaceSection({ serverId, serverName }: { serverId: string | null; serverName: string }) {
-  const [open, setOpen] = useState(false)
-  const [googleLoaded, setGoogleLoaded] = useState(false)
-  const [newVenue, setNewVenue] = useState('')
-  const [newAddress, setNewAddress] = useState('')
-  const [confirmedPlace, setConfirmedPlace] = useState<{ name: string; address: string } | null>(null)
-  const [isPrimary, setIsPrimary] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [workplaces, setWorkplaces] = useState<Workplace[]>([])
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  async function loadWorkplaces() {
-    if (!serverId) return
-    const { data } = await supabase
-      .from('server_restaurants')
-      .select('id, restaurant_name, is_primary, currently_working')
-      .eq('server_id', serverId)
-      .eq('currently_working', true)
-    if (data) setWorkplaces(data as Workplace[])
-  }
-
-  useEffect(() => {
-    loadWorkplaces()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverId])
-
-  useEffect(() => {
-    if (!open || !googleLoaded || !inputRef.current || confirmedPlace) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const google = (window as any).google
-    if (!google?.maps?.places) return
-
-    const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
-      types: ['establishment'],
-      componentRestrictions: { country: 'us' },
-    })
-
-    const style = document.createElement('style')
-    style.innerHTML = '.pac-container { z-index: 99999 !important; pointer-events: all !important; }'
-    document.head.appendChild(style)
-
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace()
-      const name = place.name ?? ''
-      const address = place.formatted_address ?? ''
-      setNewVenue(name)
-      setNewAddress(address)
-      setConfirmedPlace({ name, address })
-    })
-
-    const input = inputRef.current
-    const suppressEnter = (e: KeyboardEvent) => { if (e.key === 'Enter') e.preventDefault() }
-    input.addEventListener('keydown', suppressEnter)
-    return () => { input.removeEventListener('keydown', suppressEnter); style.remove() }
-  }, [open, googleLoaded, confirmedPlace])
-
-  async function handleSave() {
-    if (!confirmedPlace || !serverId) return
-    setSaving(true)
-    const today = new Date().toISOString().slice(0, 10)
-    const { error } = await supabase.from('server_restaurants').insert({
-      server_id: serverId,
-      restaurant_name: newVenue,
-      restaurant_address: newAddress,
-      is_primary: isPrimary,
-      currently_working: true,
-      start_date: today,
-    })
-    if (error) console.error('[supabase] workplace insert:', error)
-    if (!error && serverId && serverName) {
-      fetch('/api/notify-followers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serverId,
-          serverName,
-          restaurantName: newVenue,
-          type: 'job_changed',
-        }),
-      }).catch(() => {})
-    }
-    setSaving(false)
-    setSaved(true)
-    loadWorkplaces()
-    setTimeout(() => { setSaved(false); setOpen(false); setConfirmedPlace(null); setNewVenue(''); setNewAddress(''); setIsPrimary(false) }, 2000)
-  }
-
-  return (
-    <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
-      <Script
-        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}&libraries=places`}
-        onLoad={() => setGoogleLoaded(true)}
-      />
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm font-semibold text-white">My workplace</p>
-        <button
-          onClick={() => { setOpen(o => !o); setConfirmedPlace(null); setNewVenue(''); setNewAddress('') }}
-          className="text-xs transition-colors hover:text-white"
-          style={{ color: '#606060' }}
-        >
-          {open ? 'Cancel' : 'Update workplace'}
-        </button>
-      </div>
-
-      {/* Current workplaces */}
-      <div className="mb-4 flex flex-col gap-2">
-        {workplaces.length === 0 && (
-          <p className="text-xs" style={{ color: '#606060' }}>No current workplaces. Add one below.</p>
-        )}
-        {workplaces.map(w => (
-          <div key={w.id} className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-3">
-            <div>
-              <p className="text-sm font-medium text-white">{w.restaurant_name}</p>
-              {w.is_primary && (
-                <p className="text-xs" style={{ color: '#606060' }}>Primary workplace</p>
-              )}
-            </div>
-            <button
-              onClick={async () => {
-                await supabase.from('server_restaurants').update({ currently_working: false }).eq('id', w.id)
-                loadWorkplaces()
-              }}
-              className="text-xs transition-colors hover:text-white"
-              style={{ color: '#404040' }}
-            >
-              I no longer work here
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {/* Add new workplace form */}
-      {open && (
-        <div className="border-t border-white/10 pt-5">
-          <p className="mb-3 text-xs font-medium" style={{ color: '#A0A0A0' }}>Add a workplace</p>
-
-          {confirmedPlace ? (
-            <div className="mb-3 flex items-start justify-between rounded-xl border border-white/20 px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-white">{confirmedPlace.name}</p>
-                <p className="text-xs" style={{ color: '#606060' }}>{confirmedPlace.address}</p>
-              </div>
-              <button
-                onClick={() => { setConfirmedPlace(null); setNewVenue(''); setNewAddress(''); if (inputRef.current) inputRef.current.value = '' }}
-                className="ml-3 shrink-0 text-xs transition-colors hover:text-white"
-                style={{ color: '#606060' }}
-              >
-                Change
-              </button>
-            </div>
-          ) : (
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder="Search for restaurant or bar…"
-              className="mb-3 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
-            />
-          )}
-
-          <label className="mb-4 flex cursor-pointer items-center gap-2.5">
-            <input
-              type="checkbox"
-              checked={isPrimary}
-              onChange={e => setIsPrimary(e.target.checked)}
-              className="accent-white"
-            />
-            <span className="text-xs font-medium text-white">This is my primary workplace</span>
-          </label>
-
-          {saved ? (
-            <p className="text-xs font-medium text-white">Workplace updated.</p>
-          ) : (
-            <button
-              disabled={!confirmedPlace || saving}
-              onClick={handleSave}
-              className="rounded-full bg-white px-6 py-2.5 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
-            >
-              {saving ? 'Saving…' : 'Save workplace'}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ── Profile preferences (specialties + visibility) ───────────────────────────
 
@@ -384,7 +95,8 @@ function ProfilePreferencesSection({
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>(initialSpecialties)
   const [openToOpportunities, setOpenToOpportunities] = useState<boolean>(initialOpenToOpportunities)
   const [savingSpecs, setSavingSpecs] = useState(false)
-  const [savedSpecs, setSavedSpecs] = useState(false)
+  const [editingSpecialties, setEditingSpecialties] = useState(false)
+  const [specialtiesSaved, setSpecialtiesSaved] = useState(false)
   const [busyToggle, setBusyToggle] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -413,8 +125,9 @@ function ProfilePreferencesSection({
       setError(updateErr.message)
       return
     }
-    setSavedSpecs(true)
-    setTimeout(() => setSavedSpecs(false), 2000)
+    setEditingSpecialties(false)
+    setSpecialtiesSaved(true)
+    setTimeout(() => setSpecialtiesSaved(false), 2000)
   }
 
   async function toggleOpenToOpportunities(next: boolean) {
@@ -433,260 +146,198 @@ function ProfilePreferencesSection({
     setOpenToOpportunities(next)
   }
 
+  const FONT_MONO = '"Space Mono", ui-monospace, SFMono-Regular, monospace'
+
   return (
-    <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
-      {/* Specialties */}
-      <div className="mb-8">
-        <p className="text-sm font-semibold text-white">Specialties</p>
-        <p className="mb-4 mt-0.5 text-xs" style={{ color: '#A0A0A0' }}>
-          What guests should know you for
-        </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', margin: '-4px' }}>
-          {SPECIALTY_OPTIONS.map(specialty => (
+    <>
+      {/* ── Specialties (collapsed by default) ─────────────────────────── */}
+      <div className="mb-6 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <p
+            style={{
+              fontFamily: FONT_MONO,
+              fontSize: '10px',
+              letterSpacing: '3px',
+              textTransform: 'uppercase',
+              color: '#444',
+            }}
+          >
+            Specialties
+          </p>
+          {!editingSpecialties && (
             <button
-              key={specialty}
-              type="button"
-              onClick={() => toggleSpecialty(specialty)}
+              onClick={() => setEditingSpecialties(true)}
               style={{
-                background: selectedSpecialties.includes(specialty) ? 'white' : 'transparent',
-                color: selectedSpecialties.includes(specialty) ? 'black' : '#555',
-                border: '1px solid #333',
-                padding: '8px 16px',
-                fontSize: '12px',
-                letterSpacing: '1px',
+                background: 'none',
+                border: 'none',
+                color: '#444',
+                fontSize: '10px',
+                letterSpacing: '2px',
+                textTransform: 'uppercase',
                 cursor: 'pointer',
-                margin: '4px',
+                textDecoration: 'underline',
+                fontFamily: FONT_MONO,
               }}
             >
-              {specialty}
+              Edit
             </button>
-          ))}
+          )}
         </div>
-        <button
-          onClick={saveSpecialties}
-          disabled={savingSpecs || !serverId}
-          className="mt-4 rounded-full bg-white px-5 py-2 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-50"
-        >
-          {savingSpecs ? 'Updating…' : savedSpecs ? 'Updated ✓' : 'Update'}
-        </button>
-      </div>
 
-      <div className="border-t border-white/10" />
-
-      {/* Open to opportunities */}
-      <div className="mt-6 flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-white">Appear in restaurant talent search</p>
-          <p className="mt-0.5 text-xs leading-6" style={{ color: '#A0A0A0' }}>
-            Let restaurants discover your profile when hiring.
-          </p>
-          <p className="mt-1 text-[11px] font-semibold uppercase tracking-widest" style={{ color: openToOpportunities ? '#4ade80' : '#606060' }}>
-            {openToOpportunities ? 'Visible' : 'Hidden'}
-          </p>
-        </div>
-        <button
-          role="switch"
-          aria-checked={openToOpportunities}
-          disabled={busyToggle || !serverId}
-          onClick={() => toggleOpenToOpportunities(!openToOpportunities)}
-          className="relative h-8 w-14 shrink-0 rounded-full border transition-colors disabled:opacity-50"
-          style={{
-            backgroundColor: openToOpportunities ? '#22c55e' : 'rgba(255,255,255,0.08)',
-            borderColor: openToOpportunities ? '#22c55e' : 'rgba(255,255,255,0.2)',
-          }}
-        >
-          <span
-            className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-md transition-transform"
-            style={{ transform: openToOpportunities ? 'translateX(28px)' : 'translateX(2px)' }}
-          />
-        </button>
-      </div>
-
-      {error && (
-        <p className="mt-4 text-xs text-red-400">{error}</p>
-      )}
-    </div>
-  )
-}
-
-// ── Worker Council / Suggestions ──────────────────────────────────────────────
-
-type Suggestion = {
-  id: string
-  title: string
-  description: string | null
-  upvotes: number
-  status: 'pending' | 'reviewed' | 'implemented'
-}
-
-const STATUS_LABEL: Record<Suggestion['status'], string> = {
-  pending: 'Pending',
-  reviewed: 'Reviewed',
-  implemented: 'Implemented',
-}
-
-function WorkerCouncilSection() {
-  const [mounted, setMounted] = useState(false)
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
-  const [upvoted, setUpvoted] = useState<Set<string>>(new Set())
-
-  useEffect(() => {
-    setMounted(true)
-    fetchSuggestions()
-  }, [])
-
-  async function fetchSuggestions() {
-    const { data } = await supabase
-      .from('suggestions')
-      .select('id, title, description, upvotes, status')
-      .order('upvotes', { ascending: false })
-      .limit(5)
-    if (data) setSuggestions(data as Suggestion[])
-  }
-
-  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (!title.trim()) return
-    setSubmitting(true)
-    const { error } = await supabase.from('suggestions').insert({
-      title: title.trim(),
-      description: description.trim() || null,
-      upvotes: 0,
-      status: 'pending',
-    })
-    if (error) console.error('[supabase] suggestion insert:', error)
-    setSubmitting(false)
-    setSubmitted(true)
-    setTitle('')
-    setDescription('')
-    fetchSuggestions()
-  }
-
-  async function handleUpvote(id: string, current: number) {
-    if (upvoted.has(id)) return
-    setUpvoted(prev => new Set(prev).add(id))
-    setSuggestions(prev =>
-      prev.map(s => s.id === id ? { ...s, upvotes: s.upvotes + 1 } : s)
-    )
-    await supabase.from('suggestions').update({ upvotes: current + 1 }).eq('id', id)
-  }
-
-  if (!mounted) return null
-
-  return (
-    <div className="mt-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
-      <div className="mb-6">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-          Worker Council
-        </p>
-        <h2 className="mb-1 text-xl font-bold tracking-tight text-white">Your voice matters.</h2>
-        <p className="text-sm" style={{ color: '#606060' }}>
-          Suggest a feature or improvement. The most upvoted ideas get built first.
-        </p>
-      </div>
-
-      {/* Submit form */}
-      {submitted ? (
-        <div className="mb-8 flex items-center gap-2 rounded-xl border border-white/10 px-4 py-4">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 shrink-0 text-white">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-          </svg>
-          <p className="text-sm font-medium text-white">
-            Your suggestion has been submitted. Thank you for helping build Slate.
-          </p>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="mb-8 flex flex-col gap-3">
-          <div>
-            <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>
-              What&apos;s your suggestion?
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="e.g. Add a way to share my profile link on Instagram"
-              required
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>
-              Tell us more <span style={{ color: '#404040' }}>(optional)</span>
-            </label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="Any extra context or details…"
-              rows={3}
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
-              style={{ resize: 'none' }}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={!title.trim() || submitting}
-            className="self-start rounded-full bg-white px-6 py-2.5 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
-          >
-            {submitting ? 'Submitting…' : 'Submit suggestion'}
-          </button>
-        </form>
-      )}
-
-      {/* Top suggestions */}
-      {suggestions.length > 0 && (
-        <div>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: '#404040' }}>
-            Top suggestions
-          </p>
-          <div className="flex flex-col gap-2">
-            {suggestions.map(s => (
-              <div
-                key={s.id}
-                className="flex items-start gap-4 rounded-xl border border-white/10 px-4 py-4"
-                style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
+        {!editingSpecialties ? (
+          <>
+            {selectedSpecialties.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {selectedSpecialties.map(s => (
+                  <span
+                    key={s}
+                    style={{
+                      border: '1px solid #222',
+                      color: '#555',
+                      padding: '4px 12px',
+                      fontSize: '11px',
+                      letterSpacing: '1px',
+                    }}
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span style={{ color: '#333', fontSize: '13px' }}>
+                No specialties added
+              </span>
+            )}
+            {specialtiesSaved && (
+              <p
+                style={{
+                  marginTop: '12px',
+                  fontFamily: FONT_MONO,
+                  fontSize: '10px',
+                  letterSpacing: '2px',
+                  textTransform: 'uppercase',
+                  color: '#444',
+                }}
               >
-                {/* Upvote */}
+                Specialties updated ✓
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'flex', flexWrap: 'wrap', margin: '-4px' }}>
+              {SPECIALTY_OPTIONS.map(specialty => (
                 <button
-                  onClick={() => handleUpvote(s.id, s.upvotes)}
-                  disabled={upvoted.has(s.id)}
-                  className="flex shrink-0 flex-col items-center gap-0.5 transition-opacity hover:opacity-80 disabled:opacity-30"
-                  aria-label="Upvote"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 text-white">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
-                  </svg>
-                  <span className="font-mono text-xs font-semibold text-white">{s.upvotes}</span>
-                </button>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <p className="mb-0.5 text-sm font-semibold text-white">{s.title}</p>
-                  {s.description && (
-                    <p className="text-xs leading-5" style={{ color: '#606060' }}>{s.description}</p>
-                  )}
-                </div>
-
-                {/* Status badge */}
-                <span
-                  className="shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest"
+                  key={specialty}
+                  type="button"
+                  onClick={() => toggleSpecialty(specialty)}
                   style={{
-                    borderColor: s.status === 'implemented' ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.1)',
-                    color: s.status === 'implemented' ? 'white' : '#606060',
+                    background: selectedSpecialties.includes(specialty) ? 'white' : 'transparent',
+                    color: selectedSpecialties.includes(specialty) ? 'black' : '#555',
+                    border: '1px solid #333',
+                    padding: '8px 16px',
+                    fontSize: '12px',
+                    letterSpacing: '1px',
+                    cursor: 'pointer',
+                    margin: '4px',
                   }}
                 >
-                  {STATUS_LABEL[s.status]}
-                </span>
-              </div>
-            ))}
+                  {specialty}
+                </button>
+              ))}
+            </div>
+            <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
+              <button
+                onClick={saveSpecialties}
+                disabled={savingSpecs || !serverId}
+                className="rounded-full bg-white px-5 py-2 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-50"
+              >
+                {savingSpecs ? 'Updating…' : 'Update'}
+              </button>
+              <button
+                onClick={() => {
+                  setEditingSpecialties(false)
+                  setSelectedSpecialties(initialSpecialties)
+                }}
+                disabled={savingSpecs}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#444',
+                  fontSize: '10px',
+                  letterSpacing: '2px',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  fontFamily: FONT_MONO,
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Talent search toggle ─────────────────────────────────────────── */}
+      <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p className="text-sm font-semibold text-white">Appear in restaurant talent search</p>
+            <p className="mt-1 text-xs leading-6" style={{ color: '#A0A0A0' }}>
+              Let restaurants discover your profile when hiring.
+            </p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
+            <button
+              role="switch"
+              aria-checked={openToOpportunities}
+              disabled={busyToggle || !serverId}
+              onClick={() => toggleOpenToOpportunities(!openToOpportunities)}
+              style={{
+                width: '52px',
+                height: '28px',
+                borderRadius: '14px',
+                background: openToOpportunities ? '#22c55e' : '#111',
+                position: 'relative',
+                cursor: busyToggle ? 'wait' : 'pointer',
+                border: 'none',
+                padding: 0,
+                opacity: busyToggle ? 0.5 : 1,
+              }}
+            >
+              <span
+                style={{
+                  width: '22px',
+                  height: '22px',
+                  borderRadius: '50%',
+                  background: 'white',
+                  position: 'absolute',
+                  top: '3px',
+                  left: openToOpportunities ? '27px' : '3px',
+                  transition: 'left 0.2s ease',
+                }}
+              />
+            </button>
+            <span
+              style={{
+                color: openToOpportunities ? '#22c55e' : '#444',
+                fontSize: '10px',
+                letterSpacing: '3px',
+                textTransform: 'uppercase',
+                marginTop: '6px',
+                fontFamily: FONT_MONO,
+              }}
+            >
+              {openToOpportunities ? 'Visible' : 'Hidden'}
+            </span>
           </div>
         </div>
-      )}
-    </div>
+
+        {error && (
+          <p className="mt-4 text-xs text-red-400">{error}</p>
+        )}
+      </div>
+    </>
   )
 }
 
@@ -694,7 +345,6 @@ export default function DashboardPage() {
   const router = useRouter()
 
   // Server profile + activity data
-  const [pendingFollowerCount, setPendingFollowerCount] = useState(0)
   const [serverProfile, setServerProfile] = useState<{
     id: string
     name: string
@@ -712,7 +362,6 @@ export default function DashboardPage() {
     created_at: string
     comment: string | null
   }[]>([])
-  const [recentFollowers, setRecentFollowers] = useState<{ id: string; created_at: string }[]>([])
   const [profileLoading, setProfileLoading] = useState(true)
 
   // Restaurant picker — shown before shift starts
@@ -789,15 +438,6 @@ export default function DashboardPage() {
         .eq('server_id', row.id)
         .eq('status', 'approved')
       const followerCount = row.follower_count ?? followRows?.length ?? 0
-      setRecentFollowers((followRows ?? []).slice(0, 5) as { id: string; created_at: string }[])
-
-      // Pending follow requests count for banner
-      const { count: pendingCount } = await supabase
-        .from('follows')
-        .select('id', { count: 'exact', head: true })
-        .eq('server_id', row.id)
-        .eq('status', 'pending')
-      setPendingFollowerCount(pendingCount ?? 0)
 
       // Ratings
       const { data: ratingRows } = await supabase
@@ -892,7 +532,6 @@ export default function DashboardPage() {
     window.location.reload()
   }
 
-  const [copied, setCopied] = useState(false)
   const [shiftToast, setShiftToast] = useState(false)
   const { qrCode, msLeft, activate, deactivate, formatCountdown } = useQRCode()
 
@@ -948,13 +587,6 @@ export default function DashboardPage() {
 
   function formatShiftStart(ts: number) {
     return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
-
-  function handleCopy() {
-    const id = serverProfile?.id ?? ''
-    navigator.clipboard.writeText(`https://slatenow.xyz/server/${id}`)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
   }
 
   const handleStartShift = (restaurantName: string) => {
@@ -1041,6 +673,88 @@ export default function DashboardPage() {
       <div className="border-t border-white/10" />
 
       <main className="mx-auto max-w-5xl px-8 py-12 lg:px-16">
+
+        {/* ── Header (server name + greeting) ─────────────────────────── */}
+        {profileLoading ? (
+          <div className="mb-10">
+            <p className="text-sm" style={{ color: '#606060' }}>Loading your profile…</p>
+          </div>
+        ) : !serverProfile ? (
+          <div className="mb-10 rounded-2xl border border-white/10 p-7" style={{ backgroundColor: '#0a0a0a' }}>
+            <p className="text-sm font-semibold text-white">Setting up your profile…</p>
+            <p className="mt-1 text-xs" style={{ color: '#606060' }}>
+              We&apos;re still saving your info. Try refreshing in a moment. If this persists, sign out and sign back in.
+            </p>
+          </div>
+        ) : (
+        <div className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-5">
+            {/* Profile photo */}
+            <div className="shrink-0 text-center">
+              {serverProfile.photo_url ? (
+                <img
+                  src={serverProfile.photo_url}
+                  alt={serverProfile.name}
+                  style={{ width: '72px', height: '72px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #222' }}
+                />
+              ) : (
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#111', border: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', color: '#444', fontFamily: 'Georgia, serif' }}>
+                  {serverProfile.name?.[0]?.toUpperCase() ?? '·'}
+                </div>
+              )}
+              <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoUpdate} style={{ display: 'none' }} />
+              <button
+                onClick={() => photoInputRef.current?.click()}
+                style={{ marginTop: '6px', color: '#666', fontSize: '11px', letterSpacing: '1.5px', textTransform: 'uppercase', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%' }}
+              >
+                {serverProfile.photo_url ? 'Update' : 'Add photo'}
+              </button>
+            </div>
+            {/* Name + status */}
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                  Welcome back, {serverProfile.name.split(' ')[0]}
+                </h1>
+                <span title="Verified on-chain profile">
+                  <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 shrink-0">
+                    <circle cx="12" cy="12" r="12" fill="white" />
+                    <path d="M7 12.5l3.5 3.5 6.5-7" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+              </div>
+              <p className="mt-1 text-sm font-medium" style={{ color: '#4ade80' }}>
+                Your profile is live on Slate ✓
+              </p>
+            </div>
+          </div>
+          <a
+            href={`/server/${serverProfile.id}`}
+            className="self-start rounded-full border border-white/20 px-5 py-2 text-xs font-semibold text-white transition-colors hover:border-white sm:self-auto"
+          >
+            View public profile →
+          </a>
+        </div>
+        )}
+
+        {/* ── Stats row (Rating, Reviews, Followers, $SERVE) ──────────── */}
+        <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: 'Rating',    value: serverProfile?.avg_rating ? serverProfile.avg_rating.toFixed(1) : '—' },
+            { label: 'Reviews',   value: serverProfile?.total_ratings ?? 0 },
+            { label: 'Followers', value: serverProfile?.follower_count ?? 0 },
+            { label: '$SERVE',    value: serverProfile?.slate_points ?? 0 },
+          ].map(({ label, value }) => (
+            <div
+              key={label}
+              className="flex flex-col gap-1.5 rounded-2xl border border-white/10 p-5"
+              style={{ backgroundColor: '#0a0a0a' }}
+            >
+              <span className="text-2xl font-bold text-white">{value}</span>
+              <span className="text-xs" style={{ color: '#A0A0A0' }}>{label}</span>
+            </div>
+          ))}
+        </div>
 
         {/* ── Shift Status Card ───────────────────────────────────────── */}
         <div
@@ -1288,406 +1002,12 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* ── Update workplace ────────────────────────────────────────── */}
-        <WorkplaceSection serverId={serverProfile?.id ?? null} serverName={serverProfile?.name ?? ''} />
-
-        {/* ── Profile preferences ─────────────────────────────────────── */}
+        {/* ── Profile preferences (specialties + talent toggle) ───────── */}
         <ProfilePreferencesSection
           serverId={serverProfile?.id ?? null}
           initialSpecialties={profileSpecialties}
           initialOpenToOpportunities={profileOpenToOpportunities}
         />
-
-        {/* ── Header ──────────────────────────────────────────────────── */}
-        {profileLoading ? (
-          <div className="mb-10">
-            <p className="text-sm" style={{ color: '#606060' }}>Loading your profile…</p>
-          </div>
-        ) : !serverProfile ? (
-          <div className="mb-10 rounded-2xl border border-white/10 p-7" style={{ backgroundColor: '#0a0a0a' }}>
-            <p className="text-sm font-semibold text-white">Setting up your profile…</p>
-            <p className="mt-1 text-xs" style={{ color: '#606060' }}>
-              We&apos;re still saving your info. Try refreshing in a moment. If this persists, sign out and sign back in.
-            </p>
-          </div>
-        ) : (
-        <div className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-5">
-            {/* Profile photo */}
-            <div className="shrink-0 text-center">
-              {serverProfile.photo_url ? (
-                <img
-                  src={serverProfile.photo_url}
-                  alt={serverProfile.name}
-                  style={{ width: '72px', height: '72px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #222' }}
-                />
-              ) : (
-                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#111', border: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>
-                  👤
-                </div>
-              )}
-              <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoUpdate} style={{ display: 'none' }} />
-              <button
-                onClick={() => photoInputRef.current?.click()}
-                style={{ marginTop: '6px', color: '#666', fontSize: '11px', letterSpacing: '1.5px', textTransform: 'uppercase', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%' }}
-              >
-                {serverProfile.photo_url ? 'Update' : 'Add photo'}
-              </button>
-            </div>
-            {/* Name + status */}
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                  Welcome back, {serverProfile.name.split(' ')[0]}
-                </h1>
-                <span title="Verified on-chain profile">
-                  <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 shrink-0">
-                    <circle cx="12" cy="12" r="12" fill="white" />
-                    <path d="M7 12.5l3.5 3.5 6.5-7" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </span>
-              </div>
-              <p className="mt-1 text-sm font-medium" style={{ color: '#4ade80' }}>
-                Your profile is live on Slate ✓
-              </p>
-            </div>
-          </div>
-          <a
-            href={`/server/${serverProfile.id}`}
-            className="self-start rounded-full border border-white/20 px-5 py-2 text-xs font-semibold text-white transition-colors hover:border-white sm:self-auto"
-          >
-            View public profile →
-          </a>
-        </div>
-        )}
-
-        {/* ── Pending followers banner ────────────────────────────────── */}
-        {pendingFollowerCount > 0 && (
-          <a
-            href="/dashboard/followers"
-            className="mb-6 flex items-center justify-between rounded-2xl border border-white/20 px-5 py-4 transition-colors hover:border-white/40"
-            style={{ backgroundColor: '#0a0a0a', textDecoration: 'none' }}
-          >
-            <div className="flex items-center gap-3">
-              <span
-                className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-black"
-                style={{ backgroundColor: 'white' }}
-              >
-                {pendingFollowerCount > 9 ? '9+' : pendingFollowerCount}
-              </span>
-              <span className="text-sm font-semibold text-white">
-                {pendingFollowerCount === 1
-                  ? '1 pending follow request'
-                  : `${pendingFollowerCount} pending follow requests`}
-              </span>
-            </div>
-            <span className="text-xs" style={{ color: '#606060' }}>Review →</span>
-          </a>
-        )}
-
-        {/* ── Stats row ───────────────────────────────────────────────── */}
-        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {[
-            { label: 'Ratings', value: serverProfile?.total_ratings ?? 0 },
-            { label: 'Avg Rating', value: serverProfile?.avg_rating ? serverProfile.avg_rating.toFixed(1) : '—' },
-            { label: 'Followers', value: serverProfile?.follower_count ?? 0 },
-            { label: 'Venues', value: restaurants.length },
-            { label: 'Slate Points', value: serverProfile?.slate_points ?? 0 },
-          ].map(({ label, value }) => (
-            <div
-              key={label}
-              className="flex flex-col gap-1.5 rounded-2xl border border-white/10 p-5"
-              style={{ backgroundColor: '#0a0a0a' }}
-            >
-              <span className="text-2xl font-bold text-white">{value}</span>
-              <span className="text-xs" style={{ color: '#A0A0A0' }}>{label}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Two-col layout: rewards + reviews ───────────────────────── */}
-        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-
-          {/* Slate Points */}
-          <div className="rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
-            <div className="mb-5 flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">Slate Points</p>
-            </div>
-
-            {/* Balance */}
-            <div className="mb-1">
-              <span className="text-3xl font-bold text-white">{serverProfile?.slate_points ?? 0}</span>
-              <span className="ml-1.5 text-sm font-medium text-white">pts</span>
-            </div>
-            <p className="mb-1 text-xs font-medium" style={{ color: '#4ade80' }}>
-              Converts 1:1 to $SERVE at token launch
-            </p>
-            <p className="mb-5 text-xs" style={{ color: '#404040' }}>
-              $SERVE launches after Slate hits its traction milestones
-            </p>
-
-            <div className="rounded-xl border border-white/10 px-4 py-3">
-              <p className="text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
-                Earn 25 points per verified rating. Founding members started with 50 points. Every point is locked in and waiting.
-              </p>
-            </div>
-          </div>
-
-          {/* Recent Reviews */}
-          <div className="rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
-            <div className="mb-5 flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">Recent Reviews</p>
-              {serverProfile?.id && (
-                <a href={`/server/${serverProfile.id}`} className="text-xs transition-colors hover:text-white" style={{ color: '#A0A0A0' }}>
-                  View all →
-                </a>
-              )}
-            </div>
-
-            {recentRatings.length === 0 ? (
-              <p className="text-xs" style={{ color: '#606060' }}>No reviews yet. Share your QR code to collect your first rating.</p>
-            ) : (
-              <div className="flex flex-col gap-0">
-                {recentRatings.map((r, i) => (
-                  <div key={r.id}>
-                    <div className="py-4">
-                      <div className="mb-1.5 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-white">{r.guest_name ?? 'Guest'}</span>
-                          <span className="text-xs tracking-wide" style={{ color: '#A0A0A0' }}>
-                            {'★'.repeat(r.score)}{'☆'.repeat(5 - r.score)}
-                          </span>
-                        </div>
-                        <span className="text-[10px]" style={{ color: '#606060' }}>
-                          {new Date(r.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                      {r.comment && (
-                        <p className="line-clamp-2 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
-                          &ldquo;{r.comment}&rdquo;
-                        </p>
-                      )}
-                    </div>
-                    {i < recentRatings.length - 1 && <div className="border-t border-white/10" />}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Two-col layout: following + career ──────────────────────── */}
-        <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-
-          {/* Your Following */}
-          <div className="rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
-            <div className="mb-5 flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">Your Followers</p>
-              <span className="text-2xl font-bold text-white">{serverProfile?.follower_count ?? 0}</span>
-            </div>
-
-            {recentFollowers.length === 0 ? (
-              <p className="mb-5 text-xs" style={{ color: '#606060' }}>No followers yet. Share your profile link to grow your following.</p>
-            ) : (
-              <div className="mb-5 flex flex-col gap-0">
-                {recentFollowers.map((f, i) => (
-                  <div key={f.id}>
-                    <div className="flex items-center justify-between py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 text-xs font-semibold text-white">
-                          G
-                        </div>
-                        <span className="text-sm text-white">Guest</span>
-                      </div>
-                      <span className="text-xs" style={{ color: '#606060' }}>
-                        {new Date(f.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                    {i < recentFollowers.length - 1 && <div className="border-t border-white/10" />}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="rounded-xl border border-white/10 px-4 py-3">
-              <p className="text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
-                Your followers get notified when you move to a new restaurant.
-              </p>
-            </div>
-          </div>
-
-          {/* Career History */}
-          <div className="rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
-            <div className="mb-5 flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">Career History</p>
-              <p className="text-xs" style={{ color: '#A0A0A0' }}>Verified on-chain</p>
-            </div>
-
-            <div className="mb-5">
-              {restaurants.length === 0 ? (
-                <p className="text-xs" style={{ color: '#606060' }}>No venues added yet. Add a workplace above.</p>
-              ) : (
-                restaurants.map((r, i) => (
-                  <div key={r.id}>
-                    <div className="flex flex-col gap-0.5 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-white">{r.restaurant_name}</span>
-                        {r.is_primary && (
-                          <span className="rounded-full border border-white/20 px-2 py-0.5 text-[10px] font-medium text-white">
-                            Primary
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs" style={{ color: '#A0A0A0' }}>Server</span>
-                      </div>
-                    </div>
-                    {i < restaurants.length - 1 && <div className="border-t border-white/10" />}
-                  </div>
-                ))
-              )}
-            </div>
-
-            <button
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="w-full rounded-xl border border-white/15 py-2.5 text-xs font-medium text-white transition-colors hover:border-white"
-            >
-              + Add new restaurant
-            </button>
-          </div>
-        </div>
-
-        {/* ── My QR Code ──────────────────────────────────────────────── */}
-        <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-white">My QR Code</p>
-              <p className="mt-0.5 text-xs" style={{ color: '#A0A0A0' }}>
-                Let guests scan to rate and follow you instantly
-              </p>
-            </div>
-            {qrCode && (
-              <span className="rounded-full border border-white/20 bg-white/[0.05] px-3 py-1 text-xs font-semibold text-white">
-                Active {formatCountdown(msLeft)}
-              </span>
-            )}
-          </div>
-
-          {qrCode ? (
-            <>
-              {/* QR code */}
-              <div className="mb-5 flex flex-col items-center gap-5">
-                <div className="rounded-2xl bg-white p-5">
-                  <QRCode
-                    value={`https://slatenow.xyz/scan/${serverProfile?.id}`}
-                    size={200}
-                    bgColor="#ffffff"
-                    fgColor="#000000"
-                  />
-                </div>
-                <p className="max-w-xs text-center text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
-                  Show this to your guests so they can rate and follow you
-                </p>
-              </div>
-
-              {/* URL + deactivate */}
-              <div className="mb-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <span className="flex-1 truncate font-mono text-xs" style={{ color: '#606060' }}>
-                  slatenow.xyz/rate?server={serverProfile?.id}
-                </span>
-              </div>
-              <button
-                onClick={deactivate}
-                className="w-full rounded-full border border-white/20 py-3 text-xs font-semibold text-white transition-colors hover:border-white"
-              >
-                Deactivate
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={activate}
-              className="w-full rounded-full bg-white py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
-            >
-              Activate my QR code
-            </button>
-          )}
-        </div>
-
-        {/* ── Restaurant QR Code ──────────────────────────────────────── */}
-        {(() => {
-          const primary = restaurants.find(r => r.is_primary) ?? restaurants[0]
-          if (!primary) return null
-          const restaurantUrl = `https://slatenow.xyz/restaurant/${encodeURIComponent(primary.restaurant_name)}/tonight`
-          return (
-            <RestaurantQRCard
-              restaurantName={primary.restaurant_name}
-              url={restaurantUrl}
-            />
-          )
-        })()}
-
-        {/* ── Share your profile ──────────────────────────────────────── */}
-        <div className="rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
-          <p className="mb-1.5 text-sm font-semibold text-white">Share your profile</p>
-          <p className="mb-5 text-xs" style={{ color: '#A0A0A0' }}>
-            Let guests find and follow you directly.
-          </p>
-
-          {/* Profile URL */}
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-3">
-            <span className="flex-1 truncate font-mono text-xs text-white">
-              slatenow.xyz/server/{serverProfile?.id ?? '…'}
-            </span>
-            <button
-              onClick={handleCopy}
-              className="shrink-0 rounded-lg border border-white/20 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:border-white"
-            >
-              {copied ? 'Copied ✓' : 'Copy'}
-            </button>
-          </div>
-
-          {/* Social share buttons */}
-          <div className="flex gap-3">
-            <a
-              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`I'm on Slate — the first on-chain reputation platform for NYC servers and bartenders 🍸 slatenow.xyz/server/${serverProfile?.id ?? ''}`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex', flex: 1, alignItems: 'center', justifyContent: 'center',
-                color: 'white', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px',
-                padding: '10px', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase',
-                textDecoration: 'none', minHeight: '44px', background: 'transparent',
-              }}
-            >
-              Share on X
-            </a>
-            <button
-              onClick={async () => {
-                const url = `https://slatenow.xyz/server/${serverProfile?.id ?? ''}`
-                const text = `Follow me on Slate 🍸`
-                if (navigator.share) {
-                  try { await navigator.share({ title: 'My Slate Profile', text, url }) }
-                  catch (err) { console.error('Share failed:', err) }
-                } else {
-                  await navigator.clipboard.writeText(url)
-                  alert('Link copied! Paste it in your Instagram story.')
-                }
-              }}
-              style={{
-                display: 'inline-flex', flex: 1, alignItems: 'center', justifyContent: 'center',
-                color: 'white', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px',
-                padding: '10px', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase',
-                cursor: 'pointer', minHeight: '44px', background: 'transparent',
-                touchAction: 'manipulation',
-              }}
-            >
-              Instagram
-            </button>
-          </div>
-        </div>
-
-        {/* ── Worker Council ──────────────────────────────────────────── */}
-        <WorkerCouncilSection />
 
       </main>
 
