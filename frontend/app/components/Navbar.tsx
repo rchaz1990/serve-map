@@ -24,10 +24,10 @@ const LOGO = (
 )
 
 const NAV_LINKS = [
-  { href: '/live',              label: "What's Live",     pulse: true },
-  { href: '/for-servers',       label: 'For Servers',     pulse: false },
-  { href: '/restaurant/signup', label: 'For Restaurants', pulse: false },
-  { href: '/whitepaper',        label: 'Whitepaper',      pulse: false },
+  { href: '/live',              label: "What's Live",     pulse: true,  marketing: false },
+  { href: '/for-servers',       label: 'For Servers',     pulse: false, marketing: true  },
+  { href: '/for-restaurants',   label: 'For Restaurants', pulse: false, marketing: true  },
+  { href: '/whitepaper',        label: 'Whitepaper',      pulse: false, marketing: false },
 ]
 
 type ServerRow = { id: string; name: string | null }
@@ -228,6 +228,12 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   const isServer  = authLoaded && session && userType === 'server' && serverRow
   const isGuest   = authLoaded && session && userType === 'guest'
 
+  // Marketing links (For Servers / For Restaurants) only show to logged-out visitors.
+  // Hide them as soon as a session OR a non-guest cached userType is known so
+  // logged-in users never see "For Restaurants" / "For Servers" in the nav.
+  const showMarketingLinks = !session && userType === 'guest'
+  const visibleNavLinks = NAV_LINKS.filter(l => !l.marketing || showMarketingLinks)
+
   async function markRead(id: string) {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id)
     setNotifications(prev => prev.filter(n => n.id !== id))
@@ -252,7 +258,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
       <div className="hidden items-center gap-4 md:flex">
         {isManager && (
           <a href="/restaurant/dashboard" className="text-xs font-medium text-white/50 transition-colors hover:text-white">
-            Restaurant Dashboard
+            Dashboard
           </a>
         )}
         {isServer && (
@@ -366,7 +372,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
         </a>
 
         <nav className="hidden items-center gap-8 md:flex">
-          {NAV_LINKS.map(({ href, label, pulse }) => (
+          {visibleNavLinks.map(({ href, label, pulse }) => (
             <a key={href} href={href} className="flex items-center gap-2 text-xs font-medium text-white/50 transition-colors hover:text-white">
               {pulse && (
                 <span className="relative flex h-2 w-2">
@@ -409,7 +415,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           <div className="border-t border-white/10" />
 
           <nav className="flex flex-1 flex-col overflow-y-auto px-8 pt-6">
-            {NAV_LINKS.map(({ href, label }) => (
+            {visibleNavLinks.map(({ href, label }) => (
               <a key={href} href={href} onClick={() => setMenuOpen(false)} className="border-b border-white/10 py-5 text-2xl font-semibold text-white">
                 {label}
               </a>

@@ -1,37 +1,19 @@
+'use client'
+
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 
-const TIERS = [
-  {
-    tag: 'Automatic — Free',
-    name: 'Ghost listing',
-    price: null,
-    body: 'Any venue reported by guests appears on Slate\'s live map automatically. No signup required. Your guests are already putting you on the map.',
-    cta: null,
-  },
-  {
-    tag: 'Free forever',
-    name: 'Claimed listing',
-    price: null,
-    body: 'Claim your venue page, add your details, and see what guests are saying about your spot tonight. Always free.',
-    cta: { label: 'Claim your venue →', href: '/waitlist' },
-  },
-  {
-    tag: 'Verified partner',
-    name: '$99 / month',
-    price: '$99',
-    body: 'Staff analytics, shift visibility, priority placement on the live map, and guest insights. See which staff members drive the most repeat visits.',
-    cta: { label: 'Apply to join →', href: '/waitlist' },
-  },
-  {
-    tag: 'Premium partner',
-    name: '$299 / month',
-    price: '$299',
-    body: 'Everything in Verified Partner plus recruiting tools to search and invite high-rated servers, featured placement in search results, and Scheduling & Reservations — manage staff schedules and accept reservations directly through Slate.',
-    cta: { label: 'Apply to join →', href: '/waitlist' },
-  },
-]
-
 export default function ForRestaurantsPage() {
+  const router = useRouter()
+
+  useEffect(() => {
+    const userType = localStorage.getItem('slateUserType')
+    if (userType === 'manager') {
+      router.push('/restaurant/dashboard')
+    }
+  }, [router])
+
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
       <Navbar />
@@ -43,68 +25,57 @@ export default function ForRestaurantsPage() {
         <section className="px-6 py-20 lg:px-24 lg:py-32">
           <div className="mx-auto max-w-4xl">
             <p className="mb-5 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-              For restaurants &amp; bars
+              For Restaurants
             </p>
-            <h1 className="mb-5 text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
-              Your venue is probably
+            <h1 className="mb-6 text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
+              Your staff&apos;s reputation
               <br />
-              already on Slate.
+              is your restaurant&apos;s
+              <br />
+              reputation.
             </h1>
             <p className="mb-10 max-w-xl text-base leading-relaxed" style={{ color: '#606060' }}>
-              Guests are already reporting vibes at NYC venues tonight. Claim yours for free.
+              Slate gives you real data on the people who make your guests come back.
             </p>
             <a
-              href="/waitlist"
-              className="inline-block w-full rounded-full bg-white px-8 py-4 text-center text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:w-auto"
+              href="/restaurant/signup"
+              className="inline-block rounded-full bg-white px-8 py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80"
             >
-              Claim your venue →
+              Get Started Free →
             </a>
+            <p className="mt-4 text-xs" style={{ color: '#404040' }}>Free to get started. No contract.</p>
           </div>
         </section>
 
         <div className="border-t border-white/10" />
 
-        {/* ── Three tiers ───────────────────────────────────────────────── */}
+        {/* ── Three value props ────────────────────────────────────────── */}
         <section className="px-6 py-16 lg:px-24 lg:py-24">
           <div className="mx-auto max-w-4xl">
-            <p className="mb-12 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-              How it works for restaurants
+            <p className="mb-10 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
+              Why Slate
             </p>
-
-            <div className="flex flex-col gap-0">
-              {TIERS.map((tier, i) => (
-                <div key={tier.name}>
-                  <div className="flex flex-col gap-5 py-10 sm:flex-row sm:items-start sm:gap-16">
-                    {/* Number */}
-                    <span className="shrink-0 font-mono text-xs font-medium" style={{ color: '#404040' }}>
-                      0{i + 1}
-                    </span>
-                    <div className="flex-1">
-                      {/* Tag */}
-                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ color: '#606060' }}>
-                        {tier.tag}
-                      </p>
-                      {/* Name */}
-                      <h3 className="mb-3 text-lg font-bold text-white">{tier.name}</h3>
-                      {/* Body */}
-                      <p className="mb-5 max-w-lg text-sm leading-7" style={{ color: '#A0A0A0' }}>{tier.body}</p>
-                      {/* CTA */}
-                      {tier.cta && (
-                        <a
-                          href={tier.cta.href}
-                          className={[
-                            'inline-block rounded-full px-6 py-2.5 text-sm font-semibold transition-opacity hover:opacity-80',
-                            i === 2
-                              ? 'bg-white text-black'
-                              : 'border border-white/25 text-white hover:border-white',
-                          ].join(' ')}
-                        >
-                          {tier.cta.label}
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                  {i < TIERS.length - 1 && <div className="border-t border-white/10" />}
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+              {[
+                {
+                  title: 'Staff Intelligence',
+                  body: 'See which servers and bartenders are driving repeat business. Real ratings from real guests — not a manager’s gut feeling.',
+                },
+                {
+                  title: 'Talent Discovery',
+                  body: 'Find the highest rated servers and bartenders in NYC. Verified track records. No resumes. No guessing.',
+                },
+                {
+                  title: 'Guest Loyalty',
+                  body: 'When guests follow your staff on Slate they come back to your venue specifically. Staff retention becomes guest retention.',
+                },
+              ].map(card => (
+                <div
+                  key={card.title}
+                  className="rounded-2xl border border-white/10 bg-white/[0.03] px-7 py-7"
+                >
+                  <p className="mb-3 text-sm font-semibold text-white">{card.title}</p>
+                  <p className="text-sm leading-relaxed" style={{ color: '#606060' }}>{card.body}</p>
                 </div>
               ))}
             </div>
@@ -113,36 +84,97 @@ export default function ForRestaurantsPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── Staff flywheel ────────────────────────────────────────────── */}
-        <section className="px-6 py-20 lg:px-24 lg:py-32" style={{ backgroundColor: '#080808' }}>
-          <div className="mx-auto max-w-3xl">
-            <p className="mb-6 text-2xl font-bold leading-snug tracking-tight text-white sm:text-3xl">
-              When a top rated server joins your team their followers get notified and book at your restaurant.
+        {/* ── Pricing ──────────────────────────────────────────────────── */}
+        <section className="px-6 py-16 lg:px-24 lg:py-24" style={{ backgroundColor: '#080808' }}>
+          <div className="mx-auto max-w-4xl">
+            <p className="mb-10 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
+              Pricing
             </p>
-            <p className="text-base leading-relaxed" style={{ color: '#606060' }}>
-              Your staff becomes your most powerful marketing tool.
-            </p>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+              {[
+                {
+                  tier: 'Free',
+                  price: '$0',
+                  cadence: 'forever',
+                  highlight: false,
+                  features: [
+                    'Ghost listing',
+                    'Vibe reports',
+                    'Basic venue page',
+                  ],
+                },
+                {
+                  tier: 'Verified Partner',
+                  price: '$99',
+                  cadence: 'per month',
+                  highlight: true,
+                  features: [
+                    'Staff analytics',
+                    'Talent discovery',
+                    'Priority placement',
+                    'Guest intelligence reports',
+                  ],
+                },
+                {
+                  tier: 'Premium',
+                  price: '$299',
+                  cadence: 'per month',
+                  highlight: false,
+                  features: [
+                    'Everything in Verified Partner',
+                    'Scheduling tools',
+                    'Reservation features',
+                  ],
+                },
+              ].map(plan => (
+                <div
+                  key={plan.tier}
+                  className="flex flex-col rounded-2xl px-7 py-8"
+                  style={{
+                    border: plan.highlight ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                    backgroundColor: plan.highlight ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)',
+                  }}
+                >
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-white">{plan.tier}</p>
+                  <div className="mb-6 flex items-baseline gap-2">
+                    <span className="text-4xl font-bold tracking-tight text-white">{plan.price}</span>
+                    <span className="text-xs" style={{ color: '#606060' }}>{plan.cadence}</span>
+                  </div>
+                  <ul className="flex flex-1 flex-col gap-3">
+                    {plan.features.map(f => (
+                      <li key={f} className="flex items-start gap-2.5 text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-white">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                        </svg>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
         <div className="border-t border-white/10" />
 
-        {/* ── Single CTA ────────────────────────────────────────────────── */}
+        {/* ── Bottom CTA ──────────────────────────────────────────────── */}
         <section className="px-6 py-24 text-center lg:px-24 lg:py-36">
           <div className="mx-auto max-w-xl">
             <h2 className="mb-5 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Join the NYC pilot.
+              Free to get started.
+              <br />
+              No contract.
             </h2>
             <p className="mx-auto mb-10 text-base leading-relaxed" style={{ color: '#606060' }}>
-              We&apos;re onboarding a small number of NYC restaurants and bars for our founding cohort. Apply now to be among the first claimed venues on Slate.
+              Claim your restaurant in two minutes. See who&apos;s driving your repeat business tonight.
             </p>
             <a
-              href="/waitlist"
+              href="/restaurant/signup"
               className="block w-full rounded-full bg-white py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:inline-block sm:w-auto sm:px-10"
             >
-              Apply to join Slate →
+              Create Your Restaurant Account →
             </a>
-            <p className="mt-4 text-xs" style={{ color: '#404040' }}>NYC venues only · Pilot phase · Limited spots</p>
           </div>
         </section>
 
