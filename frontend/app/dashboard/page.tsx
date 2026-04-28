@@ -75,6 +75,104 @@ function useQRCode() {
   return { qrCode, msLeft, activate, deactivate, formatCountdown }
 }
 
+// ── Restaurant QR card (static QR for table tents) ────────────────────────────
+
+function RestaurantQRCard({ restaurantName, url }: { restaurantName: string; url: string }) {
+  const qrWrapRef = useRef<HTMLDivElement>(null)
+  const [downloading, setDownloading] = useState(false)
+
+  async function handleDownload() {
+    const svg = qrWrapRef.current?.querySelector('svg')
+    if (!svg) return
+    setDownloading(true)
+    try {
+      const SIZE = 1024
+      const PADDING = 64
+      const clone = svg.cloneNode(true) as SVGSVGElement
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+      clone.setAttribute('width', String(SIZE))
+      clone.setAttribute('height', String(SIZE))
+      const svgString = new XMLSerializer().serializeToString(clone)
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+      const svgUrl = URL.createObjectURL(svgBlob)
+
+      const img = new window.Image()
+      img.crossOrigin = 'anonymous'
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error('Failed to load QR image'))
+        img.src = svgUrl
+      })
+
+      const canvas = document.createElement('canvas')
+      canvas.width = SIZE + PADDING * 2
+      canvas.height = SIZE + PADDING * 2
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas 2D context unavailable')
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, PADDING, PADDING, SIZE, SIZE)
+      URL.revokeObjectURL(svgUrl)
+
+      const blob: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+      if (!blob) throw new Error('Failed to encode PNG')
+
+      const downloadUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const slug = restaurantName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      a.href = downloadUrl
+      a.download = `slate-qr-${slug || 'restaurant'}.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(downloadUrl)
+    } catch (err) {
+      console.error('[RestaurantQRCard] download failed:', err)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+      <div className="mb-5">
+        <p className="text-sm font-semibold text-white">Restaurant QR Code</p>
+        <p className="mt-0.5 text-xs" style={{ color: '#A0A0A0' }}>
+          Always shows whoever is on shift at {restaurantName} tonight
+        </p>
+      </div>
+
+      <div className="mb-5 flex flex-col items-center gap-5">
+        <div ref={qrWrapRef} className="rounded-2xl bg-white p-5">
+          <QRCode
+            value={url}
+            size={200}
+            bgColor="#ffffff"
+            fgColor="#000000"
+          />
+        </div>
+        <p className="max-w-xs text-center text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
+          Share this QR code with your restaurant manager. Place it on tables so guests can see who&apos;s working tonight.
+        </p>
+      </div>
+
+      <div className="mb-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+        <span className="flex-1 truncate font-mono text-xs" style={{ color: '#606060' }}>
+          slatenow.xyz/restaurant/{encodeURIComponent(restaurantName)}/tonight
+        </span>
+      </div>
+
+      <button
+        onClick={handleDownload}
+        disabled={downloading}
+        className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-50"
+      >
+        {downloading ? 'Preparing…' : 'Download QR Code'}
+      </button>
+    </div>
+  )
+}
+
 // ── Workplace section ──────────────────────────────────────────────────────────
 
 type Workplace = { id: string; restaurant_name: string; is_primary: boolean; currently_working: boolean }
@@ -1356,6 +1454,19 @@ export default function DashboardPage() {
             </button>
           )}
         </div>
+
+        {/* ── Restaurant QR Code ──────────────────────────────────────── */}
+        {(() => {
+          const primary = restaurants.find(r => r.is_primary) ?? restaurants[0]
+          if (!primary) return null
+          const restaurantUrl = `https://slatenow.xyz/restaurant/${encodeURIComponent(primary.restaurant_name)}/tonight`
+          return (
+            <RestaurantQRCard
+              restaurantName={primary.restaurant_name}
+              url={restaurantUrl}
+            />
+          )
+        })()}
 
         {/* ── Share your profile ──────────────────────────────────────── */}
         <div className="rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
