@@ -546,36 +546,43 @@ export default function RestaurantManagerDashboard() {
 
   // Initial auth + manager lookup
   useEffect(() => {
-    async function init() {
+    async function checkAuth() {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
-        router.push('/restaurant/signup')
+
+      if (!session) {
+        // No session — send to LOGIN not signup
+        router.push('/restaurant/login')
         return
       }
 
-      const { data: manager, error: mErr } = await supabase
+      const { data: managerData } = await supabase
         .from('restaurant_managers')
-        .select('name, restaurant_name, email')
+        .select('*')
         .eq('auth_id', session.user.id)
         .maybeSingle()
 
-      if (mErr) {
-        console.error('[manager dashboard] manager lookup:', mErr)
-        setError(mErr.message)
-        setLoading(false)
-        return
-      }
-      if (!manager) {
-        router.push('/restaurant/signup')
+      if (!managerData) {
+        // Has session but no manager row
+        // Sign them out first to avoid "already registered" error
+        await supabase.auth.signOut()
+        localStorage.removeItem('slateUserType')
+        localStorage.removeItem('slateManagerId')
+        localStorage.removeItem('slateRestaurantName')
+        router.push('/restaurant/login')
         return
       }
 
-      setManagerName(manager.name ?? '')
-      setManagerEmail(manager.email ?? session.user.email ?? '')
-      setRestaurantName(manager.restaurant_name)
-      await loadData(manager.restaurant_name)
+      // Valid manager — set localStorage and continue
+      localStorage.setItem('slateUserType', 'manager')
+      localStorage.setItem('slateManagerId', managerData.id)
+      localStorage.setItem('slateRestaurantName', managerData.restaurant_name)
+
+      setManagerName(managerData.name ?? '')
+      setManagerEmail(managerData.email ?? session.user.email ?? '')
+      setRestaurantName(managerData.restaurant_name)
+      await loadData(managerData.restaurant_name)
     }
-    init()
+    checkAuth()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

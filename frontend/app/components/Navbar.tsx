@@ -31,12 +31,14 @@ const NAV_LINKS = [
 ]
 
 type ServerRow = { id: string; name: string | null }
+type UserType = 'guest' | 'server' | 'manager'
 
 export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
   const [serverRow, setServerRow] = useState<ServerRow | null>(null)
+  const [userType, setUserType] = useState<UserType>('guest')
   const [authLoaded, setAuthLoaded] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -48,13 +50,19 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
     // ── Step 1: Read localStorage synchronously — no async delay ──────────────
     // This runs before the first paint so the nav never shows a logged-out flash.
     const storedId   = localStorage.getItem('slateServerId')
-    const storedType = localStorage.getItem('slateUserType')
+    const storedType = localStorage.getItem('slateUserType') as UserType | null
     const storedName = localStorage.getItem('slateServerName')
 
-    if (storedId && storedType === 'server') {
-      // We know the user is a server — show Dashboard/Sign out immediately
+    if (storedType === 'manager') {
+      // Manager — show manager links immediately while we verify in background
+      setUserType('manager')
+      setAuthLoaded(true)
+    } else if (storedId && storedType === 'server') {
       setServerRow({ id: storedId, name: storedName })
-      setAuthLoaded(true)  // ← render auth links right now, no waiting
+      setUserType('server')
+      setAuthLoaded(true)
+    } else if (storedType === 'guest') {
+      setUserType('guest')
     }
 
     // ── Step 2: Verify with Supabase in background ────────────────────────────
@@ -63,22 +71,8 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
       setSession(s)
 
       if (s?.user) {
-        if (!storedId) {
-          // No cached state — need to detect from Supabase
-          const found = await detectServer(s.user.id, s.user.email ?? null)
-          if (found) {
-            setServerRow(found)
-            localStorage.setItem('slateServerId', found.id)
-            localStorage.setItem('slateUserType', 'server')
-            if (found.name) localStorage.setItem('slateServerName', found.name)
-          } else {
-            setServerRow(null)
-            localStorage.setItem('slateUserType', 'guest')
-            localStorage.removeItem('slateServerId')
-            localStorage.removeItem('slateServerName')
-          }
-        }
-        // If storedId exists, trust the cache — already set in Step 1
+        // Always re-detect type from Supabase to keep cache + state honest
+        await detectUserType(s.user.id, s.user.email ?? null)
 
         // Load unread notifications
         if (s.user.email) {
@@ -108,9 +102,12 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
       } else {
         // No active session — clear any stale cache
         setServerRow(null)
+        setUserType('guest')
         localStorage.removeItem('slateUserType')
         localStorage.removeItem('slateServerId')
         localStorage.removeItem('slateServerName')
+        localStorage.removeItem('slateManagerId')
+        localStorage.removeItem('slateRestaurantName')
       }
       setAuthLoaded(true)
     }
@@ -121,38 +118,24 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
       if (event === 'SIGNED_OUT') {
         setSession(null)
         setServerRow(null)
+        setUserType('guest')
         setAuthLoaded(true)
-        localStorage.removeItem('slateServerId')
         localStorage.removeItem('slateUserType')
+        localStorage.removeItem('slateServerId')
         localStorage.removeItem('slateServerName')
+        localStorage.removeItem('slateManagerId')
+        localStorage.removeItem('slateRestaurantName')
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         if (s?.user) {
           setSession(s)
-          const storedId = localStorage.getItem('slateServerId')
-          if (storedId) {
-            // Trust cached server ID — already hydrated in Step 1
-            if (!serverRow) {
-              setServerRow({ id: storedId, name: localStorage.getItem('slateServerName') })
-            }
-          } else {
-            const { data } = await supabase
-              .from('servers')
-              .select('id, name')
-              .eq('wallet_address', s.user.id)
-              .maybeSingle()
-            if (data?.id) {
-              setServerRow(data)
-              localStorage.setItem('slateServerId', data.id)
-              localStorage.setItem('slateUserType', 'server')
-              if (data.name) localStorage.setItem('slateServerName', data.name)
-            }
-          }
+          await detectUserType(s.user.id, s.user.email ?? null)
           setAuthLoaded(true)
         }
       }
     })
 
     return () => subscription.unsubscribe()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Close notification dropdown when clicking outside
@@ -166,54 +149,84 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  async function detectServer(userId: string, userEmail: string | null): Promise<ServerRow | null> {
-    console.log('[Navbar] Detecting server for userId:', userId, 'email:', userEmail)
+  // Detect user type — managers first (so they don't get classified as guest),
+  // then servers, fall back to guest. Updates state + localStorage.
+  async function detectUserType(userId: string, userEmail: string | null) {
+    // Check manager first
+    const { data: managerData } = await supabase
+      .from('restaurant_managers')
+      .select('id, restaurant_name')
+      .eq('auth_id', userId)
+      .maybeSingle()
 
-    // Method 1 — match by Supabase auth user ID stored in wallet_address
+    if (managerData) {
+      localStorage.setItem('slateUserType', 'manager')
+      localStorage.setItem('slateManagerId', managerData.id)
+      localStorage.setItem('slateRestaurantName', managerData.restaurant_name)
+      // Clear any stale server cache so the wrong links don't render
+      localStorage.removeItem('slateServerId')
+      localStorage.removeItem('slateServerName')
+      setServerRow(null)
+      setUserType('manager')
+      return
+    }
+
+    // Check server — wallet_address (auth UID) first, then email fallback
     const { data: byId } = await supabase
       .from('servers')
       .select('id, name')
       .eq('wallet_address', userId)
       .maybeSingle()
-    if (byId) { console.log('[Navbar] Found by wallet_address'); return byId }
-
-    // Method 2 — case-insensitive email match
-    if (userEmail) {
+    let serverData: ServerRow | null = byId
+    if (!serverData && userEmail) {
       const { data: byEmail } = await supabase
         .from('servers')
         .select('id, name')
         .ilike('email', userEmail)
         .maybeSingle()
-      if (byEmail) { console.log('[Navbar] Found by email'); return byEmail }
+      if (byEmail) serverData = byEmail
     }
 
-    // Method 3 — localStorage server ID
-    const storedId = localStorage.getItem('slateServerId')
-    if (storedId) {
-      const { data: byStored } = await supabase
-        .from('servers')
-        .select('id, name')
-        .eq('id', storedId)
-        .maybeSingle()
-      if (byStored) { console.log('[Navbar] Found by localStorage id'); return byStored }
+    if (serverData) {
+      localStorage.setItem('slateUserType', 'server')
+      localStorage.setItem('slateServerId', serverData.id)
+      if (serverData.name) localStorage.setItem('slateServerName', serverData.name)
+      // Clear any stale manager cache
+      localStorage.removeItem('slateManagerId')
+      localStorage.removeItem('slateRestaurantName')
+      setServerRow(serverData)
+      setUserType('server')
+      return
     }
 
-    console.log('[Navbar] No server row found — treating as guest')
-    return null
+    // Guest
+    localStorage.setItem('slateUserType', 'guest')
+    localStorage.removeItem('slateServerId')
+    localStorage.removeItem('slateServerName')
+    localStorage.removeItem('slateManagerId')
+    localStorage.removeItem('slateRestaurantName')
+    setServerRow(null)
+    setUserType('guest')
   }
 
   async function handleSignOut() {
+    await supabase.auth.signOut()
     localStorage.removeItem('slateUserType')
     localStorage.removeItem('slateServerId')
     localStorage.removeItem('slateServerName')
-    await supabase.auth.signOut()
+    localStorage.removeItem('slateManagerId')
+    localStorage.removeItem('slateRestaurantName')
+    setServerRow(null)
+    setSession(null)
+    setUserType('guest')
     router.push('/')
     router.refresh()
   }
 
   const serverId = serverRow?.id ?? null
-  const isServer = authLoaded && session && serverRow
-  const isGuest  = authLoaded && session && !serverRow
+  const isManager = authLoaded && session && userType === 'manager'
+  const isServer  = authLoaded && session && userType === 'server' && serverRow
+  const isGuest   = authLoaded && session && userType === 'guest'
 
   async function markRead(id: string) {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id)
@@ -237,6 +250,11 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
     }
     return (
       <div className="hidden items-center gap-4 md:flex">
+        {isManager && (
+          <a href="/restaurant/dashboard" className="text-xs font-medium text-white/50 transition-colors hover:text-white">
+            Restaurant Dashboard
+          </a>
+        )}
         {isServer && (
           <>
             <a href={`/server/${serverId}`} className="text-xs font-medium text-white/50 transition-colors hover:text-white">
@@ -263,7 +281,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
         )}
         {isGuest && (
           <a href="/account" className="text-xs font-medium text-white/50 transition-colors hover:text-white">
-            My Dashboard
+            My Account
           </a>
         )}
 
@@ -396,6 +414,11 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
                 {label}
               </a>
             ))}
+            {isManager && (
+              <a href="/restaurant/dashboard" onClick={() => setMenuOpen(false)} className="border-b border-white/10 py-5 text-2xl font-semibold text-white">
+                Restaurant Dashboard
+              </a>
+            )}
             {isServer && (
               <>
                 <a href={`/server/${serverId}`} onClick={() => setMenuOpen(false)} className="border-b border-white/10 py-5 text-2xl font-semibold text-white">
@@ -420,7 +443,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
             )}
             {isGuest && (
               <a href="/account" onClick={() => setMenuOpen(false)} className="border-b border-white/10 py-5 text-2xl font-semibold text-white">
-                My Dashboard
+                My Account
               </a>
             )}
           </nav>
