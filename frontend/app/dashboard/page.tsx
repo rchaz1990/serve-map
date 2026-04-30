@@ -341,6 +341,158 @@ function ProfilePreferencesSection({
   )
 }
 
+// ── Privacy settings (follow approval + profile visibility) ──────────────────
+
+function PrivacySettingsSection({
+  serverId,
+  initialFollowApproval,
+  initialProfileVisibility,
+}: {
+  serverId: string | null
+  initialFollowApproval: string
+  initialProfileVisibility: string
+}) {
+  const [requireApproval, setRequireApproval] = useState(initialFollowApproval === 'approval')
+  const [profileVisibility, setProfileVisibility] = useState(initialProfileVisibility)
+
+  // Re-sync if parent props change (initial load races)
+  useEffect(() => { setRequireApproval(initialFollowApproval === 'approval') }, [initialFollowApproval])
+  useEffect(() => { setProfileVisibility(initialProfileVisibility) }, [initialProfileVisibility])
+
+  const FONT_MONO = '"Space Mono", ui-monospace, SFMono-Regular, monospace'
+
+  const toggleApproval = async () => {
+    if (!serverId) return
+    const newValue = !requireApproval
+    setRequireApproval(newValue)
+    const { error } = await supabase
+      .from('servers')
+      .update({ follow_approval: newValue ? 'approval' : 'automatic' })
+      .eq('id', serverId)
+    if (error) {
+      console.error('[PrivacySettingsSection] approval update:', error)
+      // Revert optimistic update
+      setRequireApproval(!newValue)
+    }
+  }
+
+  const updateVisibility = async (value: string) => {
+    if (!serverId) return
+    const previous = profileVisibility
+    setProfileVisibility(value)
+    const { error } = await supabase
+      .from('servers')
+      .update({ profile_visibility: value })
+      .eq('id', serverId)
+    if (error) {
+      console.error('[PrivacySettingsSection] visibility update:', error)
+      setProfileVisibility(previous)
+    }
+  }
+
+  return (
+    <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+      <p
+        style={{
+          fontFamily: FONT_MONO,
+          fontSize: '10px',
+          letterSpacing: '3px',
+          textTransform: 'uppercase',
+          color: '#444',
+          marginBottom: '8px',
+        }}
+      >
+        Privacy Settings
+      </p>
+
+      {/* Follow approval */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '20px 0',
+          borderBottom: '1px solid #0d0d0d',
+        }}
+      >
+        <div>
+          <div style={{ color: 'white', fontSize: '14px' }}>
+            Approve followers
+          </div>
+          <div style={{ color: '#444', fontSize: '12px', marginTop: '4px' }}>
+            Manually approve each follow request
+          </div>
+        </div>
+        <button
+          onClick={() => toggleApproval()}
+          disabled={!serverId}
+          style={{
+            width: '52px',
+            height: '28px',
+            borderRadius: '14px',
+            background: requireApproval ? '#22c55e' : '#111',
+            border: 'none',
+            cursor: serverId ? 'pointer' : 'not-allowed',
+            position: 'relative',
+            padding: 0,
+            opacity: serverId ? 1 : 0.5,
+          }}
+        >
+          <div
+            style={{
+              width: '22px',
+              height: '22px',
+              borderRadius: '50%',
+              background: 'white',
+              position: 'absolute',
+              top: '3px',
+              left: requireApproval ? '27px' : '3px',
+              transition: 'left 0.2s ease',
+            }}
+          />
+        </button>
+      </div>
+
+      {/* Profile visibility */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '20px 0',
+        }}
+      >
+        <div>
+          <div style={{ color: 'white', fontSize: '14px' }}>
+            Profile visibility
+          </div>
+          <div style={{ color: '#444', fontSize: '12px', marginTop: '4px' }}>
+            Control who can find your profile
+          </div>
+        </div>
+        <select
+          value={profileVisibility}
+          onChange={(e) => updateVisibility(e.target.value)}
+          disabled={!serverId}
+          style={{
+            background: '#111',
+            color: 'white',
+            border: '1px solid #222',
+            padding: '8px 12px',
+            fontSize: '12px',
+            letterSpacing: '1px',
+            cursor: serverId ? 'pointer' : 'not-allowed',
+          }}
+        >
+          <option value="public">Public</option>
+          <option value="shift_only">Shift only</option>
+          <option value="private">Private</option>
+        </select>
+      </div>
+    </div>
+  )
+}
+
 // ── Worker Council suggestion form ────────────────────────────────────────────
 
 function WorkerCouncilSection({ serverId }: { serverId: string | null }) {
@@ -475,6 +627,8 @@ export default function DashboardPage() {
   // Profile preferences (specialties + visibility) — loaded with serverData
   const [profileSpecialties, setProfileSpecialties] = useState<string[]>([])
   const [profileOpenToOpportunities, setProfileOpenToOpportunities] = useState<boolean>(false)
+  const [profileFollowApproval, setProfileFollowApproval] = useState<string>('approval')
+  const [profileVisibility, setProfileVisibility] = useState<string>('public')
 
 
   // Load all dashboard data scoped to the logged-in server
@@ -512,7 +666,7 @@ export default function DashboardPage() {
 
     // Separate helper so both lookup paths share the same data-loading logic
     async function hydrateFromServerRow(
-      row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null; slate_points?: number | null; photo_url?: string | null; specialties?: string[] | null; open_to_opportunities?: boolean | null },
+      row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null; slate_points?: number | null; photo_url?: string | null; specialties?: string[] | null; open_to_opportunities?: boolean | null; follow_approval?: string | null; profile_visibility?: string | null },
       authUserId: string
     ) {
       // Keep wallet_address in sync for future logins
@@ -562,6 +716,8 @@ export default function DashboardPage() {
       })
       setProfileSpecialties(row.specialties ?? [])
       setProfileOpenToOpportunities(row.open_to_opportunities ?? false)
+      setProfileFollowApproval(row.follow_approval ?? 'approval')
+      setProfileVisibility(row.profile_visibility ?? 'public')
       setProfileLoading(false)
     }
 
@@ -1110,6 +1266,13 @@ export default function DashboardPage() {
           serverId={serverProfile?.id ?? null}
           initialSpecialties={profileSpecialties}
           initialOpenToOpportunities={profileOpenToOpportunities}
+        />
+
+        {/* ── Privacy settings ────────────────────────────────────────── */}
+        <PrivacySettingsSection
+          serverId={serverProfile?.id ?? null}
+          initialFollowApproval={profileFollowApproval}
+          initialProfileVisibility={profileVisibility}
         />
 
         {/* ── Worker Council ──────────────────────────────────────────── */}

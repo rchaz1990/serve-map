@@ -35,13 +35,14 @@ function timeAgo(iso: string): string {
 
 export default function FollowersPage() {
   const router = useRouter()
-  const [tab, setTab] = useState<Tab>('pending')
+  const [tab, setTab] = useState<Tab>('approved')
   const [pending, setPending] = useState<FollowRow[]>([])
   const [approved, setApproved] = useState<FollowRow[]>([])
   const [blocked, setBlocked] = useState<FollowRow[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [requireApproval, setRequireApproval] = useState(true)
 
   const fetchAll = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -51,10 +52,15 @@ export default function FollowersPage() {
     setLoading(true)
     const headers = { Authorization: `Bearer ${token}` }
 
-    const [pendingRes, approvedRes, blockedRes] = await Promise.all([
+    const [pendingRes, approvedRes, blockedRes, serverRow] = await Promise.all([
       fetch('/api/followers/pending', { headers }).then(r => r.json()),
       fetch('/api/followers/approved', { headers }).then(r => r.json()),
       fetch('/api/followers/blocked', { headers }).then(r => r.json()),
+      supabase
+        .from('servers')
+        .select('follow_approval')
+        .eq('wallet_address', session.user.id)
+        .maybeSingle(),
     ])
 
     if (pendingRes.error || approvedRes.error || blockedRes.error) {
@@ -66,6 +72,7 @@ export default function FollowersPage() {
     setPending(pendingRes.followers ?? [])
     setApproved(approvedRes.followers ?? [])
     setBlocked(blockedRes.followers ?? [])
+    setRequireApproval((serverRow.data?.follow_approval ?? 'approval') === 'approval')
     setLoading(false)
   }, [router])
 
@@ -106,13 +113,19 @@ export default function FollowersPage() {
     setActionLoading(null)
   }
 
+  // Pending tab only shows when the server has approval mode on AND there are pending requests.
+  // Otherwise the page is just a clean Followers / Blocked view.
+  const showPendingTab = requireApproval && pending.length > 0
+
   const TABS: { key: Tab; label: string; count: number }[] = [
-    { key: 'pending', label: 'Pending Requests', count: pending.length },
+    ...(showPendingTab ? [{ key: 'pending' as Tab, label: 'Pending Requests', count: pending.length }] : []),
     { key: 'approved', label: 'Followers', count: approved.length },
     { key: 'blocked', label: 'Blocked', count: blocked.length },
   ]
 
-  const rows = tab === 'pending' ? pending : tab === 'approved' ? approved : blocked
+  // If the active tab has been hidden, fall back to Followers
+  const safeTab: Tab = tab === 'pending' && !showPendingTab ? 'approved' : tab
+  const rows = safeTab === 'pending' ? pending : safeTab === 'approved' ? approved : blocked
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000', fontFamily: 'var(--font-geist-sans)' }}>
@@ -151,7 +164,7 @@ export default function FollowersPage() {
               key={t.key}
               onClick={() => setTab(t.key)}
               className="relative px-5 py-3 text-xs font-semibold uppercase tracking-wider transition-colors"
-              style={{ color: tab === t.key ? 'white' : '#404040' }}
+              style={{ color: safeTab === t.key ? 'white' : '#404040' }}
             >
               {t.label}
               {t.count > 0 && (
@@ -165,7 +178,7 @@ export default function FollowersPage() {
                   {t.count}
                 </span>
               )}
-              {tab === t.key && (
+              {safeTab === t.key && (
                 <span className="absolute bottom-0 left-0 right-0 h-px bg-white" />
               )}
             </button>
@@ -178,14 +191,14 @@ export default function FollowersPage() {
         ) : rows.length === 0 ? (
           <div className="rounded-2xl border border-white/10 p-10 text-center" style={{ backgroundColor: '#0a0a0a' }}>
             <p className="text-sm font-semibold text-white">
-              {tab === 'pending' && 'No pending requests'}
-              {tab === 'approved' && 'No followers yet'}
-              {tab === 'blocked' && 'No blocked users'}
+              {safeTab === 'pending' && 'No pending requests'}
+              {safeTab === 'approved' && 'No followers yet'}
+              {safeTab === 'blocked' && 'No blocked users'}
             </p>
             <p className="mt-1 text-xs" style={{ color: '#404040' }}>
-              {tab === 'pending' && 'New follow requests will appear here for your approval.'}
-              {tab === 'approved' && 'Approved followers appear here.'}
-              {tab === 'blocked' && 'Users you block will appear here. Unblocking lets them request again.'}
+              {safeTab === 'pending' && 'New follow requests will appear here for your approval.'}
+              {safeTab === 'approved' && 'Approved followers appear here.'}
+              {safeTab === 'blocked' && 'Users you block will appear here. Unblocking lets them request again.'}
             </p>
           </div>
         ) : (
@@ -212,14 +225,14 @@ export default function FollowersPage() {
                       {displayName(row.follower_email)}
                     </p>
                     <p className="text-[10px] uppercase tracking-wider" style={{ color: '#404040' }}>
-                      {tab === 'pending' ? 'Requested' : tab === 'approved' ? 'Following since' : 'Blocked'}{' '}
+                      {safeTab === 'pending' ? 'Requested' : safeTab === 'approved' ? 'Following since' : 'Blocked'}{' '}
                       {timeAgo(row.created_at)}
                     </p>
                   </div>
 
                   {/* Actions */}
                   <div className="flex shrink-0 gap-2">
-                    {tab === 'pending' && (
+                    {safeTab === 'pending' && (
                       <>
                         <button
                           onClick={() => handleApprove(row.id)}
@@ -237,7 +250,7 @@ export default function FollowersPage() {
                         </button>
                       </>
                     )}
-                    {tab === 'approved' && (
+                    {safeTab === 'approved' && (
                       <button
                         onClick={() => handleBlock(row.id)}
                         disabled={busy}
@@ -246,7 +259,7 @@ export default function FollowersPage() {
                         {busy ? '…' : 'Block'}
                       </button>
                     )}
-                    {tab === 'blocked' && (
+                    {safeTab === 'blocked' && (
                       <button
                         onClick={() => handleUnblock(row.id)}
                         disabled={busy}
