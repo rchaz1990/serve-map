@@ -7,6 +7,8 @@ import Navbar from '@/app/components/Navbar'
 export default function ScanPage() {
   const params = useParams()
   const router = useRouter()
+  console.log('Scan page loaded with code:', params.code)
+
   const serverId = params.code as string
   const [server, setServer] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -15,45 +17,62 @@ export default function ScanPage() {
   const [followerCount, setFollowerCount] = useState(0)
 
   useEffect(() => {
-    if (!serverId) {
+    if (params.code) {
+      loadServer()
+    } else {
       setError('Invalid QR code')
       setLoading(false)
-      return
     }
-    loadServer()
-  }, [serverId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.code])
 
   const loadServer = async () => {
+    // Reset transient state so retries / re-mounts don't carry stale error/loading
+    setLoading(true)
+    setError('')
+    setServer(null)
+
     console.log('Loading server for ID:', serverId)
 
-    const { data, error } = await supabase
+    const { data: server, error } = await supabase
       .from('servers')
       .select('*, server_restaurants(*)')
       .eq('id', serverId)
       .maybeSingle()
 
-    console.log('Server data:', data, 'Error:', error)
+    console.log('Server lookup result:', server, error)
 
-    if (data) {
-      setServer(data)
-      setFollowerCount(data.follower_count || 0)
-
-      // Check existing follow status
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user?.id) {
-        const { data: existingFollow } = await supabase
-          .from('follows')
-          .select('id, status')
-          .eq('follower_id', session.user.id)
-          .eq('server_id', serverId)
-          .maybeSingle()
-        if (existingFollow) {
-          setFollowStatus(existingFollow.status === 'approved' ? 'approved' : 'pending')
-        }
-      }
-    } else {
-      setError('Server not found. Please scan the QR code again.')
+    if (error) {
+      console.error('Supabase error:', error)
+      setError(`Database error: ${error.message}`)
+      setLoading(false)
+      return
     }
+
+    if (!server) {
+      console.error('No server found for ID:', serverId)
+      setError('Server not found. Please scan the QR code again.')
+      setLoading(false)
+      return
+    }
+
+    setServer(server)
+    setFollowerCount(server.follower_count || 0)
+
+    // Check existing follow status
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user?.id) {
+      const { data: existingFollow } = await supabase
+        .from('follows')
+        .select('id, status')
+        .eq('follower_id', session.user.id)
+        .eq('server_id', serverId)
+        .maybeSingle()
+      if (existingFollow) {
+        setFollowStatus(existingFollow.status === 'approved' ? 'approved' : 'pending')
+      }
+    }
+
     setLoading(false)
   }
 
@@ -94,8 +113,21 @@ export default function ScanPage() {
     <div style={{ background: '#000', minHeight: '100vh' }}>
       <Navbar />
       <div style={{ display: 'flex', alignItems: 'center',
-        justifyContent: 'center', height: '80vh', flexDirection: 'column' }}>
-        <p style={{ color: 'red' }}>{error}</p>
+        justifyContent: 'center', height: '80vh', flexDirection: 'column', gap: '24px' }}>
+        <p style={{ color: '#f87171', fontSize: '14px', textAlign: 'center', maxWidth: '320px', lineHeight: 1.6 }}>
+          {error}
+        </p>
+        <button
+          onClick={loadServer}
+          style={{
+            background: 'transparent', color: 'white',
+            border: '1px solid #333', padding: '12px 28px',
+            fontSize: '11px', letterSpacing: '2px',
+            textTransform: 'uppercase', cursor: 'pointer',
+          }}
+        >
+          Try again
+        </button>
       </div>
     </div>
   )

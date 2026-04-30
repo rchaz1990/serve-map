@@ -488,7 +488,7 @@ export default function DashboardPage() {
       // Primary lookup: wallet_address = Supabase auth UID (set at signup)
       const { data: serverData, error } = await supabase
         .from('servers')
-        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, slate_points, photo_url, specialties, open_to_opportunities')
+        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, slate_points, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility')
         .eq('wallet_address', session.user.id)
         .maybeSingle()
 
@@ -498,7 +498,7 @@ export default function DashboardPage() {
         // Fallback: email match for accounts created before wallet_address was wired up
         const { data: byEmail } = await supabase
           .from('servers')
-          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, slate_points, photo_url, specialties, open_to_opportunities')
+          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, slate_points, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility')
           .ilike('email', session.user.email ?? '')
           .maybeSingle()
         if (!byEmail) { setProfileLoading(false); return }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
 
@@ -53,10 +53,12 @@ type ServerRow = {
   average_rating: number | null
   total_ratings: number | null
   slate_points: number | null
+  follower_count: number | null
 }
 
 function RateForm() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const serverId = searchParams.get('server')
 
   const [serverData, setServerData] = useState<ServerRow | null>(null)
@@ -66,23 +68,79 @@ function RateForm() {
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [isFollowing, setIsFollowing] = useState(false)
 
   useEffect(() => {
-    console.log('serverId from URL:', serverId)
+    console.log('Rate page loaded with server:', serverId)
     if (!serverId) return
 
     const loadServer = async () => {
-      const { data } = await supabase
+      // Reset transient state so revisits don't carry stale errors / follow state
+      setError('')
+      setServerData(null)
+      setIsFollowing(false)
+
+      const { data: server, error: lookupError } = await supabase
         .from('servers')
-        .select('id, name, role, average_rating, total_ratings, slate_points')
+        .select('id, name, role, average_rating, total_ratings, slate_points, follower_count')
         .eq('id', serverId)
         .maybeSingle()
-      console.log('serverData:', data)
-      setServerData(data as ServerRow | null)
+
+      console.log('Server lookup result:', server, lookupError)
+
+      if (lookupError) {
+        console.error('Supabase error:', lookupError)
+        setError(`Database error: ${lookupError.message}`)
+        return
+      }
+
+      if (!server) {
+        console.error('No server found for ID:', serverId)
+        setError('Server not found. Please scan the QR code again.')
+        return
+      }
+
+      setServerData(server as ServerRow)
+
+      // Check if the current guest is already following
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.id) {
+        const { data: existingFollow } = await supabase
+          .from('follows')
+          .select('id')
+          .eq('server_id', serverId)
+          .eq('follower_id', session.user.id)
+          .maybeSingle()
+        setIsFollowing(!!existingFollow)
+      }
     }
 
     loadServer()
   }, [serverId])
+
+  const handleFollow = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      router.push(`/login?redirect=/rate?server=${serverId}`)
+      return
+    }
+
+    await supabase.from('follows').insert({
+      follower_id: session.user.id,
+      follower_email: session.user.email,
+      server_id: serverId,
+      follower_type: 'guest',
+    })
+
+    await supabase
+      .from('servers')
+      .update({
+        follower_count: (serverData?.follower_count || 0) + 1,
+      })
+      .eq('id', serverId)
+
+    setIsFollowing(true)
+  }
 
   const serverName = serverData?.name || 'your server'
   const serverFirstName = serverName === 'your server' ? 'your server' : serverName.split(' ')[0]
@@ -179,14 +237,14 @@ function RateForm() {
     return (
       <div className="flex min-h-screen flex-col" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
         <Navbar />
-        <main className="flex flex-1 flex-col items-center justify-center px-8 text-center">
+        <main className="flex flex-1 flex-col items-center justify-center px-8 py-16 text-center">
           <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-full border border-white/20">
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={1.5} className="h-7 w-7">
               <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
             </svg>
           </div>
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            Rating submitted ✓
+            Rating submitted! ⭐
           </h1>
           <p className="mt-4 max-w-sm text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
             Your {rating}-star review has been saved to {serverFirstName}&apos;s profile.
@@ -199,6 +257,33 @@ function RateForm() {
               {serverFirstName} earned <span className="font-semibold text-white">25 Slate Points</span> for your rating.
             </p>
           </div>
+
+          {/* Follow CTA — stays visible after rating so guest can still follow */}
+          <div className="mt-8 w-full max-w-sm">
+            {!isFollowing ? (
+              <button
+                onClick={handleFollow}
+                style={{
+                  width: '100%',
+                  background: 'transparent',
+                  color: 'white',
+                  border: '1px solid #333',
+                  padding: '16px',
+                  fontSize: '14px',
+                  letterSpacing: '2px',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
+              >
+                Follow {serverData?.name?.split(' ')[0] ?? ''}
+              </button>
+            ) : (
+              <p style={{ color: '#444', fontSize: '13px' }}>
+                Following ✓
+              </p>
+            )}
+          </div>
+
           <a href="/" className="mt-8 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80">
             Back to home
           </a>
@@ -291,6 +376,39 @@ function RateForm() {
               {comment.length} / 280
             </span>
           </div>
+        </section>
+
+        <div className="border-t border-white/10 mb-14" />
+
+        {/* ── Follow ──────────────────────────────────────────────────── */}
+        <section className="mb-14">
+          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: '#A0A0A0' }}>
+            Want to follow {serverFirstName}?
+          </p>
+          {!isFollowing && (
+            <button
+              onClick={handleFollow}
+              style={{
+                width: '100%',
+                background: 'transparent',
+                color: 'white',
+                border: '1px solid #333',
+                padding: '16px',
+                fontSize: '14px',
+                letterSpacing: '2px',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                marginTop: '12px',
+              }}
+            >
+              Follow {serverData?.name?.split(' ')[0] ?? ''}
+            </button>
+          )}
+          {isFollowing && (
+            <p style={{ color: '#444', textAlign: 'center', fontSize: '13px', marginTop: '12px' }}>
+              Following ✓
+            </p>
+          )}
         </section>
 
         <div className="border-t border-white/10 mb-14" />
