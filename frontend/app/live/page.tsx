@@ -239,7 +239,7 @@ function VenueCard({
       return
     }
 
-    // Show form immediately — never wait for GPS
+    // Show the vibe form IMMEDIATELY — never block on GPS
     gpsVerifiedRef.current = false
     setCheckInOpen(true)
     setGpsVerifiedForSubmit(false)
@@ -248,11 +248,27 @@ function VenueCard({
 
     setGpsChecking(true)
 
+    // Hard 4-second timeout: Android sometimes ignores the geolocation API's
+    // own `timeout` option. This guarantees we always release the "checking"
+    // state and proceed unverified rather than hanging forever.
+    let timedOut = false
+    const gpsTimeout = setTimeout(() => {
+      timedOut = true
+      setGpsChecking(false)
+      gpsVerifiedRef.current = false
+      setGpsVerifiedForSubmit(false)
+      console.log('GPS timed out after 4 seconds')
+    }, 4000)
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
+        clearTimeout(gpsTimeout)
+        if (timedOut) return  // we already gave up — don't overwrite state late
+
         const userLat = position.coords.latitude
         const userLng = position.coords.longitude
         setUserCoords({ lat: userLat, lng: userLng })
+
         try {
           const res = await fetch(
             `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venueName + ' NYC')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
@@ -270,10 +286,16 @@ function VenueCard({
         } catch { /* silent */ }
         setGpsChecking(false)
       },
-      () => {
-        gpsVerifiedRef.current = false
+      (error) => {
+        // GPS denied or error — proceed unverified
+        clearTimeout(gpsTimeout)
+        if (timedOut) return
         setGpsChecking(false)
+        gpsVerifiedRef.current = false
+        setGpsVerifiedForSubmit(false)
+        console.log('GPS error:', error)
       },
+      // Low accuracy = much faster on Android; maximumAge accepts a recent cached fix
       { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
     )
   }
