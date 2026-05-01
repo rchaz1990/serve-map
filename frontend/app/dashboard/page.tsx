@@ -746,12 +746,22 @@ export default function DashboardPage() {
   const [serverProfile, setServerProfile] = useState<{
     id: string
     name: string
-    total_ratings: number
-    avg_rating: number
+    email: string | null
+    role: string | null
+    bio: string | null
+    photo_url: string | null
+    wallet_address: string | null
     follower_count: number
+    avg_rating: number
+    total_ratings: number
     serve_balance: number
     serve_balance_lifetime: number
-    photo_url: string | null
+    is_founding_member: boolean
+    open_to_opportunities: boolean
+    specialties: string[]
+    follow_approval: string
+    profile_visibility: string
+    restaurant_name: string
   } | null>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
   const [recentRatings, setRecentRatings] = useState<{
@@ -891,8 +901,27 @@ export default function DashboardPage() {
 
     // Separate helper so both lookup paths share the same data-loading logic
     async function hydrateFromServerRow(
-      row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null; serve_balance?: number | null; serve_balance_lifetime?: number | null; photo_url?: string | null; specialties?: string[] | null; open_to_opportunities?: boolean | null; follow_approval?: string | null; profile_visibility?: string | null },
-      authUserId: string
+      row: {
+        id: string
+        name: string | null
+        email?: string | null
+        role?: string | null
+        bio?: string | null
+        photo_url?: string | null
+        wallet_address?: string | null
+        follower_count?: number | null
+        average_rating: number | null
+        total_ratings: number | null
+        serve_balance?: number | null
+        serve_balance_lifetime?: number | null
+        is_founding_member?: boolean | null
+        open_to_opportunities?: boolean | null
+        specialties?: string[] | null
+        follow_approval?: string | null
+        profile_visibility?: string | null
+        server_restaurants?: { restaurant_name: string; is_primary: boolean }[] | null
+      },
+      authUserId: string,
     ) {
       // Keep wallet_address in sync for future logins.
       // No null-only filter: if the row's wallet_address points at a stale
@@ -905,49 +934,64 @@ export default function DashboardPage() {
       localStorage.setItem('slateUserType', 'server')
       if (resolvedName) localStorage.setItem('slateServerName', resolvedName)
 
-      // Restaurants — use row.id (servers UUID), NOT the auth UID
-      const { data: restRows } = await supabase
-        .from('server_restaurants')
-        .select('id, restaurant_name, is_primary, restaurant_address')
-        .eq('server_id', row.id)
-        .eq('currently_working', true)
-      const rows = restRows ?? []
-      console.log('[Dashboard] Restaurants found:', rows.length)
-      setRestaurants(rows)
-      if (rows.length === 1) setSelectedRestaurant(rows[0].restaurant_name)
-
-      // Followers — use the DB column as source of truth (maintained by atomic RPC)
-      const { data: followRows } = await supabase
-        .from('follows')
-        .select('id, created_at')
-        .eq('server_id', row.id)
-        .eq('status', 'approved')
-      const followerCount = row.follower_count ?? followRows?.length ?? 0
-
-      // Ratings
-      const { data: ratingRows } = await supabase
-        .from('ratings')
-        .select('id, guest_name, score, created_at, comment')
-        .eq('server_id', row.id)
-        .order('created_at', { ascending: false })
-        .limit(5)
-      if (ratingRows) setRecentRatings(ratingRows as typeof recentRatings)
-
+      // Hoist the profile + loading state writes BEFORE any secondary queries.
+      // If a follows / ratings / workplaces query later fails, we already
+      // rendered the dashboard rather than getting stuck on "Setting up your
+      // profile…" because an unrelated query threw.
       setServerProfile({
         id: row.id,
         name: resolvedName,
-        total_ratings: row.total_ratings ?? 0,
+        email: row.email ?? null,
+        role: row.role ?? null,
+        bio: row.bio ?? null,
+        photo_url: row.photo_url ?? null,
+        wallet_address: row.wallet_address ?? null,
+        follower_count: row.follower_count ?? 0,
         avg_rating: row.average_rating ?? 0,
-        follower_count: followerCount,
+        total_ratings: row.total_ratings ?? 0,
         serve_balance: row.serve_balance ?? 0,
         serve_balance_lifetime: row.serve_balance_lifetime ?? 0,
-        photo_url: row.photo_url ?? null,
+        is_founding_member: row.is_founding_member ?? false,
+        open_to_opportunities: row.open_to_opportunities ?? true,
+        specialties: row.specialties ?? [],
+        follow_approval: row.follow_approval ?? 'automatic',
+        profile_visibility: row.profile_visibility ?? 'public',
+        restaurant_name: row.server_restaurants?.[0]?.restaurant_name ?? '',
       })
       setProfileSpecialties(row.specialties ?? [])
-      setProfileOpenToOpportunities(row.open_to_opportunities ?? false)
-      setProfileFollowApproval(row.follow_approval ?? 'approval')
+      setProfileOpenToOpportunities(row.open_to_opportunities ?? true)
+      setProfileFollowApproval(row.follow_approval ?? 'automatic')
       setProfileVisibility(row.profile_visibility ?? 'public')
       setProfileLoading(false)
+
+      // ── Secondary loads (don't gate the dashboard render) ──────────────
+      try {
+        // Restaurants — use row.id (servers UUID), NOT the auth UID
+        const { data: restRows } = await supabase
+          .from('server_restaurants')
+          .select('id, restaurant_name, is_primary, restaurant_address')
+          .eq('server_id', row.id)
+          .eq('currently_working', true)
+        const rows = restRows ?? []
+        console.log('[Dashboard] Restaurants found:', rows.length)
+        setRestaurants(rows)
+        if (rows.length === 1) setSelectedRestaurant(rows[0].restaurant_name)
+      } catch (e) {
+        console.error('[Dashboard] restaurants secondary load failed:', e)
+      }
+
+      try {
+        // Ratings
+        const { data: ratingRows } = await supabase
+          .from('ratings')
+          .select('id, guest_name, score, created_at, comment')
+          .eq('server_id', row.id)
+          .order('created_at', { ascending: false })
+          .limit(5)
+        if (ratingRows) setRecentRatings(ratingRows as typeof recentRatings)
+      } catch (e) {
+        console.error('[Dashboard] ratings secondary load failed:', e)
+      }
     }
 
     loadDashboardData()
