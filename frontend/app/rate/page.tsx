@@ -52,8 +52,26 @@ type ServerRow = {
   role: string | null
   average_rating: number | null
   total_ratings: number | null
-  slate_points: number | null
+  serve_balance: number | null
+  serve_balance_lifetime: number | null
   follower_count: number | null
+}
+
+// Merit-based $SERVE reward: stars + comment + follow
+function calculateServeReward(stars: number, hasComment: boolean, guestFollowed: boolean) {
+  const starReward =
+    stars === 5 ? 35 :
+    stars === 4 ? 20 :
+    stars === 3 ? 10 :
+    stars === 2 ? 5 : 2
+  const commentBonus = hasComment ? 10 : 0
+  const followBonus = guestFollowed ? 5 : 0
+  return {
+    starReward,
+    commentBonus,
+    followBonus,
+    total: starReward + commentBonus + followBonus,
+  }
 }
 
 function RateForm() {
@@ -69,6 +87,7 @@ function RateForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isFollowing, setIsFollowing] = useState(false)
+  const [lastReward, setLastReward] = useState<{ starReward: number; commentBonus: number; followBonus: number; total: number } | null>(null)
 
   useEffect(() => {
     console.log('Rate page loaded with server:', serverId)
@@ -82,7 +101,7 @@ function RateForm() {
 
       const { data: server, error: lookupError } = await supabase
         .from('servers')
-        .select('id, name, role, average_rating, total_ratings, slate_points, follower_count')
+        .select('id, name, role, average_rating, total_ratings, serve_balance, serve_balance_lifetime, follower_count')
         .eq('id', serverId)
         .maybeSingle()
 
@@ -163,6 +182,9 @@ function RateForm() {
 
       const { data: { session } } = await supabase.auth.getSession()
 
+      // Compute merit-based reward (use the truthy snapshot of follow state at submit time)
+      const reward = calculateServeReward(rating, comment.trim().length > 0, isFollowing)
+
       const { error: ratingError } = await supabase
         .from('ratings')
         .insert({
@@ -173,6 +195,7 @@ function RateForm() {
           guest_email: session?.user?.email || 'anonymous',
           gps_verified: false,
           verification_method: 'qr_scan',
+          serve_reward: reward.total,
         })
 
       if (ratingError) {
@@ -184,7 +207,7 @@ function RateForm() {
       // Update server stats — best-effort, non-blocking
       const { data: fresh, error: fetchErr } = await supabase
         .from('servers')
-        .select('average_rating, total_ratings, slate_points')
+        .select('average_rating, total_ratings, serve_balance, serve_balance_lifetime')
         .eq('id', serverId)
         .maybeSingle()
 
@@ -193,19 +216,24 @@ function RateForm() {
       if (fresh) {
         const newTotal = (fresh.total_ratings || 0) + 1
         const newAverage = (((fresh.average_rating || 0) * (fresh.total_ratings || 0)) + rating) / newTotal
+        const currentAvailable = fresh.serve_balance || 0
+        const currentLifetime = fresh.serve_balance_lifetime || 0
 
         const { error: updateErr } = await supabase
           .from('servers')
           .update({
             average_rating: parseFloat(newAverage.toFixed(1)),
             total_ratings: newTotal,
-            slate_points: (fresh.slate_points || 0) + 25,
+            serve_balance: currentAvailable + reward.total,
+            serve_balance_lifetime: currentLifetime + reward.total,
           })
           .eq('id', serverId)
 
         if (updateErr) console.error('Server stats update error (non-fatal):', updateErr)
       }
 
+      // Stash the breakdown for the success view
+      setLastReward(reward)
       setSuccess(true)
 
     } catch (err) {
@@ -249,14 +277,70 @@ function RateForm() {
           <p className="mt-4 max-w-sm text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
             Your {rating}-star review has been saved to {serverFirstName}&apos;s profile.
           </p>
-          <div className="mt-6 flex w-full max-w-sm items-center gap-3 rounded-xl border border-white/10 px-6 py-4">
-            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={1.5} className="h-5 w-5 shrink-0">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
-            </svg>
-            <p className="text-xs" style={{ color: '#A0A0A0' }}>
-              {serverFirstName} earned <span className="font-semibold text-white">25 Slate Points</span> for your rating.
-            </p>
-          </div>
+          {/* Reward breakdown */}
+          {lastReward && (
+            <div
+              style={{
+                border: '1px solid #111',
+                padding: '24px',
+                marginTop: '24px',
+                background: '#050505',
+                width: '100%',
+                maxWidth: '24rem',
+                textAlign: 'left',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '10px',
+                  letterSpacing: '3px',
+                  color: '#444',
+                  textTransform: 'uppercase',
+                  marginBottom: '16px',
+                  fontFamily: '"Space Mono", ui-monospace, monospace',
+                }}
+              >
+                {serverFirstName} earned
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: '13px' }}>
+                  <span>{rating} star rating</span>
+                  <span style={{ color: 'white' }}>+{lastReward.starReward} $SERVE</span>
+                </div>
+
+                {lastReward.commentBonus > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: '13px' }}>
+                    <span>Written review bonus</span>
+                    <span style={{ color: 'white' }}>+{lastReward.commentBonus} $SERVE</span>
+                  </div>
+                )}
+
+                {lastReward.followBonus > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: '13px' }}>
+                    <span>Follow bonus</span>
+                    <span style={{ color: 'white' }}>+{lastReward.followBonus} $SERVE</span>
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    borderTop: '1px solid #111',
+                    paddingTop: '12px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    color: 'white',
+                    fontSize: '18px',
+                    fontFamily: 'Georgia, serif',
+                    fontWeight: 700,
+                  }}
+                >
+                  <span>Total</span>
+                  <span>{lastReward.total} $SERVE</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Follow CTA — stays visible after rating so guest can still follow */}
           <div className="mt-8 w-full max-w-sm">

@@ -341,6 +341,149 @@ function ProfilePreferencesSection({
   )
 }
 
+// ── $SERVE reputation + bi-weekly payout ──────────────────────────────────────
+
+function ServeRewardsSection({
+  serverId,
+  lifetimeBalance,
+}: {
+  serverId: string | null
+  lifetimeBalance: number
+}) {
+  const [periodEarned, setPeriodEarned] = useState(0)
+
+  useEffect(() => {
+    if (!serverId) return
+    let cancelled = false
+    const load = async () => {
+      const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+      const { data } = await supabase
+        .from('ratings')
+        .select('serve_reward')
+        .eq('server_id', serverId)
+        .gte('created_at', twoWeeksAgo)
+      if (cancelled) return
+      const total = (data ?? []).reduce((sum, r: { serve_reward?: number | null }) => sum + (r.serve_reward ?? 0), 0)
+      setPeriodEarned(total)
+    }
+    load()
+    return () => { cancelled = true }
+  }, [serverId])
+
+  // Next payout = next 14-day boundary anchored on 2026-05-01
+  const today = new Date()
+  const anchor = new Date('2026-05-01')
+  const daysSinceAnchor = Math.floor((today.getTime() - anchor.getTime()) / (1000 * 60 * 60 * 24))
+  const daysUntilPayout = ((14 - (daysSinceAnchor % 14)) % 14) || 14
+  const nextPayout = new Date(today)
+  nextPayout.setDate(today.getDate() + daysUntilPayout)
+  const nextPayoutDate = nextPayout.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+
+  return (
+    <div className="mb-8 rounded-2xl border border-white/10" style={{ backgroundColor: '#0a0a0a' }}>
+      {/* Reputation Score */}
+      <div style={{ padding: '24px', borderBottom: '1px solid #0d0d0d' }}>
+        <div
+          style={{
+            fontSize: '10px',
+            letterSpacing: '3px',
+            color: '#444',
+            textTransform: 'uppercase',
+            marginBottom: '16px',
+            fontFamily: '"Space Mono", ui-monospace, monospace',
+          }}
+        >
+          Reputation Score
+        </div>
+
+        <div style={{ fontSize: '36px', fontFamily: 'Georgia, serif', fontWeight: 700, color: 'white', lineHeight: 1 }}>
+          {lifetimeBalance}
+        </div>
+        <div
+          style={{
+            fontSize: '11px',
+            color: '#444',
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+            marginTop: '8px',
+            fontFamily: '"Space Mono", ui-monospace, monospace',
+          }}
+        >
+          $SERVE earned lifetime
+        </div>
+        <div style={{ marginTop: '12px', fontSize: '12px', color: '#444', lineHeight: 1.6 }}>
+          Your permanent on-chain reputation score. Only goes up. Never resets.
+        </div>
+      </div>
+
+      {/* Bi-Weekly Payout */}
+      <div style={{ padding: '24px' }}>
+        <div
+          style={{
+            fontSize: '10px',
+            letterSpacing: '3px',
+            color: '#444',
+            textTransform: 'uppercase',
+            marginBottom: '16px',
+            fontFamily: '"Space Mono", ui-monospace, monospace',
+          }}
+        >
+          Bi-Weekly Payout
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '1px',
+            background: '#111',
+            marginBottom: '16px',
+          }}
+        >
+          <div style={{ background: '#000', padding: '16px' }}>
+            <div style={{ fontSize: '22px', fontFamily: 'Georgia, serif', fontWeight: 700, color: 'white' }}>
+              {periodEarned}
+            </div>
+            <div
+              style={{
+                fontSize: '9px',
+                color: '#444',
+                letterSpacing: '2px',
+                textTransform: 'uppercase',
+                marginTop: '4px',
+                fontFamily: '"Space Mono", ui-monospace, monospace',
+              }}
+            >
+              $SERVE this period
+            </div>
+          </div>
+          <div style={{ background: '#000', padding: '16px' }}>
+            <div
+              style={{
+                fontSize: '11px',
+                color: '#444',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                fontFamily: '"Space Mono", ui-monospace, monospace',
+              }}
+            >
+              Next payout
+            </div>
+            <div style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
+              {nextPayoutDate}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ fontSize: '12px', color: '#444', lineHeight: 1.7 }}>
+          The top 20% of active servers receive a cash payout every two weeks through Slate Pay — funded by restaurant subscriptions.
+          Every $SERVE you earn counts toward your ranking. The more stars you get, the more written reviews, the more follows — the higher you rank.
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Privacy settings (follow approval + profile visibility) ──────────────────
 
 function PrivacySettingsSection({
@@ -606,7 +749,8 @@ export default function DashboardPage() {
     total_ratings: number
     avg_rating: number
     follower_count: number
-    slate_points: number
+    serve_balance: number
+    serve_balance_lifetime: number
     photo_url: string | null
   } | null>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
@@ -642,7 +786,7 @@ export default function DashboardPage() {
       // Primary lookup: wallet_address = Supabase auth UID (set at signup)
       const { data: serverData, error } = await supabase
         .from('servers')
-        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, slate_points, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility')
+        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance, serve_balance_lifetime, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility')
         .eq('wallet_address', session.user.id)
         .maybeSingle()
 
@@ -652,7 +796,7 @@ export default function DashboardPage() {
         // Fallback: email match for accounts created before wallet_address was wired up
         const { data: byEmail } = await supabase
           .from('servers')
-          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, slate_points, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility')
+          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance, serve_balance_lifetime, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility')
           .ilike('email', session.user.email ?? '')
           .maybeSingle()
         if (!byEmail) { setProfileLoading(false); return }
@@ -666,7 +810,7 @@ export default function DashboardPage() {
 
     // Separate helper so both lookup paths share the same data-loading logic
     async function hydrateFromServerRow(
-      row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null; slate_points?: number | null; photo_url?: string | null; specialties?: string[] | null; open_to_opportunities?: boolean | null; follow_approval?: string | null; profile_visibility?: string | null },
+      row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null; serve_balance?: number | null; serve_balance_lifetime?: number | null; photo_url?: string | null; specialties?: string[] | null; open_to_opportunities?: boolean | null; follow_approval?: string | null; profile_visibility?: string | null },
       authUserId: string
     ) {
       // Keep wallet_address in sync for future logins
@@ -711,7 +855,8 @@ export default function DashboardPage() {
         total_ratings: row.total_ratings ?? 0,
         avg_rating: row.average_rating ?? 0,
         follower_count: followerCount,
-        slate_points: row.slate_points ?? 0,
+        serve_balance: row.serve_balance ?? 0,
+        serve_balance_lifetime: row.serve_balance_lifetime ?? 0,
         photo_url: row.photo_url ?? null,
       })
       setProfileSpecialties(row.specialties ?? [])
@@ -730,11 +875,14 @@ export default function DashboardPage() {
     if (!serverId) return
     const { data } = await supabase
       .from('servers')
-      .select('slate_points')
+      .select('serve_balance, serve_balance_lifetime')
       .eq('id', serverId)
       .maybeSingle()
     if (data != null) {
-      setServerProfile(prev => prev ? { ...prev, slate_points: data.slate_points ?? 0 } : prev)
+      setServerProfile(prev => prev
+        ? { ...prev, serve_balance: data.serve_balance ?? 0, serve_balance_lifetime: data.serve_balance_lifetime ?? 0 }
+        : prev,
+      )
     }
   }
 
@@ -1002,7 +1150,7 @@ export default function DashboardPage() {
             { label: 'Rating',    value: serverProfile?.avg_rating ? serverProfile.avg_rating.toFixed(1) : '—' },
             { label: 'Reviews',   value: serverProfile?.total_ratings ?? 0 },
             { label: 'Followers', value: serverProfile?.follower_count ?? 0 },
-            { label: '$SERVE',    value: serverProfile?.slate_points ?? 0 },
+            { label: '$SERVE',    value: serverProfile?.serve_balance_lifetime ?? 0 },
           ].map(({ label, value }) => (
             <div
               key={label}
@@ -1014,6 +1162,12 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+
+        {/* ── $SERVE rewards (lifetime score + bi-weekly payout) ────────── */}
+        <ServeRewardsSection
+          serverId={serverProfile?.id ?? null}
+          lifetimeBalance={serverProfile?.serve_balance_lifetime ?? 0}
+        />
 
         {/* ── Shift Status Card ───────────────────────────────────────── */}
         <div

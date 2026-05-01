@@ -13,7 +13,7 @@ type Server = {
   total_ratings: number | null
   follower_count: number | null
   is_founding_member: boolean | null
-  slate_points: number | null
+  serve_balance_lifetime: number | null
   photo_url: string | null
   bio?: string | null
 }
@@ -241,7 +241,7 @@ export default function ServerProfilePage() {
     ? (ratings.reduce((s, r) => s + r.score, 0) / ratings.length).toFixed(1)
     : server.average_rating?.toFixed(1) ?? '—'
   const totalRatings = ratings.length || server.total_ratings || 0
-  const serveBalance = server.slate_points ?? 0
+  const serveBalance = server.serve_balance_lifetime ?? 0
   const primaryRestaurant = restaurants.find(r => r.is_primary) ?? restaurants[0] ?? null
   const firstName = server.name?.split(' ')[0] ?? 'them'
 

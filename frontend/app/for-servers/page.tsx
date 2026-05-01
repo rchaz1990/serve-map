@@ -71,8 +71,8 @@ export default function ForServersPage() {
                   body: 'Guests follow you — not the restaurant. When you move your followers get notified automatically. The relationship is yours.',
                 },
                 {
-                  title: 'Slate Points',
-                  body: 'Every verified rating earns you Slate Points — redeemable 1:1 for $SERVE tokens at launch. The on-chain proof that you showed up and delivered.',
+                  title: 'Merit-based $SERVE',
+                  body: 'Every verified rating earns $SERVE — more for higher stars, with bonuses for written reviews and new follows. The on-chain proof that you showed up and delivered.',
                 },
                 {
                   title: 'Your QR code',
@@ -93,26 +93,64 @@ export default function ForServersPage() {
 
         <div className="border-t border-white/10" />
 
-        {/* ── $SERVE ownership ──────────────────────────────────────────── */}
+        {/* ── How $SERVE works ──────────────────────────────────────────── */}
         <section className="px-6 py-16 lg:px-24 lg:py-24">
           <div className="mx-auto max-w-4xl">
             <h2 className="mb-8 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Your reputation belongs to you.
+              How $SERVE works
             </h2>
             <div className="max-w-2xl space-y-5 text-base leading-8" style={{ color: '#C0C0C0' }}>
               <p>
-                Every rating you receive is stored permanently on Solana.
-                Every shift you work builds a credential no employer can delete.
-                And every verified rating earns you Slate Points —
-                redeemable 1:1 for $SERVE tokens when we launch.
+                Every rating you receive earns $SERVE based on the quality of your service.
+              </p>
+            </div>
+
+            {/* Star rewards table */}
+            <div className="mt-8 max-w-xl rounded-2xl border border-white/10 bg-white/[0.03]">
+              {[
+                { label: '5 stars + written review + follow', amount: '50 $SERVE', highlight: true },
+                { label: '4 stars',                          amount: '20 $SERVE base' },
+                { label: '3 stars',                          amount: '10 $SERVE base' },
+                { label: '2 stars',                          amount: '5 $SERVE base' },
+                { label: '1 star',                           amount: '2 $SERVE base' },
+              ].map((row, i, arr) => (
+                <div
+                  key={row.label}
+                  className="flex items-center justify-between px-6 py-4"
+                  style={{
+                    borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                  }}
+                >
+                  <span className={row.highlight ? 'text-sm font-semibold text-white' : 'text-sm'} style={{ color: row.highlight ? '#FFFFFF' : '#A0A0A0' }}>
+                    {row.label}
+                  </span>
+                  <span className="text-sm font-semibold text-white tabular-nums">{row.amount}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Bonuses */}
+            <div className="mt-6 max-w-xl rounded-2xl border border-white/10 px-6 py-5" style={{ backgroundColor: '#080808' }}>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#606060' }}>Bonuses</p>
+              <div className="flex items-center justify-between py-1.5 text-sm" style={{ color: '#C0C0C0' }}>
+                <span>Written review</span>
+                <span className="text-white">+10 $SERVE</span>
+              </div>
+              <div className="flex items-center justify-between py-1.5 text-sm" style={{ color: '#C0C0C0' }}>
+                <span>New follow</span>
+                <span className="text-white">+5 $SERVE</span>
+              </div>
+            </div>
+
+            <div className="mt-8 max-w-2xl space-y-5 text-base leading-8" style={{ color: '#C0C0C0' }}>
+              <p>
+                Every $SERVE counts toward your reputation score — your permanent on-chain credential. It only goes up. It never resets.
+              </p>
+              <p>
+                The top 20% of active servers receive a cash payout every two weeks through Slate Pay, funded by restaurant subscriptions. The more stars, written reviews, and follows you earn, the higher you rank.
               </p>
               <p className="font-semibold text-white">
                 No speculation. No crypto knowledge required. Just real rewards for real hospitality.
-              </p>
-              <p>
-                $SERVE launches after Slate hits its traction milestones — not before.
-                Until then, every point you earn is locked in and waiting.
-                When you hold $SERVE you hold a piece of the platform you helped build.
               </p>
             </div>
           </div>
