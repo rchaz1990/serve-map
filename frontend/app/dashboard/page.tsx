@@ -784,24 +784,82 @@ export default function DashboardPage() {
       console.log('Session user ID:', session?.user?.id)
       console.log('Session email:', session?.user?.email)
 
-      // Primary lookup: wallet_address = Supabase auth UID (set at signup)
+      // Primary lookup: wallet_address = Supabase auth UID (set at signup).
+      // Note: restaurant_name is NOT a column on `servers` — it lives on
+      // server_restaurants. We pull it via a join. `bio` is dropped from
+      // the select because no migration exists for it on this DB.
       const { data: serverData, error } = await supabase
         .from('servers')
-        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance, serve_balance_lifetime, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility, email')
+        .select(`
+          id,
+          name,
+          email,
+          role,
+          photo_url,
+          wallet_address,
+          follower_count,
+          average_rating,
+          total_ratings,
+          serve_balance,
+          serve_balance_lifetime,
+          is_founding_member,
+          open_to_opportunities,
+          specialties,
+          follow_approval,
+          profile_visibility,
+          server_restaurants(restaurant_name, is_primary)
+        `)
         .eq('wallet_address', session.user.id)
         .maybeSingle()
 
       console.log('Server data found:', serverData)
       console.log('Server query error:', error)
+      if (error) {
+        console.error('EXACT ERROR:', error.message, error.details, error.hint)
+      }
+
+      // Derive the current primary restaurant from the join result
+      if (serverData) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const primaryRestaurant = (serverData as any).server_restaurants?.find(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (r: any) => r.is_primary,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ) || (serverData as any).server_restaurants?.[0]
+        const restaurantName = primaryRestaurant?.restaurant_name || ''
+        console.log('Primary restaurant from join:', restaurantName)
+      }
 
       if (!serverData && session?.user?.email) {
         // Fallback: email match. If found, force the wallet_address to point
         // at the current session so the primary lookup works next time.
-        const { data: serverByEmail } = await supabase
+        const { data: serverByEmail, error: byEmailError } = await supabase
           .from('servers')
-          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance, serve_balance_lifetime, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility, email')
+          .select(`
+            id,
+            name,
+            email,
+            role,
+            photo_url,
+            wallet_address,
+            follower_count,
+            average_rating,
+            total_ratings,
+            serve_balance,
+            serve_balance_lifetime,
+            is_founding_member,
+            open_to_opportunities,
+            specialties,
+            follow_approval,
+            profile_visibility,
+            server_restaurants(restaurant_name, is_primary)
+          `)
           .ilike('email', session.user.email)
           .maybeSingle()
+
+        if (byEmailError) {
+          console.error('EXACT ERROR (email fallback):', byEmailError.message, byEmailError.details, byEmailError.hint)
+        }
 
         console.log('Server found by email:', serverByEmail)
 
