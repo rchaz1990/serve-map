@@ -12,6 +12,7 @@ function LoginForm() {
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [forgotSent, setForgotSent] = useState(false)
 
   const handleSignIn = async () => {
     setLoading(true)
@@ -46,6 +47,19 @@ function LoginForm() {
       body: JSON.stringify({ email, name: name || email, type: 'guest' }),
     }).catch(() => {})
     router.push('/live')
+  }
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Please enter your email address first')
+      return
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://slatenow.xyz/login',
+    })
+    if (!error) {
+      setForgotSent(true)
+    }
   }
 
   const handleGoogle = async () => {
@@ -98,6 +112,31 @@ function LoginForm() {
           style={{ width: '100%', padding: '14px', background: 'white', color: 'black', border: 'none', borderRadius: '4px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', marginBottom: '20px' }}>
           {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
         </button>
+
+        {mode === 'signin' && (
+          forgotSent ? (
+            <p style={{ color: '#555', fontSize: '12px', textAlign: 'center', marginTop: '12px', marginBottom: '20px' }}>
+              Password reset email sent. Check your inbox.
+            </p>
+          ) : (
+            <button
+              onClick={handleForgotPassword}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#444',
+                fontSize: '12px',
+                letterSpacing: '1px',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                display: 'block',
+                margin: '12px auto 20px',
+              }}
+            >
+              Forgot password?
+            </button>
+          )
+        )}
 
         <p style={{ textAlign: 'center', color: '#555', fontSize: '14px' }}>
           {mode === 'signin' ? (

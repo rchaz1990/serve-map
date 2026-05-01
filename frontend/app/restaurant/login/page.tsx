@@ -10,42 +10,63 @@ export default function RestaurantManagerLoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [forgotSent, setForgotSent] = useState(false)
 
-  async function handleSignIn() {
-    setError(null)
-    if (!email.trim() || !password) {
-      setError('Enter your email and password.')
-      return
-    }
+  const handleLogin = async () => {
     setLoading(true)
+    setError('')
+
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
-      if (authError) throw new Error(authError.message)
-      if (!data.user?.id) throw new Error('Sign in did not return a user.')
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-      // Confirm there's a manager profile attached
-      const { data: manager, error: lookupError } = await supabase
-        .from('restaurant_managers')
-        .select('restaurant_name')
-        .eq('auth_id', data.user.id)
-        .maybeSingle()
-
-      if (lookupError) throw new Error(lookupError.message)
-      if (!manager) {
-        await supabase.auth.signOut()
-        throw new Error('No manager profile found for this account. Please sign up as a manager.')
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+        return
       }
 
-      localStorage.setItem('slateUserType', 'manager')
-      localStorage.setItem('slateManagerRestaurant', manager.restaurant_name)
+      if (data.session) {
+        // Check if manager account exists
+        const { data: managerData } = await supabase
+          .from('restaurant_managers')
+          .select('id, restaurant_name')
+          .eq('auth_id', data.session.user.id)
+          .maybeSingle()
 
-      router.push('/restaurant/dashboard')
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
+        if (managerData) {
+          localStorage.setItem('slateUserType', 'manager')
+          localStorage.setItem('slateManagerId', managerData.id)
+          localStorage.setItem('slateRestaurantName', managerData.restaurant_name)
+          router.push('/restaurant/dashboard')
+        } else {
+          setError('No manager account found for this email. Please sign up first.')
+          await supabase.auth.signOut()
+          setLoading(false)
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Login failed. Please try again.'
       setError(msg)
-    } finally {
       setLoading(false)
+    }
+  }
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Please enter your email address first')
+      return
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://slatenow.xyz/restaurant/login',
+    })
+
+    if (!error) {
+      setForgotSent(true)
     }
   }
 
@@ -90,7 +111,7 @@ export default function RestaurantManagerLoginPage() {
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleSignIn() }}
+                onKeyDown={e => { if (e.key === 'Enter') handleLogin() }}
                 placeholder="Your password"
                 className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
               />
@@ -103,12 +124,35 @@ export default function RestaurantManagerLoginPage() {
             )}
 
             <button
-              onClick={handleSignIn}
+              onClick={handleLogin}
               disabled={loading}
               className="mt-2 w-full rounded-full bg-white py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-40"
             >
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
+
+            {forgotSent ? (
+              <p style={{ color: '#555', fontSize: '12px', textAlign: 'center', marginTop: '12px' }}>
+                Password reset email sent. Check your inbox.
+              </p>
+            ) : (
+              <button
+                onClick={handleForgotPassword}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#444',
+                  fontSize: '12px',
+                  letterSpacing: '1px',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  display: 'block',
+                  margin: '12px auto 0',
+                }}
+              >
+                Forgot password?
+              </button>
+            )}
 
             <p className="mt-2 text-center text-xs" style={{ color: '#606060' }}>
               Don&apos;t have a manager account?{' '}
