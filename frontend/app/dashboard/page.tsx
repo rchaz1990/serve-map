@@ -781,27 +781,50 @@ export default function DashboardPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) { router.push('/login'); return }
 
-      console.log('[Dashboard] Loading for auth user:', session.user.id)
+      console.log('Session user ID:', session?.user?.id)
+      console.log('Session email:', session?.user?.email)
 
       // Primary lookup: wallet_address = Supabase auth UID (set at signup)
       const { data: serverData, error } = await supabase
         .from('servers')
-        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance, serve_balance_lifetime, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility')
+        .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance, serve_balance_lifetime, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility, email')
         .eq('wallet_address', session.user.id)
         .maybeSingle()
 
-      console.log('[Dashboard] Server data:', serverData, error ?? '')
+      console.log('Server data found:', serverData)
+      console.log('Server query error:', error)
+
+      if (!serverData && session?.user?.email) {
+        // Fallback: email match. If found, force the wallet_address to point
+        // at the current session so the primary lookup works next time.
+        const { data: serverByEmail } = await supabase
+          .from('servers')
+          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance, serve_balance_lifetime, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility, email')
+          .ilike('email', session.user.email)
+          .maybeSingle()
+
+        console.log('Server found by email:', serverByEmail)
+
+        if (serverByEmail) {
+          // Backfill the wallet_address regardless of its current value
+          const { error: updateErr } = await supabase
+            .from('servers')
+            .update({ wallet_address: session.user.id })
+            .eq('id', serverByEmail.id)
+          if (updateErr) console.error('[Dashboard] wallet_address backfill failed:', updateErr)
+          else console.log('[Dashboard] wallet_address re-pointed to current session')
+
+          await hydrateFromServerRow(serverByEmail, session.user.id)
+          return
+        }
+
+        // No server row at all — show the "setting up profile" placeholder
+        setProfileLoading(false)
+        return
+      }
 
       if (!serverData) {
-        // Fallback: email match for accounts created before wallet_address was wired up
-        const { data: byEmail } = await supabase
-          .from('servers')
-          .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance, serve_balance_lifetime, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility')
-          .ilike('email', session.user.email ?? '')
-          .maybeSingle()
-        if (!byEmail) { setProfileLoading(false); return }
-        console.log('[Dashboard] Found by email fallback')
-        await hydrateFromServerRow(byEmail, session.user.id)
+        setProfileLoading(false)
         return
       }
 
@@ -813,8 +836,11 @@ export default function DashboardPage() {
       row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null; serve_balance?: number | null; serve_balance_lifetime?: number | null; photo_url?: string | null; specialties?: string[] | null; open_to_opportunities?: boolean | null; follow_approval?: string | null; profile_visibility?: string | null },
       authUserId: string
     ) {
-      // Keep wallet_address in sync for future logins
-      await supabase.from('servers').update({ wallet_address: authUserId }).eq('id', row.id).eq('wallet_address', null as unknown as string)
+      // Keep wallet_address in sync for future logins.
+      // No null-only filter: if the row's wallet_address points at a stale
+      // auth UID from a previous signup attempt, this re-points it at the
+      // current session so the primary lookup works next time.
+      await supabase.from('servers').update({ wallet_address: authUserId }).eq('id', row.id)
 
       const resolvedName = row.name || localStorage.getItem('slateServerName') || ''
       localStorage.setItem('slateServerId', row.id)
