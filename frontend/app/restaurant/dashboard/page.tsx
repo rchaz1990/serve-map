@@ -3,8 +3,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import QRCode from 'react-qr-code'
 import Navbar from '@/app/components/Navbar'
 import { supabase, getAuthSession, withTimeout } from '@/lib/supabase'
+
+const GUEST_RATE_ORIGIN = 'https://slatenow.xyz'
+
+function guestScanUrl(serverId: string) {
+  return `${GUEST_RATE_ORIGIN}/scan/${serverId}`
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -317,6 +324,7 @@ export default function RestaurantManagerDashboard() {
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [loading, setLoading] = useState(true)
   const [busyServerId, setBusyServerId] = useState<string | null>(null)
+  const [copiedRateId, setCopiedRateId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Analytics state
@@ -1043,6 +1051,102 @@ export default function RestaurantManagerDashboard() {
                           {isActive ? 'On Shift' : 'Off'}
                         </span>
                       </div>
+
+                      {/* Guest rate QR — only when on shift (canonical: /scan/[serverId]) */}
+                      {isActive && (
+                        <div
+                          style={{
+                            gridColumn: '1 / -1',
+                            marginTop: '4px',
+                            padding: '20px',
+                            border: '1px solid #111',
+                            background: '#050505',
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            alignItems: 'center',
+                            gap: '20px',
+                          }}
+                        >
+                          <div style={{ background: '#FFFFFF', padding: '12px', borderRadius: '12px' }}>
+                            <QRCode
+                              value={guestScanUrl(member.server_id)}
+                              size={96}
+                              bgColor="#ffffff"
+                              fgColor="#000000"
+                            />
+                          </div>
+                          <div style={{ flex: 1, minWidth: '200px' }}>
+                            <p
+                              style={{
+                                fontFamily: '"Space Mono", ui-monospace, monospace',
+                                fontSize: '10px',
+                                letterSpacing: '0.25em',
+                                textTransform: 'uppercase',
+                                color: '#555',
+                                marginBottom: '8px',
+                              }}
+                            >
+                              Guest rate QR
+                            </p>
+                            <p style={{ color: '#A0A0A0', fontSize: '13px', lineHeight: 1.5, marginBottom: '12px' }}>
+                              Guests scan this to rate {member.name.split(' ')[0]} — no app needed.
+                              Lands on /scan then /rate?server=
+                            </p>
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                border: '1px solid #1a1a1a',
+                                background: '#0a0a0a',
+                                padding: '10px 12px',
+                                borderRadius: '8px',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  flex: 1,
+                                  fontFamily: '"Space Mono", ui-monospace, monospace',
+                                  fontSize: '11px',
+                                  color: '#888',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                slatenow.xyz/scan/{member.server_id}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const url = guestScanUrl(member.server_id)
+                                  try {
+                                    await navigator.clipboard.writeText(url)
+                                    setCopiedRateId(member.server_id)
+                                    setTimeout(() => setCopiedRateId(prev => prev === member.server_id ? null : prev), 2000)
+                                  } catch {
+                                    // ignore clipboard failures
+                                  }
+                                }}
+                                style={{
+                                  flexShrink: 0,
+                                  background: 'transparent',
+                                  border: '1px solid #333',
+                                  color: '#FFFFFF',
+                                  fontSize: '10px',
+                                  letterSpacing: '0.15em',
+                                  textTransform: 'uppercase',
+                                  padding: '6px 10px',
+                                  cursor: 'pointer',
+                                  fontFamily: '"Space Mono", ui-monospace, monospace',
+                                }}
+                              >
+                                {copiedRateId === member.server_id ? 'Copied' : 'Copy'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
