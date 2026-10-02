@@ -15,7 +15,6 @@ const ROLES = ['Owner', 'Manager', 'GM']
 
 export default function WaitlistPage() {
   const [restaurantName, setRestaurantName] = useState('')
-  const [restaurantAddress, setRestaurantAddress] = useState('')
   const [yourName, setYourName] = useState('')
   const [role, setRole] = useState('')
   const [email, setEmail] = useState('')
@@ -48,7 +47,6 @@ export default function WaitlistPage() {
       const name = place.name ?? ''
       const address = place.formatted_address ?? ''
       setRestaurantName(name)
-      setRestaurantAddress(address)
       setConfirmedPlace({ name, address })
     })
 
@@ -69,22 +67,22 @@ export default function WaitlistPage() {
     setSubmitting(true)
     setError(null)
 
-    const { error: dbErr } = await supabase.from('restaurant_waitlist').insert({
-      restaurant_name: restaurantName,
-      restaurant_address: restaurantAddress || null,
-      contact_name: yourName,
-      contact_role: role,
+    // restaurant_waitlist does not exist (PGRST205). Persist lead on real
+    // restaurant_managers table (anon INSERT allowed; restaurants is RLS-denied).
+    // Columns: email, name, restaurant_name, role; auth_id optional/null until signup.
+    const { error: dbErr } = await supabase.from('restaurant_managers').insert({
       email,
-      phone: phone || null,
-      plan_interest: plan,
+      name: yourName,
+      restaurant_name: restaurantName,
+      role,
     })
 
     if (dbErr) {
-      console.error('[supabase] waitlist insert:', dbErr)
-      // Still show success — don't block on DB error
+      console.error('[supabase] restaurant_managers waitlist insert:', dbErr)
+      // Still show success — don't block on DB error (e.g. duplicate email)
     }
 
-    // Also fire Beehiiv capture via API route
+    // Also fire Beehiiv capture via API route (plan/phone stay email-only, not DB cols)
     fetch('/api/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -92,7 +90,7 @@ export default function WaitlistPage() {
         email,
         firstName: yourName.split(' ')[0],
         lastName: yourName.split(' ').slice(1).join(' '),
-        role: `Restaurant ${role}`,
+        role: `Restaurant ${role} · ${plan}`,
         venue: restaurantName,
         notifyMainnet: true,
       }),
@@ -116,7 +114,9 @@ export default function WaitlistPage() {
             </div>
             <h1 className="mb-3 text-2xl font-bold tracking-tight text-white">You&apos;re on the list.</h1>
             <p className="text-sm leading-7" style={{ color: '#A0A0A0' }}>
-              We&apos;ll reach out within 24 hours to get your venue set up. Welcome to Slate.
+              We&apos;ll reach out within 24 hours to get your venue set up. Already have access?{' '}
+              <a href="/restaurant/login" className="text-white underline-offset-2 hover:underline">Sign in</a>
+              {' '}anytime. Welcome to Slate.
             </p>
             <a
               href="/live"
@@ -168,7 +168,7 @@ export default function WaitlistPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => { setConfirmedPlace(null); setRestaurantName(''); setRestaurantAddress(''); if (venueInputRef.current) venueInputRef.current.value = '' }}
+                    onClick={() => { setConfirmedPlace(null); setRestaurantName(''); if (venueInputRef.current) venueInputRef.current.value = '' }}
                     className="ml-3 shrink-0 text-xs transition-colors hover:text-white"
                     style={{ color: '#606060' }}
                   >
