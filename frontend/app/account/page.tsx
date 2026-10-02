@@ -24,9 +24,9 @@ type FollowedServer = {
 
 type VibeReport = {
   id: string
-  venue_name: string
+  restaurant_name: string
   vibe: string
-  reported_at: string
+  created_at: string
 }
 
 type RatingLeft = {
@@ -89,9 +89,9 @@ export default function AccountPage() {
           .order('created_at', { ascending: false }),
         supabase
           .from('vibe_reports')
-          .select('id, venue_name, vibe, reported_at')
+          .select('id, restaurant_name, vibe, created_at')
           .eq('guest_id', authUser.id)
-          .order('reported_at', { ascending: false }),
+          .order('created_at', { ascending: false }),
         supabase
           .from('guest_rewards')
           .select('slate_points')
@@ -248,9 +248,9 @@ export default function AccountPage() {
               {vibeReports.map(v => (
                 <div key={v.id} className="flex items-center justify-between py-4">
                   <div>
-                    <p className="text-sm font-semibold text-white">{v.venue_name}</p>
+                    <p className="text-sm font-semibold text-white">{v.restaurant_name}</p>
                     <p className="mt-0.5 text-xs" style={{ color: '#606060' }}>
-                      {VIBE_EMOJI[v.vibe]} {VIBE_LABEL[v.vibe] ?? v.vibe} · {formatDate(v.reported_at)}
+                      {VIBE_EMOJI[v.vibe]} {VIBE_LABEL[v.vibe] ?? v.vibe} · {formatDate(v.created_at)}
                     </p>
                   </div>
                   <span className="text-xs font-semibold" style={{ color: '#A0A0A0' }}>+5 $SERVE</span>
