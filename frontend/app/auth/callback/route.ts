@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
+import { OAUTH_NEXT_COOKIE } from '@/lib/auth-redirect'
 
 type CookieOp = { name: string; value: string; options: Parameters<NextResponse['cookies']['set']>[2] }
 
@@ -19,8 +20,6 @@ function redirectWithCookies(
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
-  // Optional hint from restaurant login Google button — verified against DB below.
-  const nextHint = requestUrl.searchParams.get('next')
 
   if (!code) {
     return NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin))
@@ -30,6 +29,27 @@ export async function GET(request: Request) {
 
   try {
     const cookieStore = await cookies()
+
+    // Prefer cookie hint (set before OAuth) over ?next= on redirectTo.
+    // Query next is still accepted for older clients / defensive middleware forwards.
+    const nextFromCookie = cookieStore.get(OAUTH_NEXT_COOKIE)?.value
+    const nextFromQuery = requestUrl.searchParams.get('next')
+    let nextHint: string | null = null
+    if (nextFromCookie) {
+      try {
+        nextHint = decodeURIComponent(nextFromCookie)
+      } catch {
+        nextHint = nextFromCookie
+      }
+    } else if (nextFromQuery) {
+      nextHint = nextFromQuery
+    }
+    // Always clear the hint cookie on the redirect response
+    cookiesToApply.push({
+      name: OAUTH_NEXT_COOKIE,
+      value: '',
+      options: { path: '/', maxAge: 0 },
+    })
 
     // Buffer cookie writes so we can apply them to whichever response
     // we ultimately redirect to (different user types → different URLs).
