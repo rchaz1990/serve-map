@@ -32,7 +32,6 @@ type Rating = {
   score: number
   comment: string | null
   created_at: string
-  guest_email: string | null
   server_name: string | null
 }
 
@@ -154,11 +153,16 @@ export default function RestaurantProfilePage() {
     async function load() {
       setLoading(true)
       try {
+        // Schema remaps (PostgREST 42703 / PGRST205 against live dxolctisydznevcmtaed):
+        // - ratings: no guest_name/server_name → guest_email/server_id + servers(name)
+        // - vibe_reports: no venue_name/reported_at → restaurant_name/created_at
+        // - follows (account/nav): no guest_id → follower_id (not queried on this public page)
+        // - claim: no restaurant_waitlist → restaurant_managers
         const [
-          { data: vibes },
-          { data: serverRests },
-          { data: rats },
-          { data: managers },
+          vibesRes,
+          serverRestsRes,
+          ratsRes,
+          managersRes,
         ] = await Promise.all([
           // Vibe reports for this venue (last 48h, ordered newest first)
           supabase
@@ -174,10 +178,11 @@ export default function RestaurantProfilePage() {
             .select('server_id, restaurant_name, is_primary, currently_working, servers(name, role, average_rating, follower_count)')
             .ilike('restaurant_name', lookupName),
 
-          // Ratings at this restaurant (most recent 10)
+          // Ratings at this restaurant (most recent 10).
+          // Do not select guest_email on this public page; embed servers(name) for "for {server}" label.
           supabase
             .from('ratings')
-            .select('id, score, comment, created_at, guest_email, server_id, servers(name)')
+            .select('id, score, comment, created_at, server_id, servers(name)')
             .ilike('restaurant_name', lookupName)
             .order('created_at', { ascending: false })
             .limit(10),
@@ -191,6 +196,16 @@ export default function RestaurantProfilePage() {
         ])
 
         if (cancelled) return
+
+        if (vibesRes.error) console.error('[restaurant] vibe_reports', vibesRes.error)
+        if (serverRestsRes.error) console.error('[restaurant] server_restaurants', serverRestsRes.error)
+        if (ratsRes.error) console.error('[restaurant] ratings', ratsRes.error)
+        if (managersRes.error) console.error('[restaurant] restaurant_managers', managersRes.error)
+
+        const vibes = vibesRes.data
+        const serverRests = serverRestsRes.data
+        const rats = ratsRes.data
+        const managers = managersRes.data
 
         if (vibes) setVibeReports(vibes as VibeReport[])
 
@@ -219,7 +234,6 @@ export default function RestaurantProfilePage() {
               score: r.score as number,
               comment: (r.comment as string | null) ?? null,
               created_at: r.created_at as string,
-              guest_email: (r.guest_email as string | null) ?? null,
               server_name: srv?.name ?? null,
             }
           }))
