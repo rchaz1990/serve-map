@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Navbar from '@/app/components/Navbar'
-import { supabase } from '@/lib/supabase'
+import { supabase, getAuthSession, withTimeout } from '@/lib/supabase'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -578,10 +578,21 @@ export default function RestaurantManagerDashboard() {
   }, [restaurantName, loadAnalytics, loadTalent])
 
   // Initial auth + manager lookup
+  // Auth reads go through getAuthSession (coalesced) + withTimeout so a
+  // Navigator Lock hang cannot leave Loading stuck forever.
   useEffect(() => {
+    let cancelled = false
+    const AUTH_TIMEOUT_MS = 8_000
+
     async function checkAuth() {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const session = await withTimeout(
+          getAuthSession(),
+          AUTH_TIMEOUT_MS,
+          'Auth session',
+        )
+
+        if (cancelled) return
 
         if (!session) {
           // No session — send to LOGIN not signup
@@ -589,16 +600,23 @@ export default function RestaurantManagerDashboard() {
           return
         }
 
-        const { data: managerData, error: managerErr } = await supabase
-          .from('restaurant_managers')
-          .select('*')
-          .eq('auth_id', session.user.id)
-          .maybeSingle()
+        const managerRes = await withTimeout(
+          supabase
+            .from('restaurant_managers')
+            .select('*')
+            .eq('auth_id', session.user.id)
+            .maybeSingle(),
+          AUTH_TIMEOUT_MS,
+          'Manager lookup',
+        )
+
+        if (cancelled) return
+
+        const { data: managerData, error: managerErr } = managerRes
 
         if (managerErr) {
           console.error('[manager dashboard] restaurant_managers:', managerErr)
           setError(managerErr.message)
-          setLoading(false)
           return
         }
 
@@ -624,11 +642,17 @@ export default function RestaurantManagerDashboard() {
         await loadData(managerData.restaurant_name)
       } catch (err) {
         console.error('[manager dashboard] checkAuth:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load dashboard')
-        setLoading(false)
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load dashboard')
+        }
+      } finally {
+        // Always clear Loading — never hang when auth lock/timeout fails
+        // before loadData runs. loadData also clears loading in its finally.
+        if (!cancelled) setLoading(false)
       }
     }
     checkAuth()
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

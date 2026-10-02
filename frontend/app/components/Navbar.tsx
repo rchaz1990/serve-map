@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase, getAuthSession } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 
 type Notification = {
@@ -66,55 +66,66 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
     }
 
     // ── Step 2: Verify with Supabase in background ────────────────────────────
+    // Use coalesced getAuthSession (shared with page checkAuth) so Navbar +
+    // dashboard do not storm Navigator LockManager / getSession concurrently.
     const init = async () => {
-      const { data: { session: s } } = await supabase.auth.getSession()
-      setSession(s)
+      try {
+        const s = await getAuthSession()
+        setSession(s)
 
-      if (s?.user) {
-        // Always re-detect type from Supabase to keep cache + state honest
-        await detectUserType(s.user.id, s.user.email ?? null)
+        if (s?.user) {
+          // Always re-detect type from Supabase to keep cache + state honest
+          await detectUserType(s.user.id, s.user.email ?? null)
 
-        // Load unread notifications
-        if (s.user.email) {
-          const { data: notifs } = await supabase
-            .from('notifications')
-            .select('id, created_at, title, message, link, is_read')
-            .eq('recipient_email', s.user.email)
-            .eq('is_read', false)
-            .order('created_at', { ascending: false })
-            .limit(10)
-          if (notifs) {
-            setNotifications(notifs as Notification[])
-            setUnreadCount(notifs.length)
+          // Load unread notifications
+          if (s.user.email) {
+            const { data: notifs } = await supabase
+              .from('notifications')
+              .select('id, created_at, title, message, link, is_read')
+              .eq('recipient_email', s.user.email)
+              .eq('is_read', false)
+              .order('created_at', { ascending: false })
+              .limit(10)
+            if (notifs) {
+              setNotifications(notifs as Notification[])
+              setUnreadCount(notifs.length)
+            }
           }
-        }
 
-        // Load pending follower count for servers
-        const sid = localStorage.getItem('slateServerId')
-        if (sid) {
-          const { count } = await supabase
-            .from('follows')
-            .select('id', { count: 'exact', head: true })
-            .eq('server_id', sid)
-            .eq('status', 'pending')
-          setPendingFollowerCount(count ?? 0)
+          // Load pending follower count for servers
+          const sid = localStorage.getItem('slateServerId')
+          if (sid) {
+            const { count } = await supabase
+              .from('follows')
+              .select('id', { count: 'exact', head: true })
+              .eq('server_id', sid)
+              .eq('status', 'pending')
+            setPendingFollowerCount(count ?? 0)
+          }
+        } else {
+          // No active session — clear any stale cache
+          setServerRow(null)
+          setUserType('guest')
+          localStorage.removeItem('slateUserType')
+          localStorage.removeItem('slateServerId')
+          localStorage.removeItem('slateServerName')
+          localStorage.removeItem('slateManagerId')
+          localStorage.removeItem('slateRestaurantName')
         }
-      } else {
-        // No active session — clear any stale cache
-        setServerRow(null)
-        setUserType('guest')
-        localStorage.removeItem('slateUserType')
-        localStorage.removeItem('slateServerId')
-        localStorage.removeItem('slateServerName')
-        localStorage.removeItem('slateManagerId')
-        localStorage.removeItem('slateRestaurantName')
+      } catch (err) {
+        console.error('[Navbar] auth init:', err)
+      } finally {
+        setAuthLoaded(true)
       }
-      setAuthLoaded(true)
     }
 
     init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, s) => {
+      // INITIAL_SESSION duplicates getAuthSession work from init() above —
+      // skip to avoid a second auth read / detectUserType storm on mount.
+      if (event === 'INITIAL_SESSION') return
+
       if (event === 'SIGNED_OUT') {
         setSession(null)
         setServerRow(null)
@@ -125,7 +136,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
         localStorage.removeItem('slateServerName')
         localStorage.removeItem('slateManagerId')
         localStorage.removeItem('slateRestaurantName')
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (s?.user) {
           setSession(s)
           await detectUserType(s.user.id, s.user.email ?? null)
