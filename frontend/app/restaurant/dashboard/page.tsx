@@ -14,6 +14,10 @@ function guestScanUrl(serverId: string) {
   return `${GUEST_RATE_ORIGIN}/scan/${serverId}`
 }
 
+function venuePublicPath(restaurantName: string) {
+  return `/restaurant/${encodeURIComponent(restaurantName.trim().toLowerCase().replace(/\s+/g, '-'))}`
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type StaffMember = {
@@ -813,7 +817,7 @@ export default function RestaurantManagerDashboard() {
               color: '#444',
             }}
           >
-            Staff Dashboard
+            Manager dashboard
           </p>
           <h1
             className="text-white"
@@ -828,7 +832,7 @@ export default function RestaurantManagerDashboard() {
             {restaurantName ?? '…'}
           </h1>
 
-          <div className="mt-3 flex items-baseline gap-3">
+          <div className="mt-3 flex flex-wrap items-baseline gap-3">
             <span
               style={{
                 fontFamily: '"Space Mono", ui-monospace, monospace',
@@ -846,7 +850,29 @@ export default function RestaurantManagerDashboard() {
                 <span style={{ fontSize: '11px', color: '#444' }}>Signed in as {managerName}</span>
               </>
             )}
+            {restaurantName && (
+              <>
+                <span style={{ color: '#222' }}>·</span>
+                <a
+                  href={venuePublicPath(restaurantName)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontSize: '11px',
+                    color: '#888',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: '3px',
+                  }}
+                >
+                  View public page
+                </a>
+              </>
+            )}
           </div>
+
+          <p className="mt-5 text-sm leading-6" style={{ color: '#888', maxWidth: '36rem' }}>
+            Flip someone on shift to show guests who&apos;s working tonight. Each on-shift server gets a guest rating QR.
+          </p>
 
           <div className="mt-7 flex items-baseline gap-3">
             <span
@@ -869,11 +895,11 @@ export default function RestaurantManagerDashboard() {
                 color: '#666',
               }}
             >
-              Staff Working Tonight
+              On the floor tonight
             </span>
           </div>
           <p className="mt-2 text-xs" style={{ color: '#444', fontFamily: '"Space Mono", ui-monospace, monospace', letterSpacing: '0.1em' }}>
-            Updates every 60s
+            Live · refreshes every 60s
           </p>
         </MotionSection>
 
@@ -882,9 +908,9 @@ export default function RestaurantManagerDashboard() {
         {/* ── Tabs (minimal text links, white underline on active) ───────── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '32px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           {([
-            { key: 'staff' as const, label: 'Staff' },
-            { key: 'intelligence' as const, label: 'Intelligence' },
-            { key: 'talent' as const, label: 'Talent' },
+            { key: 'staff' as const, label: 'On floor' },
+            { key: 'intelligence' as const, label: 'Insights' },
+            { key: 'talent' as const, label: 'Hire' },
           ]).map(t => {
             const active = activeTab === t.key
             return (
@@ -926,8 +952,16 @@ export default function RestaurantManagerDashboard() {
 
         {/* ── Error ───────────────────────────────────────────────────────── */}
         {error && (
-          <div className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+          <div className="mt-6 flex items-start justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
             <p className="text-xs text-red-400">{error}</p>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="shrink-0 text-[10px] uppercase tracking-widest text-red-300/80 hover:text-red-200"
+              style={{ fontFamily: '"Space Mono", ui-monospace, monospace' }}
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
@@ -935,13 +969,38 @@ export default function RestaurantManagerDashboard() {
         {activeTab === 'staff' && (
           <MotionSection className="py-6">
             {loading ? (
-              <p className="text-sm py-6" style={{ color: '#606060' }}>Loading…</p>
+              <p className="text-sm py-6" style={{ color: '#606060' }}>Loading your floor…</p>
             ) : staff.length === 0 ? (
-              <p className="text-sm leading-7 py-6" style={{ color: '#A0A0A0' }}>
-                No staff are linked to this restaurant yet. Once your servers list this restaurant on their Slate profile, they&apos;ll appear here.
-              </p>
+              <div className="py-8" style={{ border: '1px solid #151515', background: '#050505', padding: '28px 24px' }}>
+                <p
+                  style={{
+                    fontFamily: '"Space Mono", ui-monospace, monospace',
+                    fontSize: '10px',
+                    letterSpacing: '0.25em',
+                    textTransform: 'uppercase',
+                    color: '#555',
+                    marginBottom: '12px',
+                  }}
+                >
+                  Get started
+                </p>
+                <p className="text-white" style={{ fontFamily: '"Playfair Display", Georgia, serif', fontSize: '22px', fontWeight: 500, lineHeight: 1.25 }}>
+                  No staff linked yet
+                </p>
+                <p className="mt-3 text-sm leading-7" style={{ color: '#A0A0A0', maxWidth: '32rem' }}>
+                  Ask your servers and bartenders to add <span style={{ color: '#fff' }}>{restaurantName ?? 'this restaurant'}</span> on their Slate profile. They&apos;ll show up here automatically — then you can put them on shift in one tap.
+                </p>
+                <ol className="mt-6 space-y-3 text-sm" style={{ color: '#888', listStyle: 'decimal', paddingLeft: '1.25rem' }}>
+                  <li>Servers open Slate and add this venue to their jobs</li>
+                  <li>They appear on this On floor list</li>
+                  <li>Toggle On shift so guests see who&apos;s working tonight</li>
+                </ol>
+              </div>
             ) : (
               <div>
+                <p className="mb-2 text-xs" style={{ color: '#555', fontFamily: '"Space Mono", ui-monospace, monospace', letterSpacing: '0.12em' }}>
+                  {staff.length} linked · flip the switch to put someone on the floor
+                </p>
                 {staff.map(member => {
                   const isActive = member.is_on_shift
                   const busy = busyServerId === member.server_id
@@ -1071,14 +1130,14 @@ export default function RestaurantManagerDashboard() {
                         </button>
                         <span
                           style={{
-                            color: isActive ? '#FFFFFF' : '#333',
+                            color: isActive ? '#FFFFFF' : '#555',
                             fontSize: '9px',
                             letterSpacing: '2.5px',
                             textTransform: 'uppercase',
                             fontFamily: '"Space Mono", ui-monospace, monospace',
                           }}
                         >
-                          {isActive ? 'On Shift' : 'Off'}
+                          {isActive ? 'On shift' : 'Start shift'}
                         </span>
                         {isActive && (
                           <button
@@ -1138,8 +1197,8 @@ export default function RestaurantManagerDashboard() {
                               Guest rate QR
                             </p>
                             <p style={{ color: '#A0A0A0', fontSize: '13px', lineHeight: 1.5, marginBottom: '12px' }}>
-                              Guests scan this to rate {member.name.split(' ')[0]} — no app needed.
-                              Lands on /scan then /rate?server=
+                              Guests scan this to rate {member.name.split(' ')[0]} — no app download needed.
+                              Print it or show it on a phone at the table.
                             </p>
                             <div
                               style={{
@@ -1209,7 +1268,7 @@ export default function RestaurantManagerDashboard() {
               marginBottom: '8px',
             }}
           >
-            Staff Intelligence
+            Insights
           </p>
           <p
             className="text-white"
@@ -1220,7 +1279,10 @@ export default function RestaurantManagerDashboard() {
               lineHeight: 1.2,
             }}
           >
-            Performance and venue signals across your team
+            How your team and floor are performing
+          </p>
+          <p className="mt-3 text-sm leading-6" style={{ color: '#666', maxWidth: '36rem' }}>
+            Ratings, followers, guest vibes, and recent feedback — all for {restaurantName ?? 'your venue'}.
           </p>
         </MotionSection>
 
@@ -1240,10 +1302,10 @@ export default function RestaurantManagerDashboard() {
           </p>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'Total Ratings This Month', value: analytics?.totalRatingsThisMonth ?? 0 },
-              { label: 'Average Staff Rating',     value: analytics ? analytics.avgStaffRating.toFixed(1) : '—' },
-              { label: 'Total Followers',          value: analytics?.totalFollowers ?? 0 },
-              { label: 'Vibe Reports This Month',  value: analytics?.vibesThisMonth ?? 0 },
+              { label: 'Ratings this month', value: analytics?.totalRatingsThisMonth ?? 0 },
+              { label: 'Avg staff rating', value: analytics ? analytics.avgStaffRating.toFixed(1) : '—' },
+              { label: 'Team followers', value: analytics?.totalFollowers ?? 0 },
+              { label: 'Vibe reports this month', value: analytics?.vibesThisMonth ?? 0 },
             ].map(stat => (
               <div
                 key={stat.label}
@@ -1621,6 +1683,34 @@ export default function RestaurantManagerDashboard() {
         {/* ── TALENT DISCOVERY TAB ────────────────────────────────────────── */}
         {activeTab === 'talent' && (
           <MotionSection style={{ paddingTop: '40px', paddingBottom: '40px' }}>
+            <div style={{ marginBottom: '28px' }}>
+              <p
+                style={{
+                  fontFamily: '"Space Mono", ui-monospace, monospace',
+                  fontSize: '10px',
+                  letterSpacing: '0.3em',
+                  textTransform: 'uppercase',
+                  color: '#444',
+                  marginBottom: '8px',
+                }}
+              >
+                Hire
+              </p>
+              <p
+                className="text-white"
+                style={{
+                  fontFamily: '"Playfair Display", Georgia, serif',
+                  fontSize: '24px',
+                  fontWeight: 500,
+                  lineHeight: 1.2,
+                }}
+              >
+                Servers open to opportunities
+              </p>
+              <p className="mt-3 text-sm leading-6" style={{ color: '#666', maxWidth: '36rem' }}>
+                Filter by role and ratings, then Contact to introduce your venue. Your current staff are hidden from this list.
+              </p>
+            </div>
             {/* Filter bar — minimal dropdown selects */}
             <div
               style={{
