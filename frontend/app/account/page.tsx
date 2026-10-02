@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
+import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -171,7 +172,7 @@ export default function AccountPage() {
       <main className="slate-main mx-auto max-w-3xl px-8 py-16 lg:px-16 lg:py-20">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="mb-12">
+        <MotionSection as="div" immediate className="mb-12">
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-lg font-bold text-black">
               {displayName.slice(0, 2).toUpperCase()}
@@ -188,12 +189,12 @@ export default function AccountPage() {
               {serveBalance} <span className="font-normal slate-muted">Slate Points</span>
             </p>
           )}
-        </div>
+        </MotionSection>
 
         <div className="slate-rule" />
 
         {/* ── Section 1: Servers you follow ───────────────────────────────── */}
-        <section className="py-12">
+        <MotionSection className="py-12">
           <p className="slate-eyebrow mb-6">Following</p>
           {following.length === 0 ? (
             <div>
@@ -229,12 +230,12 @@ export default function AccountPage() {
               ))}
             </div>
           )}
-        </section>
+        </MotionSection>
 
         <div className="slate-rule" />
 
         {/* ── Section 2: Venues you've vibed ──────────────────────────────── */}
-        <section className="py-12">
+        <MotionSection className="py-12">
           <p className="slate-eyebrow mb-6">Vibes</p>
           {vibeReports.length === 0 ? (
             <div>
@@ -260,12 +261,12 @@ export default function AccountPage() {
               ))}
             </div>
           )}
-        </section>
+        </MotionSection>
 
         <div className="slate-rule" />
 
         {/* ── Section 3: Ratings you've left ──────────────────────────────── */}
-        <section className="py-12">
+        <MotionSection className="py-12">
           <p className="slate-eyebrow mb-6">Ratings</p>
           {ratingsLeft.length === 0 ? (
             <p className="text-sm leading-7 slate-muted">
@@ -300,12 +301,12 @@ export default function AccountPage() {
               ))}
             </div>
           )}
-        </section>
+        </MotionSection>
 
         <div className="slate-rule" />
 
         {/* ── Section 4: Slate Points activity ─────────────────────────────── */}
-        <section className="py-12">
+        <MotionSection className="py-12">
           <p className="slate-eyebrow mb-6">Slate Points</p>
           <div className="flex flex-col gap-3">
             <div className="slate-card flex items-center justify-between px-4 py-4">
@@ -327,7 +328,7 @@ export default function AccountPage() {
               <p className="text-base font-bold text-white">{serveBalance}</p>
             </div>
           </div>
-        </section>
+        </MotionSection>
 
         <div className="slate-rule" />
         <div className="py-8">

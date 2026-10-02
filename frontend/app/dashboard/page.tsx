@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import QRCode from 'react-qr-code'
 import Navbar from '@/app/components/Navbar'
+import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
 
 const QR_DURATION_MS = 8 * 60 * 60 * 1000 // 8 hours
@@ -1493,7 +1494,7 @@ export default function DashboardPage() {
         )}
 
         {/* ── Stats row (Rating, Reviews, Followers, $SERVE) ──────────── */}
-        <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <MotionSection as="div" immediate className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             { label: 'Rating',    value: serverProfile?.avg_rating ? serverProfile.avg_rating.toFixed(1) : '—' },
             { label: 'Reviews',   value: serverProfile?.total_ratings ?? 0 },
@@ -1505,16 +1506,19 @@ export default function DashboardPage() {
               <span className="slate-stat-label">{label}</span>
             </div>
           ))}
-        </div>
+        </MotionSection>
 
         {/* ── $SERVE rewards (lifetime score + bi-weekly payout) ────────── */}
+        <MotionSection as="div" delay={0.05}>
         <ServeRewardsSection
           serverId={serverProfile?.id ?? null}
           lifetimeBalance={serverProfile?.serve_balance_lifetime ?? 0}
         />
+        </MotionSection>
 
         {/* ── Shift Status Card ───────────────────────────────────────── */}
-        <div
+        <MotionSection
+          as="div"
           className="slate-card mb-10 p-7"
           style={{
             borderColor: isOnShift ? 'rgba(255,255,255,0.35)' : undefined,
@@ -1755,9 +1759,10 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
-        </div>
+        </MotionSection>
 
         {/* ── Jobs / venues (server_restaurants add + delete) ─────────── */}
+        <MotionSection as="div" delay={0.08}>
         <JobsSection
           serverId={serverProfile?.id ?? null}
           onJobsChange={(rows) => {
@@ -1776,23 +1781,30 @@ export default function DashboardPage() {
             }
           }}
         />
+        </MotionSection>
 
         {/* ── Profile preferences (specialties + talent toggle) ───────── */}
+        <MotionSection as="div" delay={0.1}>
         <ProfilePreferencesSection
           serverId={serverProfile?.id ?? null}
           initialSpecialties={profileSpecialties}
           initialOpenToOpportunities={profileOpenToOpportunities}
         />
+        </MotionSection>
 
         {/* ── Privacy settings ────────────────────────────────────────── */}
+        <MotionSection as="div" delay={0.12}>
         <PrivacySettingsSection
           serverId={serverProfile?.id ?? null}
           initialFollowApproval={profileFollowApproval}
           initialProfileVisibility={profileVisibility}
         />
+        </MotionSection>
 
         {/* ── Worker Council ──────────────────────────────────────────── */}
+        <MotionSection as="div" delay={0.14}>
         <WorkerCouncilSection serverId={serverProfile?.id ?? null} />
+        </MotionSection>
 
       </main>
 

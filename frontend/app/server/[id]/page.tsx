@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
+import { MotionSection } from '@/app/components/motion'
 
 type Server = {
   id: string
@@ -278,7 +279,7 @@ export default function ServerProfilePage() {
       <main className="slate-main" style={{ maxWidth: '680px', margin: '0 auto', padding: '64px 32px 120px' }}>
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <section ref={profileCardRef} style={{ marginBottom: '48px' }}>
+        <MotionSection immediate ref={profileCardRef} style={{ marginBottom: '48px' }}>
 
           {/* Photo */}
           <div style={{ marginBottom: '28px' }}>
@@ -359,11 +360,11 @@ export default function ServerProfilePage() {
               </p>
             </div>
           )}
-        </section>
+        </MotionSection>
 
         {/* ── Current shift (only when on shift) ─────────────────────────── */}
         {currentShift && (
-          <section className="slate-card" style={{
+          <MotionSection className="slate-card" style={{
             marginBottom: '48px',
             padding: '20px 24px',
             display: 'flex',
@@ -418,11 +419,11 @@ export default function ServerProfilePage() {
             >
               Rate this server
             </a>
-          </section>
+          </MotionSection>
         )}
 
         {/* ── Stats row (4 stats, 1px #111 dividers between) ─────────────── */}
-        <section style={{
+        <MotionSection style={{
           marginBottom: '40px',
           paddingTop: '32px',
           paddingBottom: '32px',
@@ -466,7 +467,7 @@ export default function ServerProfilePage() {
               </div>
             </div>
           ))}
-        </section>
+        </MotionSection>
 
         {/* ── Share links (minimal text, hover underline) ────────────────── */}
         <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', marginBottom: '36px' }}>
@@ -538,18 +539,18 @@ export default function ServerProfilePage() {
 
         {/* ── Bio (only when present) ─────────────────────────────────────── */}
         {server.bio && server.bio.trim().length > 0 && (
-          <section style={{ borderTop: '1px solid #111', borderBottom: '1px solid #111', paddingTop: '40px', paddingBottom: '40px', marginBottom: '48px' }}>
+          <MotionSection style={{ borderTop: '1px solid #111', borderBottom: '1px solid #111', paddingTop: '40px', paddingBottom: '40px', marginBottom: '48px' }}>
             <p style={{ fontFamily: FONT_MONO, fontSize: '9px', letterSpacing: '3px', textTransform: 'uppercase', color: '#444', marginBottom: '20px' }}>
               About
             </p>
             <p style={{ fontFamily: FONT_BODY, fontSize: '16px', color: '#777', lineHeight: 1.8 }}>
               {server.bio}
             </p>
-          </section>
+          </MotionSection>
         )}
 
         {/* ── Where you'll find me ────────────────────────────────────────── */}
-        <section style={{ borderTop: '1px solid #111', paddingTop: '40px', marginBottom: '48px' }}>
+        <MotionSection style={{ borderTop: '1px solid #111', paddingTop: '40px', marginBottom: '48px' }}>
           <p style={{ fontFamily: FONT_MONO, fontSize: '9px', letterSpacing: '3px', textTransform: 'uppercase', color: '#444', marginBottom: '24px' }}>
             Where you&apos;ll find me
           </p>
@@ -590,10 +591,10 @@ export default function ServerProfilePage() {
               </div>
             </div>
           ))}
-        </section>
+        </MotionSection>
 
         {/* ── Reviews ─────────────────────────────────────────────────────── */}
-        <section style={{ borderTop: '1px solid #111', paddingTop: '40px', marginBottom: '48px' }}>
+        <MotionSection style={{ borderTop: '1px solid #111', paddingTop: '40px', marginBottom: '48px' }}>
           <p style={{ fontFamily: FONT_MONO, fontSize: '9px', letterSpacing: '3px', textTransform: 'uppercase', color: '#444', marginBottom: '24px' }}>
             Reviews
           </p>
@@ -652,10 +653,10 @@ export default function ServerProfilePage() {
               )}
             </div>
           ))}
-        </section>
+        </MotionSection>
 
         {/* ── Share this profile (copy link) ─────────────────────────────── */}
-        <section style={{ borderTop: '1px solid #111', paddingTop: '40px' }}>
+        <MotionSection style={{ borderTop: '1px solid #111', paddingTop: '40px' }}>
           <p style={{ fontFamily: FONT_MONO, fontSize: '9px', letterSpacing: '3px', textTransform: 'uppercase', color: '#444', marginBottom: '20px' }}>
             Share this profile
           </p>
@@ -688,7 +689,7 @@ export default function ServerProfilePage() {
               {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
-        </section>
+        </MotionSection>
 
       </main>
     </div>

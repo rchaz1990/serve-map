@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import Navbar from '@/app/components/Navbar'
+import { MotionSection } from '@/app/components/motion'
 
 const MARQUEE_CSS = `
 @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
@@ -26,7 +27,7 @@ export default function Home() {
       <main>
 
         {/* ── Hero ──────────────────────────────────────────────────────── */}
-        <section className="relative flex min-h-screen flex-col items-start justify-center px-6 lg:px-24">
+        <MotionSection immediate className="relative flex min-h-screen flex-col items-start justify-center px-6 lg:px-24">
           <Image
             src="https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=1920&q=80"
             alt=""
@@ -64,7 +65,7 @@ export default function Home() {
               </a>
             </div>
           </div>
-        </section>
+        </MotionSection>
 
         {/* ── Scrolling marquee ─────────────────────────────────────────── */}
         <div className="overflow-hidden border-y border-white/10 py-4" style={{ backgroundColor: '#050505' }}>
@@ -78,7 +79,7 @@ export default function Home() {
         </div>
 
         {/* ── Three value props ─────────────────────────────────────────── */}
-        <section className="px-6 py-16 lg:px-24 lg:py-28">
+        <MotionSection className="px-6 py-16 lg:px-24 lg:py-28">
           <div className="mx-auto max-w-5xl">
             <div className="grid grid-cols-1 divide-y divide-white/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
               {[
@@ -118,10 +119,10 @@ export default function Home() {
               ))}
             </div>
           </div>
-        </section>
+        </MotionSection>
 
         {/* ── Split A: For servers ──────────────────────────────────────── */}
-        <section className="flex flex-col sm:flex-row">
+        <MotionSection className="flex flex-col sm:flex-row">
           <div className="relative min-h-[240px] w-full sm:min-h-[480px] sm:w-[60%]">
             <Image
               src="https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=1200&q=80"
@@ -150,10 +151,10 @@ export default function Home() {
               Claim your profile →
             </a>
           </div>
-        </section>
+        </MotionSection>
 
         {/* ── Split B: Feel the vibe ────────────────────────────────────── */}
-        <section className="flex flex-col sm:flex-row-reverse">
+        <MotionSection className="flex flex-col sm:flex-row-reverse">
           <div className="relative min-h-[240px] w-full sm:min-h-[480px] sm:w-[55%]">
             <Image
               src="https://images.unsplash.com/photo-1559329007-40df8a9345d8?w=1200&q=80"
@@ -183,12 +184,12 @@ export default function Home() {
               See what&apos;s live →
             </a>
           </div>
-        </section>
+        </MotionSection>
 
         <div className="border-t border-white/10" />
 
         {/* ── For servers callout ───────────────────────────────────────── */}
-        <section className="px-6 py-20 text-center lg:px-24 lg:py-32" style={{ backgroundColor: '#080808' }}>
+        <MotionSection className="px-6 py-20 text-center lg:px-24 lg:py-32" style={{ backgroundColor: '#080808' }}>
           <div className="mx-auto max-w-2xl">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
               For servers &amp; bartenders
@@ -210,12 +211,12 @@ export default function Home() {
               Every follow request requires your approval. Block anyone at any time. You are always in control.
             </p>
           </div>
-        </section>
+        </MotionSection>
 
         <div className="border-t border-white/10" />
 
         {/* ── How $SERVE Works ─────────────────────────────────────────── */}
-        <section className="px-6 py-20 lg:px-24 lg:py-28" style={{ backgroundColor: '#050505' }}>
+        <MotionSection className="px-6 py-20 lg:px-24 lg:py-28" style={{ backgroundColor: '#050505' }}>
           <div className="mx-auto max-w-4xl">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
               The token
@@ -240,7 +241,7 @@ export default function Home() {
               ))}
             </div>
           </div>
-        </section>
+        </MotionSection>
 
         <div className="border-t border-white/10" />
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
+import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -306,7 +307,7 @@ export default function RestaurantProfilePage() {
       <main className="slate-main mx-auto max-w-3xl px-8 py-16 lg:px-16 lg:py-20">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="mb-12">
+        <MotionSection as="div" immediate className="mb-12">
           {/* Claim badge */}
           <div className="mb-5 flex items-center gap-3">
             <span
@@ -347,14 +348,14 @@ export default function RestaurantProfilePage() {
               No vibe reports yet tonight.
             </p>
           )}
-        </div>
+        </MotionSection>
 
         <div className="slate-rule" />
 
         {/* ── Current vibe details ─────────────────────────────────────────── */}
         {latestVibe && (
           <>
-            <section className="py-12">
+            <MotionSection className="py-12">
               <p className="slate-eyebrow mb-6">Right now</p>
 
               <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -382,14 +383,14 @@ export default function RestaurantProfilePage() {
               >
                 I&apos;m here — report the vibe →
               </button>
-            </section>
+            </MotionSection>
 
             <div className="slate-rule" />
           </>
         )}
 
         {/* ── Staff ───────────────────────────────────────────────────────── */}
-        <section className="py-12">
+        <MotionSection className="py-12">
           <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
             Staff on Slate
           </p>
@@ -439,12 +440,12 @@ export default function RestaurantProfilePage() {
               ))}
             </div>
           )}
-        </section>
+        </MotionSection>
 
         <div className="slate-rule" />
 
         {/* ── Recent ratings ───────────────────────────────────────────────── */}
-        <section className="py-12">
+        <MotionSection className="py-12">
           <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
             Guest ratings
           </p>
@@ -482,12 +483,12 @@ export default function RestaurantProfilePage() {
               ))}
             </div>
           )}
-        </section>
+        </MotionSection>
 
         <div className="slate-rule" />
 
         {/* ── Bottom CTA ──────────────────────────────────────────────────── */}
-        <section className="py-12">
+        <MotionSection className="py-12">
           {claimStatus === 'ghost' ? (
             <div>
               <p className="mb-2 text-sm font-semibold text-white">Own or manage {displayName}?</p>
@@ -525,7 +526,7 @@ export default function RestaurantProfilePage() {
               </a>
             </div>
           )}
-        </section>
+        </MotionSection>
 
       </main>
     </div>
