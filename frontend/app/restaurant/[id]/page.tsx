@@ -9,11 +9,11 @@ import { supabase } from '@/lib/supabase'
 
 type VibeReport = {
   id: string
-  venue_name: string
+  restaurant_name: string
   vibe: string
   bar_seats: string | null
   wait_time: string | null
-  reported_at: string
+  created_at: string
 }
 
 type StaffMember = {
@@ -103,10 +103,10 @@ export default function RestaurantProfilePage() {
         // Vibe reports for this venue (last 48h, ordered newest first)
         supabase
           .from('vibe_reports')
-          .select('id, venue_name, vibe, bar_seats, wait_time, reported_at')
-          .ilike('venue_name', restaurantName)
-          .gte('reported_at', new Date(Date.now() - 48 * 3_600_000).toISOString())
-          .order('reported_at', { ascending: false }),
+          .select('id, restaurant_name, vibe, bar_seats, wait_time, created_at')
+          .ilike('restaurant_name', restaurantName)
+          .gte('created_at', new Date(Date.now() - 48 * 3_600_000).toISOString())
+          .order('created_at', { ascending: false }),
 
         // Staff linked to this restaurant via server_restaurants → servers
         supabase
@@ -194,7 +194,7 @@ export default function RestaurantProfilePage() {
   // Derived values
   const latestVibe = vibeReports[0] ?? null
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-  const todayCount = vibeReports.filter(v => new Date(v.reported_at) >= todayStart).length
+  const todayCount = vibeReports.filter(v => new Date(v.created_at) >= todayStart).length
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
@@ -219,7 +219,7 @@ export default function RestaurantProfilePage() {
             </span>
             {latestVibe && (
               <span className="text-[10px] font-medium" style={{ color: '#404040' }}>
-                Last report {timeAgo(latestVibe.reported_at)}
+                Last report {timeAgo(latestVibe.created_at)}
               </span>
             )}
           </div>
