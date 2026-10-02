@@ -282,6 +282,15 @@ export default function Home() {
             {/* Contact */}
             <div className="flex flex-col gap-2.5">
               <a
+                href="https://x.com/slate_xyz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs transition-colors hover:text-white"
+                style={{ color: '#606060' }}
+              >
+                @slate_xyz
+              </a>
+              <a
                 href="mailto:team@slatenow.xyz"
                 className="text-xs transition-colors hover:text-white"
                 style={{ color: '#606060' }}
