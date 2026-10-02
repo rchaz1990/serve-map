@@ -127,7 +127,17 @@ export async function GET(request: Request) {
         }
       }
 
-      if (managerData) {
+      // Manager Google login intent (/restaurant/login sets nextHint=/restaurant/dashboard):
+      // never fall through to the server dashboard when no managers row exists,
+      // even if the same Google account also has a servers row (dual-role).
+      if (nextHint === '/restaurant/dashboard') {
+        if (managerData) {
+          targetPath = '/restaurant/dashboard'
+        } else {
+          targetPath = '/restaurant/login?error=no_manager'
+        }
+      } else if (managerData) {
+        // No manager intent cookie — still prefer managers over servers
         targetPath = '/restaurant/dashboard'
       } else {
         const { data: serverData, error: serverErr } = await supabase
@@ -145,15 +155,9 @@ export async function GET(request: Request) {
         } else if (
           nextHint &&
           nextHint.startsWith('/') &&
-          !nextHint.startsWith('//') &&
-          // Only honor next for non-manager/non-server when it is not a manager path
-          // (manager path without a manager row → restaurant login with error)
-          nextHint !== '/restaurant/dashboard'
+          !nextHint.startsWith('//')
         ) {
           targetPath = nextHint
-        } else if (nextHint === '/restaurant/dashboard') {
-          // Came from restaurant Google login but no manager profile
-          targetPath = '/restaurant/login?error=no_manager'
         }
       }
     }
