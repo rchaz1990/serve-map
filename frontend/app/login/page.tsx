@@ -1,6 +1,7 @@
 'use client'
 import { useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getAuthCallbackUrl, getAppOrigin } from '@/lib/auth-redirect'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 function LoginForm() {
@@ -79,7 +80,7 @@ function LoginForm() {
       return
     }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://slatenow.xyz/login',
+      redirectTo: `${getAppOrigin()}/login`,
     })
     if (!error) {
       setForgotSent(true)
@@ -87,11 +88,10 @@ function LoginForm() {
   }
 
   const handleGoogle = async () => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.slatenow.xyz'
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${origin}/auth/callback`,
+        redirectTo: getAuthCallbackUrl(),
         queryParams: { access_type: 'offline', prompt: 'consent' },
       },
     })

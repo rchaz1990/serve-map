@@ -4,6 +4,7 @@ import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
+import { getAuthCallbackUrl, setOAuthNextHint, getAppOrigin } from '@/lib/auth-redirect'
 
 const LOGIN_TIMEOUT_MS = 15_000
 
@@ -127,11 +128,12 @@ function RestaurantManagerLoginForm() {
     setOauthLoading(true)
     setError('')
     try {
-      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.slatenow.xyz'
+      // Intent via cookie — never put ?next= on redirectTo (Site URL fallback → /?code=)
+      setOAuthNextHint('/restaurant/dashboard')
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${origin}/auth/callback?next=/restaurant/dashboard`,
+          redirectTo: getAuthCallbackUrl(),
           queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       })
@@ -154,9 +156,8 @@ function RestaurantManagerLoginForm() {
       return
     }
 
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.slatenow.xyz'
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${origin}/restaurant/login`,
+      redirectTo: `${getAppOrigin()}/restaurant/login`,
     })
 
     if (resetError) {
