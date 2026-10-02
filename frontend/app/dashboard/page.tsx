@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Script from 'next/script'
 import QRCode from 'react-qr-code'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
@@ -707,6 +708,58 @@ function JobsSection({
   const [isPrimary, setIsPrimary] = useState(false)
   const [currentlyWorking, setCurrentlyWorking] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [googleLoaded, setGoogleLoaded] = useState(false)
+  const venueInputRef = useRef<HTMLInputElement>(null)
+
+  // If Maps JS was already loaded earlier in the session, mark ready without waiting for onLoad.
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((window as any).google?.maps?.places) setGoogleLoaded(true)
+  }, [])
+
+  // Places Autocomplete on restaurant name (same pattern as servers/signup + waitlist).
+  // Fills name + address + city; address/city stay editable.
+  useEffect(() => {
+    if (!showForm || !googleLoaded || !venueInputRef.current) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const google = (window as any).google
+    if (!google?.maps?.places) return
+
+    const autocomplete = new google.maps.places.Autocomplete(venueInputRef.current, {
+      types: ['establishment'],
+      componentRestrictions: { country: 'us' },
+      fields: ['name', 'formatted_address', 'address_components'],
+    })
+
+    const style = document.createElement('style')
+    style.innerHTML = '.pac-container { z-index: 99999 !important; pointer-events: all !important; }'
+    document.head.appendChild(style)
+
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace()
+      const placeName = place.name ?? ''
+      let streetNumber = ''
+      let route = ''
+      let locality = ''
+      for (const c of place.address_components ?? []) {
+        if (c.types.includes('street_number')) streetNumber = c.long_name
+        if (c.types.includes('route')) route = c.long_name
+        if (c.types.includes('locality')) locality = c.long_name
+      }
+      const street = [streetNumber, route].filter(Boolean).join(' ')
+      setName(placeName)
+      setAddress(street || (place.formatted_address ?? ''))
+      setCity(locality)
+    })
+
+    const input = venueInputRef.current
+    const suppressEnter = (e: KeyboardEvent) => { if (e.key === 'Enter') e.preventDefault() }
+    input.addEventListener('keydown', suppressEnter)
+    return () => {
+      input.removeEventListener('keydown', suppressEnter)
+      style.remove()
+    }
+  }, [showForm, googleLoaded])
 
   async function loadJobs(sid: string) {
     setLoading(true)
@@ -819,6 +872,10 @@ function JobsSection({
 
   return (
     <div className="mb-6 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+      <Script
+        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}&libraries=places`}
+        onLoad={() => setGoogleLoaded(true)}
+      />
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <p
@@ -936,10 +993,12 @@ function JobsSection({
           <div className="mb-3">
             <label style={labelStyle}>Restaurant name *</label>
             <input
+              ref={venueInputRef}
               required
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="e.g. Carbone"
+              placeholder="Search for your restaurant..."
+              autoComplete="off"
               style={inputStyle}
             />
           </div>
