@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, usePathname, useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
 
@@ -72,105 +72,181 @@ function Stars({ score }: { score: number }) {
   )
 }
 
+function paramToString(value: string | string[] | undefined | null): string {
+  if (Array.isArray(value)) return value[0] ?? ''
+  return value ?? ''
+}
+
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+/** Prefer useParams; fall back to the /restaurant/[slug] path segment. */
+function resolveRestaurantSlug(
+  params: ReturnType<typeof useParams>,
+  pathname: string | null,
+): string {
+  const fromParams = safeDecode(paramToString(params?.id as string | string[] | undefined))
+  if (fromParams) return fromParams
+  const match = pathname?.match(/^\/restaurant\/([^/]+)/)
+  return match ? safeDecode(match[1]) : ''
+}
+
+/** "amor-y-amargo" → "Amor y Amargo" when DB has no canonical name yet. */
+function humanizeSlug(slug: string): string {
+  const small = new Set(['a', 'an', 'the', 'and', 'or', 'y', 'de', 'da', 'do', 'of', 'in', 'on', 'at'])
+  return slug
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((w, i) => {
+      const lower = w.toLowerCase()
+      if (i > 0 && small.has(lower)) return lower
+      return lower.charAt(0).toUpperCase() + lower.slice(1)
+    })
+    .join(' ')
+}
+
+/**
+ * Normalize URL slug / name for PostgREST ilike.
+ * "amor-y-amargo" → "amor y amargo" (matches "Amor y Amargo").
+ */
+function normalizeVenueLookup(slug: string): string {
+  return slug.trim().replace(/[-_]+/g, ' ').replace(/\s+/g, ' ')
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function RestaurantProfilePage() {
-  const { id } = useParams<{ id: string }>()
-  const restaurantName = decodeURIComponent(id ?? '')
+  const params = useParams()
+  const pathname = usePathname()
+  const restaurantSlug = resolveRestaurantSlug(params, pathname)
+  const lookupName = normalizeVenueLookup(restaurantSlug)
+  const fallbackDisplayName = restaurantSlug.includes(' ')
+    ? restaurantSlug
+    : humanizeSlug(restaurantSlug)
 
   const router = useRouter()
   const [vibeReports, setVibeReports] = useState<VibeReport[]>([])
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [ratings, setRatings] = useState<Rating[]>([])
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>('ghost')
+  const [displayName, setDisplayName] = useState(fallbackDisplayName)
   const [loading, setLoading] = useState(true)
   const [loggedIn, setLoggedIn] = useState(false)
 
   useEffect(() => {
-    if (!restaurantName) return
+    setDisplayName(fallbackDisplayName)
+  }, [fallbackDisplayName])
+
+  useEffect(() => {
+    // Missing slug → never stick on "Loading venue…"
+    if (!restaurantSlug || !lookupName) {
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+
     async function load() {
       setLoading(true)
+      try {
+        const [
+          { data: vibes },
+          { data: serverRests },
+          { data: rats },
+          { data: managers },
+        ] = await Promise.all([
+          // Vibe reports for this venue (last 48h, ordered newest first)
+          supabase
+            .from('vibe_reports')
+            .select('id, restaurant_name, vibe, bar_seats, wait_time, created_at')
+            .ilike('restaurant_name', lookupName)
+            .gte('created_at', new Date(Date.now() - 48 * 3_600_000).toISOString())
+            .order('created_at', { ascending: false }),
 
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
+          // Staff linked to this restaurant via server_restaurants → servers
+          supabase
+            .from('server_restaurants')
+            .select('server_id, restaurant_name, is_primary, currently_working, servers(name, role, average_rating, follower_count)')
+            .ilike('restaurant_name', lookupName),
 
-      const [
-        { data: vibes },
-        { data: serverRests },
-        { data: rats },
-        { data: waitlistRow },
-      ] = await Promise.all([
-        // Vibe reports for this venue (last 48h, ordered newest first)
-        supabase
-          .from('vibe_reports')
-          .select('id, restaurant_name, vibe, bar_seats, wait_time, created_at')
-          .ilike('restaurant_name', restaurantName)
-          .gte('created_at', new Date(Date.now() - 48 * 3_600_000).toISOString())
-          .order('created_at', { ascending: false }),
+          // Ratings at this restaurant (most recent 10)
+          supabase
+            .from('ratings')
+            .select('id, score, comment, created_at, guest_email, server_id, servers(name)')
+            .ilike('restaurant_name', lookupName)
+            .order('created_at', { ascending: false })
+            .limit(10),
 
-        // Staff linked to this restaurant via server_restaurants → servers
-        supabase
-          .from('server_restaurants')
-          .select('server_id, restaurant_name, is_primary, currently_working, servers(name, role, average_rating, follower_count)')
-          .ilike('restaurant_name', restaurantName),
+          // Claim status via real restaurant_managers table (restaurant_waitlist does not exist → PGRST205)
+          supabase
+            .from('restaurant_managers')
+            .select('id, restaurant_name')
+            .ilike('restaurant_name', lookupName)
+            .limit(1),
+        ])
 
-        // Ratings at this restaurant (most recent 10)
-        supabase
-          .from('ratings')
-          .select('id, score, comment, created_at, guest_email, server_id, servers(name)')
-          .ilike('restaurant_name', restaurantName)
-          .order('created_at', { ascending: false })
-          .limit(10),
+        if (cancelled) return
 
-        // Claim status
-        supabase
-          .from('restaurant_waitlist')
-          .select('id')
-          .ilike('restaurant_name', restaurantName)
-          .limit(1),
-      ])
+        if (vibes) setVibeReports(vibes as VibeReport[])
 
-      if (vibes) setVibeReports(vibes as VibeReport[])
+        if (serverRests) {
+          const mapped = serverRests.map((sr: Record<string, unknown>) => {
+            const srv = sr.servers as Record<string, unknown> | null
+            return {
+              server_id: sr.server_id as string,
+              restaurant_name: sr.restaurant_name as string,
+              is_primary: sr.is_primary as boolean,
+              currently_working: sr.currently_working as boolean,
+              server_name: (srv?.name as string) ?? 'Unknown',
+              server_role: (srv?.role as string) ?? '',
+              average_rating: (srv?.average_rating as number) ?? 0,
+              follower_count: (srv?.follower_count as number) ?? 0,
+            }
+          })
+          setStaff(mapped)
+        }
 
-      if (serverRests) {
-        const mapped = serverRests.map((sr: Record<string, unknown>) => {
-          const srv = sr.servers as Record<string, unknown> | null
-          return {
-            server_id: sr.server_id as string,
-            restaurant_name: sr.restaurant_name as string,
-            is_primary: sr.is_primary as boolean,
-            currently_working: sr.currently_working as boolean,
-            server_name: (srv?.name as string) ?? 'Unknown',
-            server_role: (srv?.role as string) ?? '',
-            average_rating: (srv?.average_rating as number) ?? 0,
-            follower_count: (srv?.follower_count as number) ?? 0,
-          }
-        })
-        setStaff(mapped)
+        if (rats) {
+          setRatings((rats as Array<Record<string, unknown>>).map((r) => {
+            const srv = r.servers as { name?: string } | null
+            return {
+              id: r.id as string,
+              score: r.score as number,
+              comment: (r.comment as string | null) ?? null,
+              created_at: r.created_at as string,
+              guest_email: (r.guest_email as string | null) ?? null,
+              server_name: srv?.name ?? null,
+            }
+          }))
+        }
+
+        if (managers && managers.length > 0) {
+          setClaimStatus('claimed')
+        } else {
+          setClaimStatus('ghost')
+        }
+
+        const canonical =
+          (vibes?.[0] as VibeReport | undefined)?.restaurant_name ||
+          (serverRests?.[0] as { restaurant_name?: string } | undefined)?.restaurant_name ||
+          (managers?.[0] as { restaurant_name?: string } | undefined)?.restaurant_name
+        if (canonical) setDisplayName(canonical)
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-
-      if (rats) {
-        setRatings((rats as Array<Record<string, unknown>>).map((r) => {
-          const srv = r.servers as { name?: string } | null
-          return {
-            id: r.id as string,
-            score: r.score as number,
-            comment: (r.comment as string | null) ?? null,
-            created_at: r.created_at as string,
-            guest_email: (r.guest_email as string | null) ?? null,
-            server_name: srv?.name ?? null,
-          }
-        }))
-      }
-
-      if (waitlistRow && waitlistRow.length > 0) {
-        setClaimStatus('claimed')
-      }
-
-      setLoading(false)
     }
+
     load()
-  }, [restaurantName])
+
+    return () => {
+      cancelled = true
+    }
+  }, [restaurantSlug, lookupName])
 
   // Check auth (page is public; only vibe submit requires login)
   useEffect(() => {
@@ -191,7 +267,7 @@ export default function RestaurantProfilePage() {
     )
   }
 
-  if (!restaurantName) {
+  if (!restaurantSlug) {
     return (
       <div className="min-h-screen" style={{ backgroundColor: '#000000' }}>
         <Navbar />
@@ -238,7 +314,7 @@ export default function RestaurantProfilePage() {
 
           {/* Name */}
           <h1 className="mb-2 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            {restaurantName}
+            {displayName}
           </h1>
 
           {/* Current vibe */}
@@ -408,7 +484,7 @@ export default function RestaurantProfilePage() {
         <section className="py-12">
           {claimStatus === 'ghost' ? (
             <div>
-              <p className="mb-2 text-sm font-semibold text-white">Own or manage {restaurantName}?</p>
+              <p className="mb-2 text-sm font-semibold text-white">Own or manage {displayName}?</p>
               <p className="mb-6 text-sm leading-7" style={{ color: '#606060' }}>
                 Claim this listing for free to see what guests are saying and connect with your team on Slate.
               </p>
