@@ -933,31 +933,41 @@ export default function DashboardPage() {
   }
 
   const handleStartShift = (restaurantName: string) => {
+    // HANDOFF #9: shifts.server_id must always be servers.id so venue
+    // "Servers Here Tonight" can join. Never insert with a null server_id.
+    const serverId =
+      serverProfile?.id
+      ?? (typeof window !== 'undefined' ? localStorage.getItem('slateServerId') : null)
+    if (!serverId) {
+      console.error('[supabase] shift start aborted: missing server_id')
+      return
+    }
+    const serverName = serverProfile?.name ?? localStorage.getItem('slateServerName') ?? 'Server'
+
     // Activate immediately — GPS captured silently in the background
     activate()
     setShiftToast(true)
     setShowRestaurantPicker(false)
 
     // Notify followers (fire and forget)
-    if (serverProfile) {
-      fetch('/api/notify-followers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serverId: serverProfile.id,
-          serverName: serverProfile.name,
-          restaurantName,
-          type: 'shift_started',
-        }),
-      }).catch(() => {})
-    }
+    fetch('/api/notify-followers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        serverId,
+        serverName,
+        restaurantName,
+        type: 'shift_started',
+      }),
+    }).catch(() => {})
 
     const insertShift = async (gpsVerified: boolean, distance: number | null, userLat: number | null, userLng: number | null) => {
       const { data, error } = await supabase.from('shifts').insert({
-        server_id: serverProfile?.id ?? null,
+        server_id: serverId,
         restaurant_name: restaurantName,
         started_at: new Date().toISOString(),
         is_active: true,
+        activated_by: 'server',
         gps_verified: gpsVerified,
         distance_meters: distance,
         user_lat: userLat,

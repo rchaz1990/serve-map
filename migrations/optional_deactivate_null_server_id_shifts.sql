@@ -1,0 +1,21 @@
+-- OPTIONAL / DO NOT RUN without Spvce approval
+-- HANDOFF #9 residual data cleanup
+--
+-- Live schema (anon probe, Oct 2026): shifts has server_id; ~30 rows with
+-- server_id IS NULL, of which ~19 still is_active=true (mostly Apr 2026
+-- inserts from before server_id was written). These cannot join to servers,
+-- so they never appear in "Servers Here Tonight".
+--
+-- Safe, reversible deactivate (sets ended_at; does not delete):
+--
+--   UPDATE shifts
+--   SET is_active = false,
+--       ended_at = COALESCE(ended_at, now())
+--   WHERE server_id IS NULL
+--     AND is_active = true;
+--
+-- Optional backfill is NOT recommended: there is no reliable server mapping
+-- for orphan rows (restaurant_name alone is ambiguous). Prefer deactivate.
+--
+-- Also consider verifying /api/cleanup-shifts cron — many active rows are
+-- older than 12 hours and should already have been closed.
