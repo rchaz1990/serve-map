@@ -25,7 +25,7 @@ type RatingRow = {
   server_id: string
   created_at: string
   comment: string | null
-  servers?: { name: string } | null
+  server_name: string | null
 }
 
 type VibeRow = {
@@ -411,7 +411,19 @@ export default function RestaurantManagerDashboard() {
       console.error('[manager dashboard] ratings scores:', allScoresRes.error)
     }
 
-    const monthlyRatings = (monthlyRatingsRes.data ?? []) as RatingRow[]
+    // Remap servers(name) embed (PostgREST/TS may type it as array) → flat server_name
+    const monthlyRatings: RatingRow[] = ((monthlyRatingsRes.data ?? []) as Array<Record<string, unknown>>).map((row) => {
+      const srv = row.servers as { name?: string } | { name?: string }[] | null
+      const nested = Array.isArray(srv) ? (srv[0] ?? null) : srv
+      return {
+        id: row.id as string,
+        score: row.score as number,
+        server_id: row.server_id as string,
+        created_at: row.created_at as string,
+        comment: (row.comment as string | null) ?? null,
+        server_name: nested?.name ?? null,
+      }
+    })
     const allScores = (allScoresRes.data ?? []) as { score: number }[]
 
     const totalRatingsThisMonth = monthlyRatings.filter(r => r.created_at >= monthStart).length
@@ -1365,7 +1377,7 @@ export default function RestaurantManagerDashboard() {
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-white">{member?.name ?? r.servers?.name ?? 'Server'}</p>
+                          <p className="truncate text-sm font-semibold text-white">{member?.name ?? r.server_name ?? 'Server'}</p>
                           <p className="text-xs" style={{ color: '#606060' }}>
                             from a guest · {timeAgo(r.created_at)}
                           </p>
