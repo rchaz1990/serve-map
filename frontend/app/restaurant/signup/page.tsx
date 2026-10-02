@@ -96,7 +96,7 @@ export default function RestaurantManagerSignupPage() {
       if (!authData.user?.id) throw new Error('Signup did not return a user id.')
 
       // 2. Insert into restaurant_managers
-      const { error: insertError } = await supabase
+      const { data: inserted, error: insertError } = await supabase
         .from('restaurant_managers')
         .insert({
           email,
@@ -105,10 +105,14 @@ export default function RestaurantManagerSignupPage() {
           auth_id: authData.user.id,
           role,
         })
+        .select('id, restaurant_name')
+        .single()
       if (insertError) throw new Error(insertError.message)
 
+      // Same keys Navbar + dashboard expect
       localStorage.setItem('slateUserType', 'manager')
-      localStorage.setItem('slateManagerRestaurant', restaurantName)
+      if (inserted?.id) localStorage.setItem('slateManagerId', inserted.id)
+      localStorage.setItem('slateRestaurantName', inserted?.restaurant_name ?? restaurantName)
 
       // 3. Redirect to manager dashboard
       router.push('/restaurant/dashboard')
