@@ -82,15 +82,17 @@ export default function AccountPage() {
       setUser(authUser as AuthUser)
 
       const [{ data: rats }, { data: vibes }, { data: rewards }] = await Promise.all([
+        // ratings has no guest_name/server_name columns — join servers for display name
         supabase
           .from('ratings')
-          .select('id, score, comment, restaurant_name, created_at, server_name')
+          .select('id, score, comment, restaurant_name, created_at, server_id, servers(name)')
           .eq('guest_id', authUser.id)
           .order('created_at', { ascending: false }),
+        // vibe_reports uses reported_by (email), not guest_id
         supabase
           .from('vibe_reports')
           .select('id, restaurant_name, vibe, created_at')
-          .eq('guest_id', authUser.id)
+          .eq('reported_by', authUser.email ?? '')
           .order('created_at', { ascending: false }),
         supabase
           .from('guest_rewards')
@@ -101,14 +103,27 @@ export default function AccountPage() {
 
       if (rewards?.slate_points != null) setServeBalance(rewards.slate_points)
 
-      if (rats) setRatingsLeft(rats as RatingLeft[])
+      if (rats) {
+        const mappedRats = (rats as Array<Record<string, unknown>>).map((r) => {
+          const srv = r.servers as { name?: string } | null
+          return {
+            id: r.id as string,
+            score: r.score as number,
+            comment: (r.comment as string | null) ?? null,
+            restaurant_name: (r.restaurant_name as string | null) ?? null,
+            created_at: r.created_at as string,
+            server_name: srv?.name ?? null,
+          }
+        })
+        setRatingsLeft(mappedRats)
+      }
       if (vibes) setVibeReports(vibes as VibeReport[])
 
-      // Follows — join through follows table
+      // Follows — filter by follower_id (not guest_id); embed servers + server_restaurants
       const { data: follows } = await supabase
         .from('follows')
         .select('server_id, servers(id, name, role, average_rating, server_restaurants(restaurant_name, is_primary))')
-        .eq('guest_id', authUser.id)
+        .eq('follower_id', authUser.id)
 
       if (follows) {
         const mapped = follows.map((f: Record<string, unknown>) => {
