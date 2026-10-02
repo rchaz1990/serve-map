@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import QRCode from 'react-qr-code'
@@ -322,6 +322,8 @@ export default function RestaurantManagerDashboard() {
   const [managerName, setManagerName] = useState<string>('')
   const [managerEmail, setManagerEmail] = useState<string>('')
   const [staff, setStaff] = useState<StaffMember[]>([])
+  const staffRef = useRef<StaffMember[]>([])
+  staffRef.current = staff
   const [loading, setLoading] = useState(true)
   const [busyServerId, setBusyServerId] = useState<string | null>(null)
   const [copiedRateId, setCopiedRateId] = useState<string | null>(null)
@@ -539,15 +541,31 @@ export default function RestaurantManagerDashboard() {
       ])
 
       if (staffRes.error) console.error('[manager dashboard] staff:', staffRes.error)
-      if (shiftsRes.error) console.error('[manager dashboard] shifts:', shiftsRes.error)
 
-      const activeServerIds = new Set((shiftsRes.data ?? []).map(s => s.server_id))
+      // On-shift = shifts.is_active for this restaurant (same source as the toggle).
+      // Do NOT use server_restaurants.currently_working — that is an employment/"Here now"
+      // flag and is not what the manager shift switch writes.
+      if (shiftsRes.error) {
+        console.error('[manager dashboard] shifts:', shiftsRes.error)
+      }
+      const shiftsOk = !shiftsRes.error
+      const activeServerIds = new Set(
+        (shiftsOk ? (shiftsRes.data ?? []) : [])
+          .map(s => s.server_id)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      )
+
+      const priorOnShift = new Set(
+        shiftsOk ? [] : staffRef.current.filter(s => s.is_on_shift).map(s => s.server_id),
+      )
 
       const merged: StaffMember[] = (staffRes.data ?? [])
         .map((row: Record<string, unknown>) => {
-          const srv = row.servers as Record<string, unknown> | null
-          if (!srv) return null
-          const id = srv.id as string
+          const raw = row.servers as Record<string, unknown> | Record<string, unknown>[] | null
+          const srv = Array.isArray(raw) ? (raw[0] ?? null) : raw
+          // Canonical id from join row; fall back to embed (array-safe)
+          const id = (row.server_id as string | undefined) ?? (srv?.id as string | undefined)
+          if (!id || !srv) return null
           return {
             server_id: id,
             name: (srv.name as string) ?? 'Unnamed',
@@ -556,12 +574,11 @@ export default function RestaurantManagerDashboard() {
             average_rating: (srv.average_rating as number) ?? 0,
             total_ratings: (srv.total_ratings as number) ?? 0,
             follower_count: (srv.follower_count as number) ?? 0,
-            is_on_shift: activeServerIds.has(id),
+            is_on_shift: shiftsOk ? activeServerIds.has(id) : priorOnShift.has(id),
           }
         })
         .filter(Boolean) as StaffMember[]
 
-      // Stable order: on-shift first, then by name
       merged.sort((a, b) => {
         if (a.is_on_shift !== b.is_on_shift) return a.is_on_shift ? -1 : 1
         return a.name.localeCompare(b.name)
@@ -929,19 +946,33 @@ export default function RestaurantManagerDashboard() {
                 {staff.map(member => {
                   const isActive = member.is_on_shift
                   const busy = busyServerId === member.server_id
+                  const scanUrl = guestScanUrl(member.server_id)
+                  const copyScan = async () => {
+                    try {
+                      await navigator.clipboard.writeText(scanUrl)
+                      setCopiedRateId(member.server_id)
+                      setTimeout(() => setCopiedRateId(prev => prev === member.server_id ? null : prev), 2000)
+                    } catch {
+                      // ignore clipboard failures
+                    }
+                  }
                   return (
                     <div
                       key={member.server_id}
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: '56px 1fr auto',
-                        gap: '24px',
                         padding: '28px 0',
                         borderBottom: '1px solid #0d0d0d',
-                        alignItems: 'center',
                         opacity: busy ? 0.6 : 1,
                       }}
                     >
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '56px 1fr auto',
+                          gap: '24px',
+                          alignItems: 'center',
+                        }}
+                      >
                       {/* Photo */}
                       <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#0a0a0a', overflow: 'hidden', border: '1px solid #1a1a1a' }}>
                         {member.photo_url ? (
@@ -1008,7 +1039,7 @@ export default function RestaurantManagerDashboard() {
                         </div>
                       </div>
 
-                      {/* Toggle — hero element */}
+                      {/* Toggle — hero element; Copy sits here so on-shift QR entry is obvious */}
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                         <button
                           onClick={() => handleToggle(member, !isActive)}
@@ -1050,14 +1081,33 @@ export default function RestaurantManagerDashboard() {
                         >
                           {isActive ? 'On Shift' : 'Off'}
                         </span>
+                        {isActive && (
+                          <button
+                            type="button"
+                            onClick={copyScan}
+                            style={{
+                              background: 'transparent',
+                              border: '1px solid #333',
+                              color: '#FFFFFF',
+                              fontSize: '9px',
+                              letterSpacing: '0.15em',
+                              textTransform: 'uppercase',
+                              padding: '6px 10px',
+                              cursor: 'pointer',
+                              fontFamily: '"Space Mono", ui-monospace, monospace',
+                            }}
+                          >
+                            {copiedRateId === member.server_id ? 'Copied' : 'Copy link'}
+                          </button>
+                        )}
+                      </div>
                       </div>
 
-                      {/* Guest rate QR — only when on shift (canonical: /scan/[serverId]) */}
+                      {/* Guest rate QR — sibling of grid (not a spanning cell) so it always paints when on shift */}
                       {isActive && (
                         <div
                           style={{
-                            gridColumn: '1 / -1',
-                            marginTop: '4px',
+                            marginTop: '16px',
                             padding: '20px',
                             border: '1px solid #111',
                             background: '#050505',
@@ -1069,7 +1119,7 @@ export default function RestaurantManagerDashboard() {
                         >
                           <div style={{ background: '#FFFFFF', padding: '12px', borderRadius: '12px' }}>
                             <QRCode
-                              value={guestScanUrl(member.server_id)}
+                              value={scanUrl}
                               size={96}
                               bgColor="#ffffff"
                               fgColor="#000000"
@@ -1118,16 +1168,7 @@ export default function RestaurantManagerDashboard() {
                               </span>
                               <button
                                 type="button"
-                                onClick={async () => {
-                                  const url = guestScanUrl(member.server_id)
-                                  try {
-                                    await navigator.clipboard.writeText(url)
-                                    setCopiedRateId(member.server_id)
-                                    setTimeout(() => setCopiedRateId(prev => prev === member.server_id ? null : prev), 2000)
-                                  } catch {
-                                    // ignore clipboard failures
-                                  }
-                                }}
+                                onClick={copyScan}
                                 style={{
                                   flexShrink: 0,
                                   background: 'transparent',
