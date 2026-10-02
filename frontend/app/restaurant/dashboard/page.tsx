@@ -598,7 +598,8 @@ export default function RestaurantManagerDashboard() {
     setBusyServerId(member.server_id)
     try {
       if (next) {
-        // Activate shift
+        // Activate shift — HANDOFF #9: server_id required for venue tonight join
+        if (!member.server_id) throw new Error('Missing server_id — cannot activate shift')
         const { error: insertErr } = await supabase.from('shifts').insert({
           server_id: member.server_id,
           restaurant_name: restaurantName,

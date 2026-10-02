@@ -80,6 +80,7 @@ export default function RestaurantTonightPage() {
         .select('id, server_id, started_at, servers(id, name, role, photo_url, average_rating, follower_count)')
         .ilike('restaurant_name', restaurantName)
         .eq('is_active', true)
+        .not('server_id', 'is', null)
         .gte('started_at', since12h)
         .order('started_at', { ascending: false }),
       supabase

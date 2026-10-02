@@ -269,7 +269,7 @@ Founding restaurant partners get 3 months free.
 8. **Manager login stuck on "signing in"** — timeout/error handling bug in login flow.
 
 ### Bugs Found in Code Review (May 2026)
-9. **`server_id` missing from shifts insert** — shift rows saved without server_id, so "Servers Here Tonight" on venue pages always shows empty.
+9. **`server_id` missing from shifts insert** — ~~shift rows saved without server_id, so "Servers Here Tonight" on venue pages always shows empty.~~ **FIXED** (`fix/shifts-server-id-handoff-9`): server dashboard insert requires `servers.id` + `activated_by: 'server'; venue/tonight queries filter null `server_id` + 12h window. Optional SQL to deactivate residual null-`server_id` actives is in `migrations/optional_deactivate_null_server_id_shifts.sql` (do not run without Spvce approval).
 10. **Rating tags never saved** — `selectedTags` state collected in UI but never included in the ratings INSERT.
 11. **Anonymous vibe reporters bypass rate limiting** — `reported_by` is undefined for logged-out users; all share the same null key.
 12. **Vibe reward mismatch** — API gives 2 $SERVE for non-GPS verified but UI says "earn 1 $SERVE".
@@ -360,7 +360,7 @@ No Solana dApp found with individual hospitality worker profiles, portable on-ch
 ## Immediate Next Steps (October 2026 Restart)
 
 1. Verify all infrastructure is alive (Supabase, Vercel, cron jobs, Resend)
-2. Fix the `server_id` missing from shifts insert (bug #9 above)
+2. ~~Fix the `server_id` missing from shifts insert (bug #9 above)~~ Done on branch `fix/shifts-server-id-handoff-9` (PR) — still optionally deactivate residual null-`server_id` prod rows
 3. Fix manager Google OAuth → blank page issue
 4. Run balance backfill SQL if `serve_balance_lifetime` is empty for existing users
 5. Restrict vibe report venue search to hospitality types only (bars/restaurants, not schools etc.)

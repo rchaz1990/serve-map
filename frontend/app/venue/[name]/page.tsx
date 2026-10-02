@@ -424,23 +424,32 @@ export default function VenuePage() {
 
   const loadData = useCallback(async () => {
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    // Match restaurant/[id]/tonight: only shifts with server_id in the last 12h
+    // (null server_id rows cannot join servers → empty "Servers Here Tonight")
+    const since12h = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
 
     const [reportsRes, shiftsRes] = await Promise.all([
       supabase
         .from('vibe_reports')
         .select('*')
-        .eq('restaurant_name', venueName)
+        .ilike('restaurant_name', venueName)
         .gte('created_at', since24h)
         .order('created_at', { ascending: false }),
       supabase
         .from('shifts')
         .select('id, server_id, servers(id, name, role, photo_url, average_rating, total_ratings)')
-        .eq('restaurant_name', venueName)
-        .eq('is_active', true),
+        .ilike('restaurant_name', venueName)
+        .eq('is_active', true)
+        .not('server_id', 'is', null)
+        .gte('started_at', since12h)
+        .order('started_at', { ascending: false }),
     ])
 
     setReports((reportsRes.data ?? []) as VibeReport[])
-    setActiveServers((shiftsRes.data ?? []) as unknown as ActiveServer[])
+    const shifts = ((shiftsRes.data ?? []) as unknown as ActiveServer[]).filter(
+      (s) => s.server_id && s.servers,
+    )
+    setActiveServers(shifts)
     setLoading(false)
   }, [venueName])
 
