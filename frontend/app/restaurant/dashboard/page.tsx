@@ -25,7 +25,6 @@ type RatingRow = {
   server_id: string
   created_at: string
   comment: string | null
-  guest_name: string | null
 }
 
 type VibeRow = {
@@ -369,9 +368,10 @@ export default function RestaurantManagerDashboard() {
       recentVibesRes,
       commentsRes,
     ] = await Promise.all([
+      // ratings has no guest_name — public label stays "from a guest" (see account/restaurant profile remaps)
       supabase
         .from('ratings')
-        .select('id, score, server_id, created_at, comment, guest_name')
+        .select('id, score, server_id, created_at, comment')
         .in('server_id', ids)
         .gte('created_at', lastMonthStart)
         .order('created_at', { ascending: false }),
@@ -1333,7 +1333,7 @@ export default function RestaurantManagerDashboard() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-white">{member?.name ?? 'Server'}</p>
                           <p className="text-xs" style={{ color: '#606060' }}>
-                            {r.guest_name ? `from ${r.guest_name}` : 'from a guest'} · {timeAgo(r.created_at)}
+                            from a guest · {timeAgo(r.created_at)}
                           </p>
                         </div>
                         <span className="text-sm font-semibold text-white">
