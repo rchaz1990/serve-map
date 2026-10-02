@@ -35,6 +35,12 @@ const nextConfig: NextConfig = {
         destination: "/restaurant/login",
         permanent: false,
       },
+      // Typo / plural of the restaurant waitlist signup
+      {
+        source: "/waitlists",
+        destination: "/waitlist",
+        permanent: false,
+      },
     ];
   },
 };

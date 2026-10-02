@@ -5,9 +5,11 @@ import Navbar from '@/app/components/Navbar'
 
 const FILTERS = ['All', 'Fine Dining', 'Cocktail Bars', 'Casual Dining', 'Wine Bars', 'Top Rated Staff', 'NYC']
 
+// Hardcoded demo catalog (not yet wired to Supabase).
+// Slugs match /restaurant/[id] name lookup: "carbone" → ilike "carbone" / humanize "Carbone".
 const RESTAURANTS = [
   {
-    id: 1,
+    slug: 'carbone',
     name: 'Carbone',
     cuisine: 'Italian',
     neighborhood: 'West Village, NYC',
@@ -17,7 +19,7 @@ const RESTAURANTS = [
     filters: ['Fine Dining', 'NYC', 'Top Rated Staff'],
   },
   {
-    id: 2,
+    slug: 'employees-only',
     name: 'Employees Only',
     cuisine: 'Cocktail Bar',
     neighborhood: 'West Village, NYC',
@@ -27,7 +29,7 @@ const RESTAURANTS = [
     filters: ['Cocktail Bars', 'NYC'],
   },
   {
-    id: 3,
+    slug: 'le-bernardin',
     name: 'Le Bernardin',
     cuisine: 'French Fine Dining',
     neighborhood: 'Midtown, NYC',
@@ -37,7 +39,7 @@ const RESTAURANTS = [
     filters: ['Fine Dining', 'NYC', 'Top Rated Staff'],
   },
   {
-    id: 4,
+    slug: 'nobu',
     name: 'Nobu',
     cuisine: 'Japanese',
     neighborhood: 'Tribeca, NYC',
@@ -47,7 +49,7 @@ const RESTAURANTS = [
     filters: ['Fine Dining', 'NYC'],
   },
   {
-    id: 5,
+    slug: 'gramercy-tavern',
     name: 'Gramercy Tavern',
     cuisine: 'American',
     neighborhood: 'Gramercy, NYC',
@@ -57,7 +59,7 @@ const RESTAURANTS = [
     filters: ['Fine Dining', 'NYC', 'Top Rated Staff'],
   },
   {
-    id: 6,
+    slug: 'the-nomad-bar',
     name: 'The NoMad Bar',
     cuisine: 'Cocktail Bar',
     neighborhood: 'NoMad, NYC',
@@ -169,8 +171,8 @@ export default function ExplorePage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {results.map(r => (
               <a
-                key={r.id}
-                href={`/restaurant/${r.id}`}
+                key={r.slug}
+                href={`/restaurant/${r.slug}`}
                 className="flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-colors hover:border-white/25 hover:bg-white/[0.06]"
               >
                 {/* Name + cuisine */}
