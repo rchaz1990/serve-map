@@ -675,6 +675,353 @@ function WorkerCouncilSection({ serverId }: { serverId: string | null }) {
   )
 }
 
+
+// ── Jobs / venues (server_restaurants) ─────────────────────────────────────────
+// Role lives on `servers`, not on this join table — manage venue fields only.
+
+type ServerRestaurantRow = {
+  id: string
+  restaurant_name: string
+  restaurant_address: string | null
+  city: string | null
+  is_primary: boolean | null
+  currently_working: boolean | null
+}
+
+function JobsSection({
+  serverId,
+  onJobsChange,
+}: {
+  serverId: string | null
+  onJobsChange?: (rows: ServerRestaurantRow[]) => void
+}) {
+  const FONT_MONO = '"Space Mono", ui-monospace, SFMono-Regular, monospace'
+  const [jobs, setJobs] = useState<ServerRestaurantRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const [name, setName] = useState('')
+  const [address, setAddress] = useState('')
+  const [city, setCity] = useState('')
+  const [isPrimary, setIsPrimary] = useState(false)
+  const [currentlyWorking, setCurrentlyWorking] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+
+  async function loadJobs(sid: string) {
+    setLoading(true)
+    setError(null)
+    const { data, error: loadErr } = await supabase
+      .from('server_restaurants')
+      .select('id, restaurant_name, restaurant_address, city, is_primary, currently_working')
+      .eq('server_id', sid)
+      .order('is_primary', { ascending: false })
+      .order('restaurant_name', { ascending: true })
+    setLoading(false)
+    if (loadErr) {
+      setError(loadErr.message)
+      return
+    }
+    const rows = (data ?? []) as ServerRestaurantRow[]
+    setJobs(rows)
+    onJobsChange?.(rows)
+  }
+
+  useEffect(() => {
+    if (!serverId) {
+      setJobs([])
+      setLoading(false)
+      return
+    }
+    loadJobs(serverId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverId])
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault()
+    if (!serverId || !name.trim() || busy) return
+    setBusy(true)
+    setError(null)
+
+    if (isPrimary) {
+      await supabase
+        .from('server_restaurants')
+        .update({ is_primary: false })
+        .eq('server_id', serverId)
+        .eq('is_primary', true)
+    }
+
+    const today = new Date().toISOString().slice(0, 10)
+    const { error: insertErr } = await supabase.from('server_restaurants').insert({
+      server_id: serverId,
+      restaurant_name: name.trim(),
+      restaurant_address: address.trim() || null,
+      city: city.trim() || null,
+      is_primary: isPrimary,
+      currently_working: currentlyWorking,
+      start_date: today,
+    })
+    setBusy(false)
+    if (insertErr) {
+      setError(insertErr.message)
+      return
+    }
+    setName('')
+    setAddress('')
+    setCity('')
+    setIsPrimary(false)
+    setCurrentlyWorking(true)
+    setShowForm(false)
+    await loadJobs(serverId)
+  }
+
+  async function handleDelete(job: ServerRestaurantRow) {
+    if (!serverId || busy) return
+    const ok = window.confirm(
+      `Remove "${job.restaurant_name}" from your jobs? This cannot be undone.`,
+    )
+    if (!ok) return
+    setBusy(true)
+    setError(null)
+    const { error: delErr } = await supabase
+      .from('server_restaurants')
+      .delete()
+      .eq('id', job.id)
+      .eq('server_id', serverId)
+    setBusy(false)
+    if (delErr) {
+      setError(delErr.message)
+      return
+    }
+    await loadJobs(serverId)
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#050505',
+    border: '1px solid #222',
+    color: 'white',
+    padding: '10px 14px',
+    fontSize: '13px',
+    outline: 'none',
+    borderRadius: '12px',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontFamily: FONT_MONO,
+    fontSize: '10px',
+    letterSpacing: '2px',
+    textTransform: 'uppercase',
+    color: '#555',
+    marginBottom: '6px',
+    display: 'block',
+  }
+
+  return (
+    <div className="mb-6 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <p
+            style={{
+              fontFamily: FONT_MONO,
+              fontSize: '10px',
+              letterSpacing: '3px',
+              textTransform: 'uppercase',
+              color: '#444',
+              marginBottom: '6px',
+            }}
+          >
+            Jobs / Venues
+          </p>
+          <p style={{ color: '#555', fontSize: '13px', lineHeight: 1.5 }}>
+            Venues you work at. Role is set on your server profile; this list is name, address, and status only.
+          </p>
+        </div>
+        {!showForm && (
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            disabled={!serverId}
+            style={{
+              background: 'none',
+              border: '1px solid #333',
+              color: '#888',
+              fontSize: '10px',
+              letterSpacing: '2px',
+              textTransform: 'uppercase',
+              cursor: serverId ? 'pointer' : 'not-allowed',
+              fontFamily: FONT_MONO,
+              padding: '8px 14px',
+              borderRadius: '999px',
+              whiteSpace: 'nowrap',
+              opacity: serverId ? 1 : 0.5,
+            }}
+          >
+            Add venue
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <p style={{ color: '#333', fontSize: '13px' }}>Loading…</p>
+      ) : jobs.length === 0 ? (
+        <p style={{ color: '#333', fontSize: '13px' }}>No venues yet — add one to start shifts.</p>
+      ) : (
+        <ul className="flex flex-col gap-2" style={{ marginBottom: showForm ? '20px' : 0 }}>
+          {jobs.map(job => (
+            <li
+              key={job.id}
+              className="flex items-start justify-between gap-3 rounded-xl border border-white/10 px-4 py-3"
+              style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-white">{job.restaurant_name}</span>
+                  {job.is_primary && (
+                    <span
+                      className="text-[10px] font-semibold uppercase tracking-widest"
+                      style={{ color: '#606060' }}
+                    >
+                      Primary
+                    </span>
+                  )}
+                  {job.currently_working ? (
+                    <span
+                      className="text-[10px] font-semibold uppercase tracking-widest"
+                      style={{ color: '#4ade80' }}
+                    >
+                      Working
+                    </span>
+                  ) : (
+                    <span
+                      className="text-[10px] font-semibold uppercase tracking-widest"
+                      style={{ color: '#444' }}
+                    >
+                      Past
+                    </span>
+                  )}
+                </div>
+                {(job.restaurant_address || job.city) && (
+                  <p className="mt-1 truncate text-xs" style={{ color: '#606060' }}>
+                    {[job.restaurant_address, job.city].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => handleDelete(job)}
+                disabled={busy}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#555',
+                  fontSize: '10px',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  cursor: busy ? 'not-allowed' : 'pointer',
+                  fontFamily: FONT_MONO,
+                  flexShrink: 0,
+                  textDecoration: 'underline',
+                }}
+              >
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {showForm && (
+        <form onSubmit={handleAdd} className="mt-2 border-t border-white/10 pt-5">
+          <div className="mb-3">
+            <label style={labelStyle}>Restaurant name *</label>
+            <input
+              required
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Carbone"
+              style={inputStyle}
+            />
+          </div>
+          <div className="mb-3">
+            <label style={labelStyle}>Address <span style={{ color: '#333' }}>(optional)</span></label>
+            <input
+              value={address}
+              onChange={e => setAddress(e.target.value)}
+              placeholder="Street address"
+              style={inputStyle}
+            />
+          </div>
+          <div className="mb-4">
+            <label style={labelStyle}>City <span style={{ color: '#333' }}>(optional)</span></label>
+            <input
+              value={city}
+              onChange={e => setCity(e.target.value)}
+              placeholder="e.g. New York"
+              style={inputStyle}
+            />
+          </div>
+          <div className="mb-5 flex flex-wrap gap-5">
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-white/70">
+              <input
+                type="checkbox"
+                checked={isPrimary}
+                onChange={e => setIsPrimary(e.target.checked)}
+                className="rounded border-white/20"
+              />
+              Primary venue
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-white/70">
+              <input
+                type="checkbox"
+                checked={currentlyWorking}
+                onChange={e => setCurrentlyWorking(e.target.checked)}
+                className="rounded border-white/20"
+              />
+              Currently working here
+            </label>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={busy || !name.trim() || !serverId}
+              className="rounded-full bg-white px-5 py-2 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-50"
+            >
+              {busy ? 'Saving…' : 'Add venue'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false)
+                setError(null)
+              }}
+              disabled={busy}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#444',
+                fontSize: '10px',
+                letterSpacing: '2px',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                fontFamily: FONT_MONO,
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {error && (
+        <p className="mt-3 text-xs" style={{ color: '#f87171' }}>
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const router = useRouter()
 
@@ -1359,6 +1706,26 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* ── Jobs / venues (server_restaurants add + delete) ─────────── */}
+        <JobsSection
+          serverId={serverProfile?.id ?? null}
+          onJobsChange={(rows) => {
+            const active = rows
+              .filter(r => r.currently_working)
+              .map(r => ({
+                id: r.id,
+                restaurant_name: r.restaurant_name,
+                is_primary: !!r.is_primary,
+                restaurant_address: r.restaurant_address,
+              }))
+            setRestaurants(active)
+            if (active.length === 1) setSelectedRestaurant(active[0].restaurant_name)
+            else if (!active.some(r => r.restaurant_name === selectedRestaurant)) {
+              setSelectedRestaurant(active.find(r => r.is_primary)?.restaurant_name ?? active[0]?.restaurant_name ?? '')
+            }
+          }}
+        />
 
         {/* ── Profile preferences (specialties + talent toggle) ───────── */}
         <ProfilePreferencesSection
