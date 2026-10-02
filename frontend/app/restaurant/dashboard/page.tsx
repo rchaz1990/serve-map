@@ -25,6 +25,7 @@ type RatingRow = {
   server_id: string
   created_at: string
   comment: string | null
+  server_name: string | null
 }
 
 type VibeRow = {
@@ -368,10 +369,10 @@ export default function RestaurantManagerDashboard() {
       recentVibesRes,
       commentsRes,
     ] = await Promise.all([
-      // ratings has no guest_name — public label stays "from a guest" (see account/restaurant profile remaps)
+      // ratings has no guest_name/server_name — join servers(name) like account/restaurant profile
       supabase
         .from('ratings')
-        .select('id, score, server_id, created_at, comment')
+        .select('id, score, server_id, created_at, comment, servers(name)')
         .in('server_id', ids)
         .gte('created_at', lastMonthStart)
         .order('created_at', { ascending: false }),
@@ -403,7 +404,26 @@ export default function RestaurantManagerDashboard() {
         .limit(10),
     ])
 
-    const monthlyRatings = (monthlyRatingsRes.data ?? []) as RatingRow[]
+    if (monthlyRatingsRes.error) {
+      console.error('[manager dashboard] ratings:', monthlyRatingsRes.error)
+    }
+    if (allScoresRes.error) {
+      console.error('[manager dashboard] ratings scores:', allScoresRes.error)
+    }
+
+    // Remap servers(name) embed (PostgREST/TS may type it as array) → flat server_name
+    const monthlyRatings: RatingRow[] = ((monthlyRatingsRes.data ?? []) as Array<Record<string, unknown>>).map((row) => {
+      const srv = row.servers as { name?: string } | { name?: string }[] | null
+      const nested = Array.isArray(srv) ? (srv[0] ?? null) : srv
+      return {
+        id: row.id as string,
+        score: row.score as number,
+        server_id: row.server_id as string,
+        created_at: row.created_at as string,
+        comment: (row.comment as string | null) ?? null,
+        server_name: nested?.name ?? null,
+      }
+    })
     const allScores = (allScoresRes.data ?? []) as { score: number }[]
 
     const totalRatingsThisMonth = monthlyRatings.filter(r => r.created_at >= monthStart).length
@@ -492,95 +512,121 @@ export default function RestaurantManagerDashboard() {
 
   const loadData = useCallback(async (rName?: string) => {
     const targetName = rName ?? restaurantName
-    if (!targetName) return
+    if (!targetName) {
+      setLoading(false)
+      return
+    }
 
-    const [staffRes, shiftsRes] = await Promise.all([
-      supabase
-        .from('server_restaurants')
-        .select('server_id, servers(id, name, role, photo_url, average_rating, total_ratings, follower_count)')
-        .eq('restaurant_name', targetName),
-      supabase
-        .from('shifts')
-        .select('server_id, is_active')
-        .eq('restaurant_name', targetName)
-        .eq('is_active', true),
-    ])
+    try {
+      const [staffRes, shiftsRes] = await Promise.all([
+        supabase
+          .from('server_restaurants')
+          .select('server_id, servers(id, name, role, photo_url, average_rating, total_ratings, follower_count)')
+          .eq('restaurant_name', targetName),
+        supabase
+          .from('shifts')
+          .select('server_id, is_active')
+          .eq('restaurant_name', targetName)
+          .eq('is_active', true),
+      ])
 
-    const activeServerIds = new Set((shiftsRes.data ?? []).map(s => s.server_id))
+      if (staffRes.error) console.error('[manager dashboard] staff:', staffRes.error)
+      if (shiftsRes.error) console.error('[manager dashboard] shifts:', shiftsRes.error)
 
-    const merged: StaffMember[] = (staffRes.data ?? [])
-      .map((row: Record<string, unknown>) => {
-        const srv = row.servers as Record<string, unknown> | null
-        if (!srv) return null
-        const id = srv.id as string
-        return {
-          server_id: id,
-          name: (srv.name as string) ?? 'Unnamed',
-          role: (srv.role as string) ?? null,
-          photo_url: (srv.photo_url as string) ?? null,
-          average_rating: (srv.average_rating as number) ?? 0,
-          total_ratings: (srv.total_ratings as number) ?? 0,
-          follower_count: (srv.follower_count as number) ?? 0,
-          is_on_shift: activeServerIds.has(id),
-        }
+      const activeServerIds = new Set((shiftsRes.data ?? []).map(s => s.server_id))
+
+      const merged: StaffMember[] = (staffRes.data ?? [])
+        .map((row: Record<string, unknown>) => {
+          const srv = row.servers as Record<string, unknown> | null
+          if (!srv) return null
+          const id = srv.id as string
+          return {
+            server_id: id,
+            name: (srv.name as string) ?? 'Unnamed',
+            role: (srv.role as string) ?? null,
+            photo_url: (srv.photo_url as string) ?? null,
+            average_rating: (srv.average_rating as number) ?? 0,
+            total_ratings: (srv.total_ratings as number) ?? 0,
+            follower_count: (srv.follower_count as number) ?? 0,
+            is_on_shift: activeServerIds.has(id),
+          }
+        })
+        .filter(Boolean) as StaffMember[]
+
+      // Stable order: on-shift first, then by name
+      merged.sort((a, b) => {
+        if (a.is_on_shift !== b.is_on_shift) return a.is_on_shift ? -1 : 1
+        return a.name.localeCompare(b.name)
       })
-      .filter(Boolean) as StaffMember[]
 
-    // Stable order: on-shift first, then by name
-    merged.sort((a, b) => {
-      if (a.is_on_shift !== b.is_on_shift) return a.is_on_shift ? -1 : 1
-      return a.name.localeCompare(b.name)
-    })
+      setStaff(merged)
 
-    setStaff(merged)
-    setLoading(false)
-
-    // Fire analytics + talent in parallel — don't block staff render
-    loadAnalytics(targetName, merged).catch(err => {
-      console.error('[manager dashboard] analytics:', err)
-    })
-    loadTalent(merged).catch(err => {
-      console.error('[manager dashboard] talent:', err)
-    })
+      // Fire analytics + talent in parallel — don't block staff render
+      loadAnalytics(targetName, merged).catch(err => {
+        console.error('[manager dashboard] analytics:', err)
+      })
+      loadTalent(merged).catch(err => {
+        console.error('[manager dashboard] talent:', err)
+      })
+    } catch (err) {
+      console.error('[manager dashboard] loadData:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard')
+    } finally {
+      // Always clear Loading — never hang on query/network errors
+      setLoading(false)
+    }
   }, [restaurantName, loadAnalytics, loadTalent])
 
   // Initial auth + manager lookup
   useEffect(() => {
     async function checkAuth() {
-      const { data: { session } } = await supabase.auth.getSession()
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
 
-      if (!session) {
-        // No session — send to LOGIN not signup
-        router.push('/restaurant/login')
-        return
+        if (!session) {
+          // No session — send to LOGIN not signup
+          router.push('/restaurant/login')
+          return
+        }
+
+        const { data: managerData, error: managerErr } = await supabase
+          .from('restaurant_managers')
+          .select('*')
+          .eq('auth_id', session.user.id)
+          .maybeSingle()
+
+        if (managerErr) {
+          console.error('[manager dashboard] restaurant_managers:', managerErr)
+          setError(managerErr.message)
+          setLoading(false)
+          return
+        }
+
+        if (!managerData) {
+          // Has session but no manager row
+          // Sign them out first to avoid "already registered" error
+          await supabase.auth.signOut()
+          localStorage.removeItem('slateUserType')
+          localStorage.removeItem('slateManagerId')
+          localStorage.removeItem('slateRestaurantName')
+          router.push('/restaurant/login')
+          return
+        }
+
+        // Valid manager — set localStorage and continue
+        localStorage.setItem('slateUserType', 'manager')
+        localStorage.setItem('slateManagerId', managerData.id)
+        localStorage.setItem('slateRestaurantName', managerData.restaurant_name)
+
+        setManagerName(managerData.name ?? '')
+        setManagerEmail(managerData.email ?? session.user.email ?? '')
+        setRestaurantName(managerData.restaurant_name)
+        await loadData(managerData.restaurant_name)
+      } catch (err) {
+        console.error('[manager dashboard] checkAuth:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard')
+        setLoading(false)
       }
-
-      const { data: managerData } = await supabase
-        .from('restaurant_managers')
-        .select('*')
-        .eq('auth_id', session.user.id)
-        .maybeSingle()
-
-      if (!managerData) {
-        // Has session but no manager row
-        // Sign them out first to avoid "already registered" error
-        await supabase.auth.signOut()
-        localStorage.removeItem('slateUserType')
-        localStorage.removeItem('slateManagerId')
-        localStorage.removeItem('slateRestaurantName')
-        router.push('/restaurant/login')
-        return
-      }
-
-      // Valid manager — set localStorage and continue
-      localStorage.setItem('slateUserType', 'manager')
-      localStorage.setItem('slateManagerId', managerData.id)
-      localStorage.setItem('slateRestaurantName', managerData.restaurant_name)
-
-      setManagerName(managerData.name ?? '')
-      setManagerEmail(managerData.email ?? session.user.email ?? '')
-      setRestaurantName(managerData.restaurant_name)
-      await loadData(managerData.restaurant_name)
     }
     checkAuth()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1331,7 +1377,7 @@ export default function RestaurantManagerDashboard() {
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-white">{member?.name ?? 'Server'}</p>
+                          <p className="truncate text-sm font-semibold text-white">{member?.name ?? r.server_name ?? 'Server'}</p>
                           <p className="text-xs" style={{ color: '#606060' }}>
                             from a guest · {timeAgo(r.created_at)}
                           </p>
