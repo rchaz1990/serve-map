@@ -788,7 +788,7 @@ export default function RestaurantManagerDashboard() {
   const todayDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
-    <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+    <div className="slate-page">
       {/* Editorial fonts */}
       <link
         rel="stylesheet"
@@ -796,10 +796,9 @@ export default function RestaurantManagerDashboard() {
       />
 
       <Navbar />
-      {/* Thin white top border on the page */}
-      <div style={{ height: '1px', background: 'rgba(255,255,255,0.7)' }} />
+      <div className="slate-rule" />
 
-      <main className="mx-auto max-w-3xl px-8 py-12 lg:py-16">
+      <main className="slate-main mx-auto max-w-3xl px-8 py-12 lg:py-16">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="mb-8">
@@ -872,20 +871,19 @@ export default function RestaurantManagerDashboard() {
               Staff Working Tonight
             </span>
           </div>
-          <p className="mt-2 text-xs" style={{ color: '#333', fontFamily: '"Space Mono", ui-monospace, monospace', letterSpacing: '0.1em' }}>
-            Auto-refreshes every 60s
+          <p className="mt-2 text-xs" style={{ color: '#444', fontFamily: '"Space Mono", ui-monospace, monospace', letterSpacing: '0.1em' }}>
+            Updates every 60s
           </p>
         </div>
 
-        {/* Thin white divider below header */}
-        <div style={{ height: '1px', background: 'rgba(255,255,255,0.85)', marginBottom: '0' }} />
+        <div className="slate-rule" style={{ marginBottom: 0 }} />
 
         {/* ── Tabs (minimal text links, white underline on active) ───────── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '32px', borderBottom: '1px solid #0d0d0d' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '32px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           {([
             { key: 'staff' as const, label: 'Staff' },
             { key: 'intelligence' as const, label: 'Intelligence' },
-            { key: 'talent' as const, label: 'Talent Discovery' },
+            { key: 'talent' as const, label: 'Talent' },
           ]).map(t => {
             const active = activeTab === t.key
             return (
@@ -961,7 +959,7 @@ export default function RestaurantManagerDashboard() {
                       key={member.server_id}
                       style={{
                         padding: '28px 0',
-                        borderBottom: '1px solid #0d0d0d',
+                        borderBottom: '1px solid rgba(255,255,255,0.06)',
                         opacity: busy ? 0.6 : 1,
                       }}
                     >
@@ -1350,7 +1348,7 @@ export default function RestaurantManagerDashboard() {
                         alignItems: 'center',
                         gap: '20px',
                         padding: '18px 20px',
-                        borderBottom: '1px solid #0d0d0d',
+                        borderBottom: '1px solid rgba(255,255,255,0.06)',
                         border: isTopRank ? '1px solid rgba(255,255,255,0.4)' : undefined,
                         borderBottomColor: isTopRank ? 'rgba(255,255,255,0.4)' : '#0d0d0d',
                         marginBottom: isTopRank ? '4px' : undefined,

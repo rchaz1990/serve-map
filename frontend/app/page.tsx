@@ -19,10 +19,7 @@ const MARQUEE_ITEMS = [
 
 export default function Home() {
   return (
-    <div
-      className="min-h-screen overflow-x-hidden text-white"
-      style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}
-    >
+    <div className="slate-page overflow-x-hidden">
       <style dangerouslySetInnerHTML={{ __html: MARQUEE_CSS }} />
       <Navbar overlay />
 
@@ -40,30 +37,28 @@ export default function Home() {
           />
           <div className="absolute inset-0" style={{ backgroundColor: 'rgba(0,0,0,0.78)', zIndex: 1 }} />
           <div className="relative mx-auto w-full max-w-5xl pt-24 pb-16" style={{ zIndex: 2 }}>
-            <p className="mb-5 text-xs font-semibold uppercase tracking-[0.25em]" style={{ color: '#404040' }}>
-              NYC · Live Now
-            </p>
-            <h1 className="mb-4 text-5xl font-bold leading-[1.0] tracking-tight text-white sm:text-6xl lg:text-8xl">
+            <p className="slate-eyebrow mb-6">NYC · Live Now</p>
+            <h1 className="slate-title mb-5 text-5xl leading-[1.0] sm:text-6xl lg:text-8xl">
               Your night
               <br />
               starts here.
             </h1>
-            <p className="mb-4 max-w-xl text-lg font-medium text-white sm:text-xl lg:text-2xl">
-              The reputation layer for the people who make hospitality great.
+            <p className="mb-4 max-w-xl text-lg font-medium text-white/90 sm:text-xl lg:text-2xl">
+              The reputation layer for hospitality talent.
             </p>
-            <p className="mb-10 max-w-2xl text-sm leading-relaxed sm:text-base" style={{ color: '#606060' }}>
-              Servers and bartenders lose their reputation every time they change jobs. Slate fixes that — portable on-chain profiles, verified guest ratings, and Slate Points that convert 1:1 to $SERVE tokens at launch. Free forever for every hospitality worker.
+            <p className="mb-10 max-w-xl text-sm leading-relaxed sm:text-base slate-muted">
+              Portable on-chain profiles, verified ratings, and Slate Points — free for every hospitality worker.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <a
                 href="/servers/signup"
-                className="w-full rounded-full bg-white px-8 py-4 text-center text-sm font-semibold text-black transition-opacity hover:opacity-80 sm:w-auto"
+                className="slate-btn slate-btn-primary slate-btn-lg w-full sm:w-auto"
               >
                 I work in hospitality
               </a>
               <a
                 href="/login?mode=signup"
-                className="w-full rounded-full border border-white/25 px-8 py-4 text-center text-sm font-medium text-white transition-colors hover:border-white sm:w-auto"
+                className="slate-btn slate-btn-ghost slate-btn-lg w-full sm:w-auto"
               >
                 I&apos;m a guest
               </a>

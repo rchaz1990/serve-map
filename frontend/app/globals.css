@@ -1,8 +1,36 @@
 @import "tailwindcss";
 
+/* ── Slate design tokens ───────────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #000000;
+  --foreground: #ededed;
+
+  --slate-bg: #000000;
+  --slate-bg-elevated: #050505;
+  --slate-surface: #0a0a0a;
+  --slate-surface-hover: #111111;
+  --slate-border: rgba(255, 255, 255, 0.1);
+  --slate-border-hover: rgba(255, 255, 255, 0.22);
+  --slate-border-strong: rgba(255, 255, 255, 0.28);
+  --slate-fg: #ffffff;
+  --slate-secondary: #a0a0a0;
+  --slate-muted: #606060;
+  --slate-subtle: #404040;
+  --slate-faint: #2a2a2a;
+  --slate-live: #4ade80;
+
+  --slate-radius-sm: 0.75rem;
+  --slate-radius-md: 1rem;
+  --slate-radius-lg: 1.25rem;
+  --slate-radius-pill: 9999px;
+
+  --slate-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --slate-duration: 200ms;
+  --slate-duration-slow: 320ms;
+
+  --slate-shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.04);
+  --slate-shadow-md: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --slate-shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.55);
 }
 
 @theme inline {
@@ -12,17 +40,365 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  border-color: var(--slate-border);
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--slate-bg);
+  color: var(--slate-fg);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.45);
+  outline-offset: 3px;
+}
+
+/* Subtle scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* ── Page shell ────────────────────────────────────────────────────────────── */
+.slate-page {
+  min-height: 100vh;
+  background: var(--slate-bg);
+  color: var(--slate-fg);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.slate-main {
+  animation: slate-fade-up var(--slate-duration-slow) var(--slate-ease) both;
+}
+
+.slate-rule {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.12) 12%,
+    rgba(255, 255, 255, 0.12) 88%,
+    transparent 100%
+  );
+  border: 0;
+}
+
+/* ── Typography helpers ────────────────────────────────────────────────────── */
+.slate-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--slate-subtle);
+}
+
+.slate-muted {
+  color: var(--slate-muted);
+}
+
+.slate-secondary {
+  color: var(--slate-secondary);
+}
+
+.slate-title {
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: var(--slate-fg);
+}
+
+/* ── Cards & surfaces ──────────────────────────────────────────────────────── */
+.slate-card {
+  background: var(--slate-surface);
+  border: 1px solid var(--slate-border);
+  border-radius: var(--slate-radius-md);
+  box-shadow: var(--slate-shadow-sm);
+  transition:
+    border-color var(--slate-duration) var(--slate-ease),
+    background-color var(--slate-duration) var(--slate-ease),
+    transform var(--slate-duration) var(--slate-ease),
+    box-shadow var(--slate-duration) var(--slate-ease);
+}
+
+.slate-card-interactive:hover {
+  border-color: var(--slate-border-hover);
+  background: var(--slate-surface-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--slate-shadow-md);
+}
+
+.slate-card-interactive:active {
+  transform: translateY(0);
+}
+
+.slate-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 1.25rem;
+  background: var(--slate-surface);
+  border: 1px solid var(--slate-border);
+  border-radius: var(--slate-radius-md);
+  transition:
+    border-color var(--slate-duration) var(--slate-ease),
+    background-color var(--slate-duration) var(--slate-ease);
+}
+
+.slate-stat:hover {
+  border-color: var(--slate-border-hover);
+  background: var(--slate-surface-hover);
+}
+
+.slate-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--slate-fg);
+  line-height: 1.1;
+}
+
+.slate-stat-label {
+  font-size: 0.75rem;
+  color: var(--slate-secondary);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
+.slate-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--slate-radius-pill);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.75rem 1.5rem;
+  transition:
+    opacity var(--slate-duration) var(--slate-ease),
+    border-color var(--slate-duration) var(--slate-ease),
+    background-color var(--slate-duration) var(--slate-ease),
+    transform var(--slate-duration) var(--slate-ease),
+    box-shadow var(--slate-duration) var(--slate-ease);
+  cursor: pointer;
+  text-decoration: none;
+  user-select: none;
+}
+
+.slate-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.slate-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.slate-btn-primary {
+  background: #fff;
+  color: #000;
+  border: 1px solid #fff;
+}
+
+.slate-btn-primary:hover:not(:disabled) {
+  opacity: 0.88;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06);
+}
+
+.slate-btn-ghost {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.slate-btn-ghost:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.slate-btn-lg {
+  padding: 1rem 2rem;
+  font-size: 0.875rem;
+}
+
+/* ── Pills / chips ─────────────────────────────────────────────────────────── */
+.slate-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: var(--slate-radius-pill);
+  border: 1px solid var(--slate-border);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--slate-muted);
+  transition:
+    border-color var(--slate-duration) var(--slate-ease),
+    color var(--slate-duration) var(--slate-ease),
+    background-color var(--slate-duration) var(--slate-ease);
+}
+
+.slate-pill-active {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ── Nav polish ────────────────────────────────────────────────────────────── */
+.slate-nav {
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  background: rgba(0, 0, 0, 0.55);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  transition: background var(--slate-duration) var(--slate-ease),
+    border-color var(--slate-duration) var(--slate-ease);
+}
+
+.slate-nav-overlay {
+  background: transparent;
+  border-bottom-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.slate-nav-link {
+  position: relative;
+  transition: color var(--slate-duration) var(--slate-ease);
+}
+
+.slate-nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--slate-duration) var(--slate-ease);
+  opacity: 0.5;
+}
+
+.slate-nav-link:hover::after {
+  transform: scaleX(1);
+}
+
+/* ── Micro-interactions on existing Tailwind cards ─────────────────────────── */
+main .rounded-2xl.border,
+main .rounded-xl.border,
+main [class*="rounded-2xl"][class*="border-white"],
+main [class*="rounded-xl"][class*="border-white"] {
+  transition:
+    border-color var(--slate-duration) var(--slate-ease),
+    background-color var(--slate-duration) var(--slate-ease),
+    transform var(--slate-duration) var(--slate-ease),
+    box-shadow var(--slate-duration) var(--slate-ease);
+}
+
+main a.rounded-full,
+main button.rounded-full {
+  transition:
+    opacity var(--slate-duration) var(--slate-ease),
+    border-color var(--slate-duration) var(--slate-ease),
+    background-color var(--slate-duration) var(--slate-ease),
+    transform var(--slate-duration) var(--slate-ease),
+    box-shadow var(--slate-duration) var(--slate-ease);
+}
+
+main a.rounded-full:active:not(:disabled),
+main button.rounded-full:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Tag / chip buttons */
+main button.rounded-full.border {
+  transition:
+    border-color var(--slate-duration) var(--slate-ease),
+    background-color var(--slate-duration) var(--slate-ease),
+    color var(--slate-duration) var(--slate-ease),
+    transform var(--slate-duration) var(--slate-ease);
+}
+
+/* ── Live pulse (shared) ───────────────────────────────────────────────────── */
+@keyframes slate-live-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(1.35); }
+}
+
+@keyframes slate-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slate-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.slate-live-dot {
+  position: relative;
+  display: inline-flex;
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+.slate-live-dot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: #fff;
+  opacity: 0.4;
+  animation: slate-live-dot 1.4s ease-in-out infinite;
+}
+
+.slate-live-dot::after {
+  content: "";
+  position: relative;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .slate-main,
+  .slide-up,
+  .slate-live-dot::before,
+  .anim-chill,
+  .anim-live,
+  .anim-packed,
+  .anim-hot-badge {
+    animation: none !important;
+  }
+  main .rounded-2xl.border,
+  main .rounded-xl.border,
+  .slate-card,
+  .slate-btn {
+    transition: none !important;
+  }
 }
 
 /* ── Print header / footer (screen: hidden) ───────────────────────────────── */
@@ -33,23 +409,20 @@ body {
 
 /* ── Print styles ─────────────────────────────────────────────────────────── */
 @media print {
-  /* Page geometry */
   @page {
     size: letter portrait;
     margin: 0.9in 1in 1in 1in;
   }
 
-  /* Hide interactive / screen-only chrome */
   nav,
   .no-print {
     display: none !important;
   }
 
-  /* Running header — repeats on every page via position: fixed */
   .print-running-header {
     display: flex !important;
     position: fixed;
-    top: -0.65in;        /* sits in the @page top margin */
+    top: -0.65in;
     left: 0;
     right: 0;
     justify-content: space-between;
@@ -61,11 +434,10 @@ body {
     padding-bottom: 4pt;
   }
 
-  /* Running footer — page numbers via CSS counter */
   .print-running-footer {
     display: block !important;
     position: fixed;
-    bottom: -0.75in;     /* sits in the @page bottom margin */
+    bottom: -0.75in;
     left: 0;
     right: 0;
     font-family: Georgia, 'Times New Roman', serif;
@@ -76,12 +448,10 @@ body {
     text-align: center;
   }
 
-  /* Page counter — increments at each forced or natural page break */
   .print-running-footer::after {
     content: counter(page);
   }
 
-  /* Reset all backgrounds and colors to black-on-white */
   *,
   *::before,
   *::after {
@@ -92,7 +462,6 @@ body {
     text-shadow: none !important;
   }
 
-  /* Body / base typography */
   body {
     font-family: Georgia, 'Times New Roman', serif;
     font-size: 10.5pt;
@@ -100,7 +469,6 @@ body {
     color: black !important;
   }
 
-  /* Headings */
   h1 { font-size: 26pt; margin-bottom: 6pt; }
   h2 { font-size: 16pt; margin-bottom: 6pt; }
   h3 { font-size: 11.5pt; margin-bottom: 4pt; }
@@ -111,13 +479,11 @@ body {
     font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
   }
 
-  /* Section page breaks — each numbered section starts on a new page */
   main > section + div + section {
     break-before: page;
     page-break-before: always;
   }
 
-  /* Don't break inside cards or callout blocks */
   .rounded-xl {
     break-inside: avoid;
     page-break-inside: avoid;
@@ -127,23 +493,19 @@ body {
     margin-bottom: 8pt;
   }
 
-  /* Divider lines */
   .border-t {
     border-color: #ddd !important;
   }
 
-  /* Links: black, no underline */
   a {
     color: black !important;
     text-decoration: none !important;
   }
 
-  /* Mono text */
   .font-mono {
     font-family: 'Courier New', Courier, monospace;
   }
 
-  /* Remove bullet-style em-dashes' low-contrast color */
   span[style] {
     color: #555 !important;
   }
