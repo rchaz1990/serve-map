@@ -692,7 +692,6 @@ export default function DashboardPage() {
   const photoInputRef = useRef<HTMLInputElement>(null)
   const [recentRatings, setRecentRatings] = useState<{
     id: string
-    guest_name: string | null
     score: number
     created_at: string
     comment: string | null
@@ -776,10 +775,10 @@ export default function DashboardPage() {
         .eq('status', 'approved')
       const followerCount = row.follower_count ?? followRows?.length ?? 0
 
-      // Ratings
+      // Ratings — no guest_name column (42703); match restaurant dashboard remap
       const { data: ratingRows } = await supabase
         .from('ratings')
-        .select('id, guest_name, score, created_at, comment')
+        .select('id, score, created_at, comment')
         .eq('server_id', row.id)
         .order('created_at', { ascending: false })
         .limit(5)
