@@ -17,20 +17,44 @@ function LoginForm() {
   const handleSignIn = async () => {
     setLoading(true)
     setError('')
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { setError(error.message); setLoading(false); return }
-    const { data: serverRow } = await supabase
-      .from('servers')
-      .select('id')
-      .eq('wallet_address', data.user.id)
-      .maybeSingle()
-    if (serverRow) {
-      localStorage.setItem('slateServerId', serverRow.id)
-      localStorage.setItem('slateUserType', 'server')
-      router.push('/dashboard')
-    } else {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) { setError(error.message); return }
+      if (!data.user?.id) { setError('Sign in did not return a user.'); return }
+
+      // Managers first (same order as /auth/callback + Navbar)
+      const { data: managerRow } = await supabase
+        .from('restaurant_managers')
+        .select('id, restaurant_name')
+        .eq('auth_id', data.user.id)
+        .maybeSingle()
+      if (managerRow) {
+        localStorage.setItem('slateUserType', 'manager')
+        localStorage.setItem('slateManagerId', managerRow.id)
+        localStorage.setItem('slateRestaurantName', managerRow.restaurant_name)
+        router.push('/restaurant/dashboard')
+        return
+      }
+
+      const { data: serverRow } = await supabase
+        .from('servers')
+        .select('id')
+        .eq('wallet_address', data.user.id)
+        .maybeSingle()
+      if (serverRow) {
+        localStorage.setItem('slateServerId', serverRow.id)
+        localStorage.setItem('slateUserType', 'server')
+        router.push('/dashboard')
+        return
+      }
+
       localStorage.setItem('slateUserType', 'guest')
       router.push('/live')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Login failed. Please try again.'
+      setError(msg)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -63,10 +87,11 @@ function LoginForm() {
   }
 
   const handleGoogle = async () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.slatenow.xyz'
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'https://slatenow.xyz/auth/callback',
+        redirectTo: `${origin}/auth/callback`,
         queryParams: { access_type: 'offline', prompt: 'consent' },
       },
     })
