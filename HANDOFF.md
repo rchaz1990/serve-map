@@ -201,7 +201,7 @@ Enabled on all tables. Server-side API routes use `SUPABASE_SERVICE_ROLE_KEY` to
 ### Restaurant Manager System
 - Signup at `/restaurant/signup`, login at `/restaurant/login`
 - Manager dashboard at `/restaurant/dashboard` with three tabs:
-  - **Staff** — toggle staff on/off shift; followers notified automatically
+  - **Staff** — toggle staff on/off shift; followers notified automatically; **on-shift rows show guest rate QR** (`https://slatenow.xyz/scan/[serverId]`)
   - **Intelligence** — staff leaderboard, ratings, recent vibe reports
   - **Talent Discovery** — search servers by role/rating/followers; contact via email
 
@@ -282,7 +282,7 @@ Founding restaurant partners get 3 months free.
 17. **Android GPS hangs on "verifying"** — fixed with `enableHighAccuracy: false` and 4-second timeout but may still affect some devices.
 
 ### QR Code
-18. **QR URL** — should point to `/scan/[serverId]` not `/rate?server=`. Verify this is still correct.
+18. **QR URL (canonical guest entry)** — `https://slatenow.xyz/scan/[serverId]` (QR + manager Staff copy link). Scan landing → Rate button → `/rate?server=[serverId]`. Direct `/rate?server=` also works. `/review` and `/r` are not routes (404).
 
 ---
 

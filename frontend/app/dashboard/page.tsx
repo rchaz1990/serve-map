@@ -1267,7 +1267,7 @@ export default function DashboardPage() {
                   </p>
                   <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
                     <span className="flex-1 truncate font-mono text-xs" style={{ color: '#606060' }}>
-                      slatenow.xyz/rate?server={serverProfile?.id}
+                      slatenow.xyz/scan/{serverProfile?.id}
                     </span>
                   </div>
                 </div>

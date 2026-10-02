@@ -371,36 +371,56 @@ export default function ServerProfilePage() {
             background: '#050505',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: '14px',
+            flexWrap: 'wrap',
           }}>
-            <div style={{ position: 'relative', width: '10px', height: '10px', flexShrink: 0 }}>
-              <span
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  borderRadius: '50%',
-                  background: '#4ade80',
-                  animation: 'slate-pulse 2s ease-in-out infinite',
-                }}
-              />
-              <span
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  borderRadius: '50%',
-                  border: '1px solid #4ade80',
-                  animation: 'slate-pulse-ring 2s ease-out infinite',
-                }}
-              />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{ position: 'relative', width: '10px', height: '10px', flexShrink: 0 }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    borderRadius: '50%',
+                    background: '#4ade80',
+                    animation: 'slate-pulse 2s ease-in-out infinite',
+                  }}
+                />
+                <span
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    borderRadius: '50%',
+                    border: '1px solid #4ade80',
+                    animation: 'slate-pulse-ring 2s ease-out infinite',
+                  }}
+                />
+              </div>
+              <div>
+                <p style={{ fontFamily: FONT_MONO, fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase', color: '#555', marginBottom: '4px' }}>
+                  On shift tonight
+                </p>
+                <p style={{ fontFamily: FONT_DISPLAY, fontSize: '18px', color: '#FFFFFF', lineHeight: 1.2 }}>
+                  {currentShift.restaurant_name}
+                </p>
+              </div>
             </div>
-            <div>
-              <p style={{ fontFamily: FONT_MONO, fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase', color: '#555', marginBottom: '4px' }}>
-                On shift tonight
-              </p>
-              <p style={{ fontFamily: FONT_DISPLAY, fontSize: '18px', color: '#FFFFFF', lineHeight: 1.2 }}>
-                {currentShift.restaurant_name}
-              </p>
-            </div>
+            <a
+              href={`/rate?server=${profileId}`}
+              style={{
+                display: 'inline-block',
+                background: '#FFFFFF',
+                color: '#000000',
+                fontFamily: FONT_MONO,
+                fontSize: '11px',
+                letterSpacing: '0.2em',
+                textTransform: 'uppercase',
+                textDecoration: 'none',
+                padding: '12px 18px',
+              }}
+            >
+              Rate this server
+            </a>
           </section>
         )}
 
