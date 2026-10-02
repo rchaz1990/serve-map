@@ -872,7 +872,7 @@ function JobsSection({
   }
 
   return (
-    <div className="slate-card mb-6 p-6">
+    <div id="jobs" className="slate-card mb-6 p-6 scroll-mt-24">
       <Script
         src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}&libraries=places`}
         onLoad={() => setGoogleLoaded(true)}
@@ -1104,6 +1104,17 @@ export default function DashboardPage() {
     comment: string | null
   }[]>([])
   const [profileLoading, setProfileLoading] = useState(true)
+
+  // /jobs and ?section=jobs land here — scroll to Jobs / Venues once profile loads.
+  useEffect(() => {
+    if (profileLoading) return
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const wantsJobs = params.get('section') === 'jobs' || window.location.hash === '#jobs'
+    if (!wantsJobs) return
+    const el = document.getElementById('jobs')
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [profileLoading])
 
   // Restaurant picker — shown before shift starts
   const [restaurants, setRestaurants] = useState<{ id: string; restaurant_name: string; is_primary: boolean; restaurant_address: string | null }[]>([])
