@@ -45,6 +45,12 @@ function timeAgo(iso: string) {
   return `${days}d ago`
 }
 
+
+/** "amor-y-amargo" → "amor y amargo" for PostgREST ilike. */
+function normalizeVenueLookup(slug: string): string {
+  return slug.trim().replace(/[-_]+/g, ' ').replace(/\s+/g, ' ')
+}
+
 function initials(name: string) {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 }
@@ -57,7 +63,7 @@ function firstName(name: string) {
 
 export default function RestaurantTonightPage() {
   const { id } = useParams<{ id: string }>()
-  const restaurantName = decodeURIComponent(id ?? '')
+  const restaurantName = normalizeVenueLookup(decodeURIComponent(id ?? ''))
 
   const [activeServers, setActiveServers] = useState<ActiveServer[]>([])
   const [vibes, setVibes] = useState<VibeReport[]>([])
