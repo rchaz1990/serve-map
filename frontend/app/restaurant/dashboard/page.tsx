@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import QRCode from 'react-qr-code'
 import Navbar from '@/app/components/Navbar'
+import { MotionSection } from '@/app/components/motion'
 import { supabase, getAuthSession, withTimeout } from '@/lib/supabase'
 
 const GUEST_RATE_ORIGIN = 'https://slatenow.xyz'
@@ -801,7 +802,7 @@ export default function RestaurantManagerDashboard() {
       <main className="slate-main mx-auto max-w-3xl px-8 py-12 lg:py-16">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="mb-8">
+        <MotionSection as="div" immediate className="mb-8">
           <p
             className="mb-4"
             style={{
@@ -874,7 +875,7 @@ export default function RestaurantManagerDashboard() {
           <p className="mt-2 text-xs" style={{ color: '#444', fontFamily: '"Space Mono", ui-monospace, monospace', letterSpacing: '0.1em' }}>
             Updates every 60s
           </p>
-        </div>
+        </MotionSection>
 
         <div className="slate-rule" style={{ marginBottom: 0 }} />
 
@@ -932,7 +933,7 @@ export default function RestaurantManagerDashboard() {
 
         {/* ── STAFF TAB ───────────────────────────────────────────────────── */}
         {activeTab === 'staff' && (
-          <section className="py-6">
+          <MotionSection className="py-6">
             {loading ? (
               <p className="text-sm py-6" style={{ color: '#606060' }}>Loading…</p>
             ) : staff.length === 0 ? (
@@ -1191,13 +1192,13 @@ export default function RestaurantManagerDashboard() {
                 })}
               </div>
             )}
-          </section>
+          </MotionSection>
         )}
 
         {/* ── INTELLIGENCE TAB ────────────────────────────────────────────── */}
         {activeTab === 'intelligence' && (
         <>
-        <section style={{ paddingTop: '40px', paddingBottom: '8px' }}>
+        <MotionSection style={{ paddingTop: '40px', paddingBottom: '8px' }}>
           <p
             style={{
               fontFamily: '"Space Mono", ui-monospace, monospace',
@@ -1221,10 +1222,10 @@ export default function RestaurantManagerDashboard() {
           >
             Performance and venue signals across your team
           </p>
-        </section>
+        </MotionSection>
 
         {/* Section 1 — Overview Stats (2x2) */}
-        <section style={{ paddingTop: '32px', paddingBottom: '40px' }}>
+        <MotionSection style={{ paddingTop: '32px', paddingBottom: '40px' }}>
           <p
             style={{
               fontFamily: '"Space Mono", ui-monospace, monospace',
@@ -1280,11 +1281,11 @@ export default function RestaurantManagerDashboard() {
               </div>
             ))}
           </div>
-        </section>
+        </MotionSection>
 
         {/* Section 2 — Staff Leaderboard */}
         <div style={{ height: '1px', background: '#0d0d0d' }} />
-        <section style={{ paddingTop: '40px', paddingBottom: '40px' }}>
+        <MotionSection style={{ paddingTop: '40px', paddingBottom: '40px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '16px', marginBottom: '24px' }}>
             <p
               style={{
@@ -1409,11 +1410,11 @@ export default function RestaurantManagerDashboard() {
                 })}
             </div>
           )}
-        </section>
+        </MotionSection>
 
         {/* Section 3 — Venue Intelligence */}
         <div style={{ height: '1px', background: '#0d0d0d' }} />
-        <section className="py-10">
+        <MotionSection className="py-10">
           <p className="mb-6" style={{ fontFamily: '"Space Mono", ui-monospace, monospace', fontSize: '9px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#444' }}>
             Venue Intelligence
           </p>
@@ -1513,11 +1514,11 @@ export default function RestaurantManagerDashboard() {
               )
             })()}
           </div>
-        </section>
+        </MotionSection>
 
         {/* Section 4 — Recent Ratings */}
         <div style={{ height: '1px', background: '#0d0d0d' }} />
-        <section className="py-10">
+        <MotionSection className="py-10">
           <p className="mb-6" style={{ fontFamily: '"Space Mono", ui-monospace, monospace', fontSize: '9px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#444' }}>
             Recent Ratings
           </p>
@@ -1564,11 +1565,11 @@ export default function RestaurantManagerDashboard() {
               </div>
             )
           })()}
-        </section>
+        </MotionSection>
 
         {/* Section 5 — Recent Vibe Reports */}
         <div style={{ height: '1px', background: '#0d0d0d' }} />
-        <section className="py-10">
+        <MotionSection className="py-10">
           <p className="mb-6" style={{ fontFamily: '"Space Mono", ui-monospace, monospace', fontSize: '9px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#444' }}>
             Recent Vibe Reports
           </p>
@@ -1613,13 +1614,13 @@ export default function RestaurantManagerDashboard() {
               </div>
             )
           })()}
-        </section>
+        </MotionSection>
         </>
         )}
 
         {/* ── TALENT DISCOVERY TAB ────────────────────────────────────────── */}
         {activeTab === 'talent' && (
-          <section style={{ paddingTop: '40px', paddingBottom: '40px' }}>
+          <MotionSection style={{ paddingTop: '40px', paddingBottom: '40px' }}>
             {/* Filter bar — minimal dropdown selects */}
             <div
               style={{
@@ -1752,7 +1753,7 @@ export default function RestaurantManagerDashboard() {
                 })}
               </div>
             )}
-          </section>
+          </MotionSection>
         )}
 
         <div style={{ height: '1px', background: '#0d0d0d', marginTop: '8px' }} />

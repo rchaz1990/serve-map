@@ -59,6 +59,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  position: relative;
+  isolation: isolate;
 }
 
 ::selection {
@@ -79,10 +81,47 @@ body {
 
 /* ── Page shell ────────────────────────────────────────────────────────────── */
 .slate-page {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
-  background: var(--slate-bg);
+  background: transparent;
   color: var(--slate-fg);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* ── Ambient gradient backdrop (30s color shift) ─────────────────────────── */
+.slate-gradient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(88, 70, 140, 0.22), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 85% 20%, rgba(40, 90, 140, 0.18), transparent 50%),
+    radial-gradient(ellipse 60% 50% at 50% 90%, rgba(120, 50, 90, 0.14), transparent 55%),
+    linear-gradient(160deg, #000000 0%, #05050a 40%, #08060c 70%, #000000 100%);
+  background-size: 200% 200%, 200% 200%, 200% 200%, 100% 100%;
+  animation: slate-gradient-shift 30s ease-in-out infinite;
+}
+
+.slate-gradient-bg--static {
+  animation: none;
+  background-position: 50% 50%;
+}
+
+@keyframes slate-gradient-shift {
+  0% {
+    background-position: 0% 40%, 100% 20%, 50% 100%, 0% 0%;
+  }
+  33% {
+    background-position: 60% 10%, 20% 70%, 80% 40%, 0% 0%;
+  }
+  66% {
+    background-position: 100% 60%, 0% 40%, 30% 10%, 0% 0%;
+  }
+  100% {
+    background-position: 0% 40%, 100% 20%, 50% 100%, 0% 0%;
+  }
 }
 
 .slate-main {
@@ -139,10 +178,16 @@ body {
     box-shadow var(--slate-duration) var(--slate-ease);
 }
 
+.slate-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--slate-border-hover);
+  box-shadow: var(--slate-shadow-md);
+}
+
 .slate-card-interactive:hover {
   border-color: var(--slate-border-hover);
   background: var(--slate-surface-hover);
-  transform: translateY(-1px);
+  transform: translateY(-4px);
   box-shadow: var(--slate-shadow-md);
 }
 
@@ -219,8 +264,11 @@ body {
 }
 
 .slate-btn-primary:hover:not(:disabled) {
-  opacity: 0.88;
-  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06);
+  opacity: 0.94;
+  box-shadow:
+    0 0 0 4px rgba(255, 255, 255, 0.06),
+    0 0 22px rgba(255, 255, 255, 0.28),
+    0 0 48px rgba(255, 255, 255, 0.1);
 }
 
 .slate-btn-ghost {
@@ -232,6 +280,9 @@ body {
 .slate-btn-ghost:hover:not(:disabled) {
   border-color: rgba(255, 255, 255, 0.7);
   background: rgba(255, 255, 255, 0.03);
+  box-shadow:
+    0 0 18px rgba(255, 255, 255, 0.14),
+    0 0 36px rgba(255, 255, 255, 0.06);
 }
 
 .slate-btn-lg {
@@ -316,6 +367,14 @@ main [class*="rounded-xl"][class*="border-white"] {
     box-shadow var(--slate-duration) var(--slate-ease);
 }
 
+main .rounded-2xl.border:hover,
+main .rounded-xl.border:hover,
+main [class*="rounded-2xl"][class*="border-white"]:hover,
+main [class*="rounded-xl"][class*="border-white"]:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--slate-shadow-md);
+}
+
 main a.rounded-full,
 main button.rounded-full {
   transition:
@@ -324,6 +383,15 @@ main button.rounded-full {
     background-color var(--slate-duration) var(--slate-ease),
     transform var(--slate-duration) var(--slate-ease),
     box-shadow var(--slate-duration) var(--slate-ease);
+}
+
+main a.rounded-full.bg-white:hover,
+main button.rounded-full.bg-white:hover:not(:disabled),
+main a.rounded-full[class*="bg-white"]:hover,
+main button.rounded-full[class*="bg-white"]:hover:not(:disabled) {
+  box-shadow:
+    0 0 22px rgba(255, 255, 255, 0.28),
+    0 0 48px rgba(255, 255, 255, 0.1);
 }
 
 main a.rounded-full:active:not(:disabled),
@@ -390,7 +458,8 @@ main button.rounded-full.border {
   .anim-chill,
   .anim-live,
   .anim-packed,
-  .anim-hot-badge {
+  .anim-hot-badge,
+  .slate-gradient-bg {
     animation: none !important;
   }
   main .rounded-2xl.border,
@@ -398,6 +467,12 @@ main button.rounded-full.border {
   .slate-card,
   .slate-btn {
     transition: none !important;
+  }
+  .slate-card:hover,
+  .slate-card-interactive:hover,
+  main .rounded-2xl.border:hover,
+  main .rounded-xl.border:hover {
+    transform: none !important;
   }
 }
 

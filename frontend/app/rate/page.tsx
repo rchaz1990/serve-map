@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
+import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
 
 // ── Tags + stars ──────────────────────────────────────────────────────────────
@@ -386,15 +387,15 @@ function RateForm() {
       <main className="slate-main mx-auto max-w-lg px-8 pb-32 pt-16 lg:px-0">
 
         {/* ── Header ──────────────────────────────────────────────────── */}
-        <section className="mb-12">
+        <MotionSection immediate className="mb-12">
           <p className="slate-eyebrow mb-4">Rate</p>
           <h1 className="slate-title text-3xl sm:text-4xl">
             How was {serverFirstName}?
           </h1>
-        </section>
+        </MotionSection>
 
         {/* ── Star rating ─────────────────────────────────────────────── */}
-        <section className="mb-12">
+        <MotionSection className="mb-12">
           <p className="slate-eyebrow mb-6">Overall</p>
           <StarSelector value={rating} onChange={setRating} />
           <div className="mt-4 h-5">
@@ -402,12 +403,12 @@ function RateForm() {
               <p className="text-sm font-medium text-white">{ratingLabels[rating]}</p>
             )}
           </div>
-        </section>
+        </MotionSection>
 
         <div className="slate-rule mb-12" />
 
         {/* ── Quick tags ──────────────────────────────────────────────── */}
-        <section className="mb-12">
+        <MotionSection className="mb-12">
           <p className="slate-eyebrow mb-6">
             Highlights <span className="normal-case tracking-normal font-normal opacity-60">(optional)</span>
           </p>
@@ -430,12 +431,12 @@ function RateForm() {
               )
             })}
           </div>
-        </section>
+        </MotionSection>
 
         <div className="slate-rule mb-12" />
 
         {/* ── Written comment ─────────────────────────────────────────── */}
-        <section className="mb-12">
+        <MotionSection className="mb-12">
           <label
             htmlFor="comment"
             className="slate-eyebrow mb-6 block"
@@ -456,12 +457,12 @@ function RateForm() {
               {comment.length} / 280
             </span>
           </div>
-        </section>
+        </MotionSection>
 
         <div className="slate-rule mb-12" />
 
         {/* ── Follow ──────────────────────────────────────────────────── */}
-        <section className="mb-12">
+        <MotionSection className="mb-12">
           <p className="slate-eyebrow mb-5">Follow</p>
           {!isFollowing ? (
             <button
@@ -473,12 +474,12 @@ function RateForm() {
           ) : (
             <p className="text-center text-sm slate-muted">Following</p>
           )}
-        </section>
+        </MotionSection>
 
         <div className="slate-rule mb-12" />
 
         {/* ── $SERVE notice ───────────────────────────────────────────── */}
-        <section className="mb-12">
+        <MotionSection className="mb-12">
           <div className="slate-card flex items-start gap-4 px-4 py-4">
             <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15">
               <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={1.5} className="h-4 w-4">
@@ -494,7 +495,7 @@ function RateForm() {
               </p>
             </div>
           </div>
-        </section>
+        </MotionSection>
 
         {/* ── Error ───────────────────────────────────────────────────── */}
         {error && (

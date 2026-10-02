@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
+import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -782,7 +783,7 @@ export default function LivePage() {
 
       <main>
         {/* ── Header ────────────────────────────────────────────────────── */}
-        <section className="slate-main relative px-8 pt-16 pb-12 lg:px-16 lg:pt-20">
+        <MotionSection immediate className="slate-main relative px-8 pt-16 pb-12 lg:px-16 lg:pt-20">
           <div className="absolute right-8 top-6 flex items-center gap-2.5 lg:right-16">
             <span className="slate-live-dot" />
             <span className="slate-eyebrow !text-white/50">Live</span>
@@ -801,12 +802,12 @@ export default function LivePage() {
               </p>
             )}
           </div>
-        </section>
+        </MotionSection>
 
         <div className="slate-rule" />
 
         {/* ── Feed ──────────────────────────────────────────────────────── */}
-        <section className="px-8 py-16 lg:px-16 lg:py-20">
+        <MotionSection className="px-8 py-16 lg:px-16 lg:py-20">
           <div className="mx-auto max-w-5xl">
             {loading ? (
               <p className="text-sm" style={{ color: '#404040' }}>Loading…</p>
@@ -876,7 +877,7 @@ export default function LivePage() {
               </div>
             )}
           </div>
-        </section>
+        </MotionSection>
       </main>
     </div>
   )
