@@ -1394,10 +1394,10 @@ export default function DashboardPage() {
         const userLng = position.coords.longitude
         try {
           let geoData: { results: { geometry: { location: { lat: number; lng: number } } }[]; status: string }
-          const res1 = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(restaurantName)}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`)
+          const res1 = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(restaurantName)}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`)
           geoData = await res1.json()
           if (!geoData.results?.length) {
-            const res2 = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(restaurantName + ' NYC')}&key=AIzaSyDEX_QtjOnjalHTTKlvnt-XK297_ANANr8`)
+            const res2 = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(restaurantName + ' NYC')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`)
             geoData = await res2.json()
           }
           if (geoData.results?.length) {
