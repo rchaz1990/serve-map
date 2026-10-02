@@ -32,7 +32,7 @@ type Rating = {
   score: number
   comment: string | null
   created_at: string
-  guest_name: string | null
+  guest_email: string | null
   server_name: string | null
 }
 
@@ -117,7 +117,7 @@ export default function RestaurantProfilePage() {
         // Ratings at this restaurant (most recent 10)
         supabase
           .from('ratings')
-          .select('id, score, comment, created_at, guest_name, server_name')
+          .select('id, score, comment, created_at, guest_email, server_id, servers(name)')
           .ilike('restaurant_name', restaurantName)
           .order('created_at', { ascending: false })
           .limit(10),
@@ -149,7 +149,19 @@ export default function RestaurantProfilePage() {
         setStaff(mapped)
       }
 
-      if (rats) setRatings(rats as Rating[])
+      if (rats) {
+        setRatings((rats as Array<Record<string, unknown>>).map((r) => {
+          const srv = r.servers as { name?: string } | null
+          return {
+            id: r.id as string,
+            score: r.score as number,
+            comment: (r.comment as string | null) ?? null,
+            created_at: r.created_at as string,
+            guest_email: (r.guest_email as string | null) ?? null,
+            server_name: srv?.name ?? null,
+          }
+        }))
+      }
 
       if (waitlistRow && waitlistRow.length > 0) {
         setClaimStatus('claimed')
@@ -366,7 +378,7 @@ export default function RestaurantProfilePage() {
                   <div className="mb-2 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-white">
-                        {r.guest_name ?? 'Guest'}
+                        Guest
                       </span>
                       <Stars score={r.score} />
                     </div>
