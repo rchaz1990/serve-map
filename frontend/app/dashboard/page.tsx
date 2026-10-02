@@ -152,7 +152,7 @@ function ProfilePreferencesSection({
   return (
     <>
       {/* ── Specialties (collapsed by default) ─────────────────────────── */}
-      <div className="mb-6 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+      <div className="slate-card mb-6 p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <p
             style={{
@@ -280,7 +280,7 @@ function ProfilePreferencesSection({
       </div>
 
       {/* ── Talent search toggle ─────────────────────────────────────────── */}
-      <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+      <div className="slate-card mb-8 p-6">
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <p className="text-sm font-semibold text-white">Appear in restaurant talent search</p>
@@ -381,7 +381,7 @@ function ServeRewardsSection({
   const nextPayoutDate = nextPayout.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
 
   return (
-    <div className="mb-8 rounded-2xl border border-white/10" style={{ backgroundColor: '#0a0a0a' }}>
+    <div className="slate-card mb-8">
       {/* Reputation Score */}
       <div style={{ padding: '24px', borderBottom: '1px solid #0d0d0d' }}>
         <div
@@ -471,7 +471,7 @@ function PrivacySettingsSection({
   }
 
   return (
-    <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+    <div className="slate-card mb-8 p-6">
       <p
         style={{
           fontFamily: FONT_MONO,
@@ -604,7 +604,7 @@ function WorkerCouncilSection({ serverId }: { serverId: string | null }) {
   }
 
   return (
-    <div className="mb-8 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+    <div className="slate-card mb-8 p-6">
       <p
         style={{
           fontFamily: FONT_MONO,
@@ -871,7 +871,7 @@ function JobsSection({
   }
 
   return (
-    <div className="mb-6 rounded-2xl border border-white/10 p-6" style={{ backgroundColor: '#0a0a0a' }}>
+    <div className="slate-card mb-6 p-6">
       <Script
         src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}&libraries=places`}
         onLoad={() => setGoogleLoaded(true)}
@@ -1423,14 +1423,11 @@ export default function DashboardPage() {
   }
 
   return (
-    <div
-      className="min-h-screen text-white"
-      style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}
-    >
+    <div className="slate-page">
       <Navbar />
-      <div className="border-t border-white/10" />
+      <div className="slate-rule" />
 
-      <main className="mx-auto max-w-5xl px-8 py-12 lg:px-16">
+      <main className="slate-main mx-auto max-w-5xl px-8 py-12 lg:px-16">
 
         {/* ── Header (server name + greeting) ─────────────────────────── */}
         {profileLoading ? (
@@ -1438,7 +1435,7 @@ export default function DashboardPage() {
             <p className="text-sm" style={{ color: '#606060' }}>Loading your profile…</p>
           </div>
         ) : !serverProfile ? (
-          <div className="mb-10 rounded-2xl border border-white/10 p-7" style={{ backgroundColor: '#0a0a0a' }}>
+          <div className="slate-card mb-10 p-7">
             <p className="text-sm font-semibold text-white">Setting up your profile…</p>
             <p className="mt-1 text-xs" style={{ color: '#606060' }}>
               We&apos;re still saving your info. Try refreshing in a moment. If this persists, sign out and sign back in.
@@ -1481,16 +1478,16 @@ export default function DashboardPage() {
                   </svg>
                 </span>
               </div>
-              <p className="mt-1 text-sm font-medium" style={{ color: '#4ade80' }}>
-                Your profile is live on Slate ✓
+              <p className="mt-1.5 text-sm font-medium" style={{ color: 'var(--slate-live)' }}>
+                Live on Slate
               </p>
             </div>
           </div>
           <a
             href={`/server/${serverProfile.id}`}
-            className="self-start rounded-full border border-white/20 px-5 py-2 text-xs font-semibold text-white transition-colors hover:border-white sm:self-auto"
+            className="slate-btn slate-btn-ghost !px-5 !py-2 !text-xs self-start sm:self-auto"
           >
-            View public profile →
+            View profile
           </a>
         </div>
         )}
@@ -1503,13 +1500,9 @@ export default function DashboardPage() {
             { label: 'Followers', value: serverProfile?.follower_count ?? 0 },
             { label: '$SERVE',    value: serverProfile?.serve_balance_lifetime ?? 0 },
           ].map(({ label, value }) => (
-            <div
-              key={label}
-              className="flex flex-col gap-1.5 rounded-2xl border border-white/10 p-5"
-              style={{ backgroundColor: '#0a0a0a' }}
-            >
-              <span className="text-2xl font-bold text-white">{value}</span>
-              <span className="text-xs" style={{ color: '#A0A0A0' }}>{label}</span>
+            <div key={label} className="slate-stat">
+              <span className="slate-stat-value">{value}</span>
+              <span className="slate-stat-label">{label}</span>
             </div>
           ))}
         </div>
@@ -1522,10 +1515,10 @@ export default function DashboardPage() {
 
         {/* ── Shift Status Card ───────────────────────────────────────── */}
         <div
-          className="mb-10 rounded-2xl p-7"
+          className="slate-card mb-10 p-7"
           style={{
-            border: isOnShift ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(255,255,255,0.12)',
-            backgroundColor: isOnShift ? 'rgba(255,255,255,0.04)' : '#0a0a0a',
+            borderColor: isOnShift ? 'rgba(255,255,255,0.35)' : undefined,
+            backgroundColor: isOnShift ? 'rgba(255,255,255,0.04)' : undefined,
           }}
         >
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
@@ -1604,10 +1597,8 @@ export default function DashboardPage() {
                 }
               }}
               className={[
-                'shrink-0 rounded-full px-8 py-4 text-sm font-bold transition-all',
-                isOnShift
-                  ? 'border border-white/30 text-white hover:border-white'
-                  : 'bg-white text-black hover:opacity-80',
+                'slate-btn slate-btn-lg shrink-0',
+                isOnShift ? 'slate-btn-ghost' : 'slate-btn-primary',
               ].join(' ')}
             >
               {isOnShift ? 'End Shift' : 'Start Shift'}
@@ -1617,7 +1608,7 @@ export default function DashboardPage() {
           {/* Restaurant picker — shown before shift starts */}
           {showRestaurantPicker && !isOnShift && (
             <div className="mt-7 border-t border-white/10 pt-7">
-              <p className="mb-4 text-sm font-semibold text-white">Which restaurant are you working at today?</p>
+              <p className="mb-4 text-sm font-semibold text-white">Where are you working?</p>
               <div className="flex flex-col gap-2">
                 {restaurants.map(r => (
                   <button

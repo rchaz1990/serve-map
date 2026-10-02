@@ -601,7 +601,7 @@ function VenueSearch() {
   }
 
   return (
-    <div className="border-b border-white/10 px-8 py-10 lg:px-16" style={{ backgroundColor: '#050505' }}>
+    <div className="border-b border-white/[0.06] px-8 py-10 lg:px-16" style={{ backgroundColor: 'var(--slate-bg-elevated)' }}>
       <Script
         src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}&libraries=places`}
         onLoad={() => setGoogleLoaded(true)}
@@ -773,40 +773,37 @@ export default function LivePage() {
   }, [])
 
   return (
-    <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+    <div className="slate-page">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <Navbar />
-      <div className="border-t border-white/10" />
+      <div className="slate-rule" />
 
       <VenueSearch />
 
       <main>
         {/* ── Header ────────────────────────────────────────────────────── */}
-        <section className="relative px-8 pt-16 pb-12 lg:px-16 lg:pt-20">
-          <div className="absolute right-8 top-6 flex items-center gap-2 lg:right-16">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-40" style={{ animation: 'liveDot 1.4s ease-in-out infinite' }} />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">Live</span>
+        <section className="slate-main relative px-8 pt-16 pb-12 lg:px-16 lg:pt-20">
+          <div className="absolute right-8 top-6 flex items-center gap-2.5 lg:right-16">
+            <span className="slate-live-dot" />
+            <span className="slate-eyebrow !text-white/50">Live</span>
           </div>
           <div className="mx-auto max-w-5xl">
-            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>NYC Tonight</p>
-            <h1 className="mb-4 text-5xl font-bold tracking-tight text-white sm:text-6xl lg:text-7xl">
+            <p className="slate-eyebrow mb-5">NYC Tonight</p>
+            <h1 className="slate-title mb-5 text-5xl sm:text-6xl lg:text-7xl">
               What&apos;s the vibe?
             </h1>
-            <p className="mb-4 max-w-xl text-base leading-relaxed sm:text-lg" style={{ color: '#A0A0A0' }}>
-              Real-time energy from NYC venues — reported by people who are there right now.
+            <p className="mb-4 max-w-lg text-base leading-relaxed sm:text-lg slate-secondary">
+              Real-time energy, reported by people on the ground.
             </p>
             {!loading && weeklyCount > 0 && (
-              <p className="text-xs font-semibold" style={{ color: '#606060' }}>
-                {weeklyCount} GPS-verified {weeklyCount === 1 ? 'report' : 'reports'} this week
+              <p className="text-xs font-medium slate-muted">
+                {weeklyCount} verified {weeklyCount === 1 ? 'report' : 'reports'} this week
               </p>
             )}
           </div>
         </section>
 
-        <div className="border-t border-white/10" />
+        <div className="slate-rule" />
 
         {/* ── Feed ──────────────────────────────────────────────────────── */}
         <section className="px-8 py-16 lg:px-16 lg:py-20">

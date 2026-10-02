@@ -271,9 +271,9 @@ export default function RestaurantProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: '#000000' }}>
+      <div className="slate-page">
         <Navbar />
-        <div className="border-t border-white/10" />
+        <div className="slate-rule" />
         <div className="flex min-h-[60vh] items-center justify-center">
           <p className="text-sm" style={{ color: '#404040' }}>Loading venue…</p>
         </div>
@@ -283,9 +283,9 @@ export default function RestaurantProfilePage() {
 
   if (!restaurantSlug) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: '#000000' }}>
+      <div className="slate-page">
         <Navbar />
-        <div className="border-t border-white/10" />
+        <div className="slate-rule" />
         <div className="flex min-h-[60vh] items-center justify-center">
           <p className="text-sm" style={{ color: '#606060' }}>Venue not found.</p>
         </div>
@@ -299,11 +299,11 @@ export default function RestaurantProfilePage() {
   const todayCount = vibeReports.filter(v => new Date(v.created_at) >= todayStart).length
 
   return (
-    <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+    <div className="slate-page">
       <Navbar />
-      <div className="border-t border-white/10" />
+      <div className="slate-rule" />
 
-      <main className="mx-auto max-w-3xl px-8 py-16 lg:px-16 lg:py-20">
+      <main className="slate-main mx-auto max-w-3xl px-8 py-16 lg:px-16 lg:py-20">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="mb-12">
@@ -327,7 +327,7 @@ export default function RestaurantProfilePage() {
           </div>
 
           {/* Name */}
-          <h1 className="mb-2 text-4xl font-bold tracking-tight text-white sm:text-5xl">
+          <h1 className="slate-title mb-2 text-4xl sm:text-5xl">
             {displayName}
           </h1>
 
@@ -349,50 +349,42 @@ export default function RestaurantProfilePage() {
           )}
         </div>
 
-        <div className="border-t border-white/10" />
+        <div className="slate-rule" />
 
         {/* ── Current vibe details ─────────────────────────────────────────── */}
         {latestVibe && (
           <>
             <section className="py-12">
-              <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-                Right now
-              </p>
+              <p className="slate-eyebrow mb-6">Right now</p>
 
               <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
                 {latestVibe.bar_seats && (
-                  <div className="rounded-xl border border-white/10 px-4 py-5">
-                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: '#404040' }}>
-                      Bar seats
-                    </p>
+                  <div className="slate-stat">
+                    <p className="slate-stat-label !uppercase !tracking-[0.15em] !text-[10px]">Bar seats</p>
                     <p className="text-sm font-semibold text-white capitalize">{latestVibe.bar_seats}</p>
                   </div>
                 )}
                 {latestVibe.wait_time && (
-                  <div className="rounded-xl border border-white/10 px-4 py-5">
-                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: '#404040' }}>
-                      Wait time
-                    </p>
+                  <div className="slate-stat">
+                    <p className="slate-stat-label !uppercase !tracking-[0.15em] !text-[10px]">Wait time</p>
                     <p className="text-sm font-semibold text-white">{latestVibe.wait_time}</p>
                   </div>
                 )}
-                <div className="rounded-xl border border-white/10 px-4 py-5">
-                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: '#404040' }}>
-                    Reports today
-                  </p>
+                <div className="slate-stat">
+                  <p className="slate-stat-label !uppercase !tracking-[0.15em] !text-[10px]">Reports today</p>
                   <p className="text-sm font-semibold text-white">{todayCount}</p>
                 </div>
               </div>
 
               <button
                 onClick={() => loggedIn ? router.push('/live') : router.push('/login?message=' + encodeURIComponent('Sign in to report the vibe'))}
-                className="rounded-full border border-white/25 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:border-white"
+                className="slate-btn slate-btn-ghost"
               >
                 I&apos;m here — report the vibe →
               </button>
             </section>
 
-            <div className="border-t border-white/10" />
+            <div className="slate-rule" />
           </>
         )}
 
@@ -449,7 +441,7 @@ export default function RestaurantProfilePage() {
           )}
         </section>
 
-        <div className="border-t border-white/10" />
+        <div className="slate-rule" />
 
         {/* ── Recent ratings ───────────────────────────────────────────────── */}
         <section className="py-12">
@@ -492,7 +484,7 @@ export default function RestaurantProfilePage() {
           )}
         </section>
 
-        <div className="border-t border-white/10" />
+        <div className="slate-rule" />
 
         {/* ── Bottom CTA ──────────────────────────────────────────────────── */}
         <section className="py-12">

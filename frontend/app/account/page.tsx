@@ -149,11 +149,11 @@ export default function AccountPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: '#000000' }}>
+      <div className="slate-page">
         <Navbar />
-        <div className="border-t border-white/10" />
+        <div className="slate-rule" />
         <div className="flex min-h-[60vh] items-center justify-center">
-          <p className="text-sm" style={{ color: '#404040' }}>Loading your dashboard…</p>
+          <p className="slate-eyebrow">Loading…</p>
         </div>
       </div>
     )
@@ -164,11 +164,11 @@ export default function AccountPage() {
   const displayName = user.user_metadata?.full_name ?? user.email.split('@')[0]
 
   return (
-    <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+    <div className="slate-page">
       <Navbar />
-      <div className="border-t border-white/10" />
+      <div className="slate-rule" />
 
-      <main className="mx-auto max-w-3xl px-8 py-16 lg:px-16 lg:py-20">
+      <main className="slate-main mx-auto max-w-3xl px-8 py-16 lg:px-16 lg:py-20">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="mb-12">
@@ -176,40 +176,32 @@ export default function AccountPage() {
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-lg font-bold text-black">
               {displayName.slice(0, 2).toUpperCase()}
             </div>
-            <span className="rounded-full border border-white/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#606060' }}>
-              Guest Member
-            </span>
+            <span className="slate-pill">Guest</span>
           </div>
-          <h1 className="mb-1 text-3xl font-bold tracking-tight text-white">{displayName}</h1>
-          <p className="mb-1 text-sm" style={{ color: '#A0A0A0' }}>{user.email}</p>
-          <p className="mb-3 text-xs" style={{ color: '#606060' }}>
-            Member since {formatDate(user.created_at)}
+          <h1 className="slate-title mb-2 text-3xl">{displayName}</h1>
+          <p className="mb-1 text-sm slate-secondary">{user.email}</p>
+          <p className="mb-4 text-xs slate-muted">
+            Since {formatDate(user.created_at)}
           </p>
           {serveBalance > 0 && (
-            <div>
-              <p className="text-sm font-semibold text-white">{serveBalance} Slate Points earned</p>
-              <p className="text-xs" style={{ color: '#606060' }}>Converts 1:1 to $SERVE at token launch</p>
-            </div>
+            <p className="text-sm font-semibold text-white">
+              {serveBalance} <span className="font-normal slate-muted">Slate Points</span>
+            </p>
           )}
         </div>
 
-        <div className="border-t border-white/10" />
+        <div className="slate-rule" />
 
         {/* ── Section 1: Servers you follow ───────────────────────────────── */}
         <section className="py-12">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-            Servers you follow
-          </p>
+          <p className="slate-eyebrow mb-6">Following</p>
           {following.length === 0 ? (
             <div>
-              <p className="mb-5 text-sm leading-7" style={{ color: '#606060' }}>
-                You&apos;re not following anyone yet. Discover servers at what&apos;s live tonight.
+              <p className="mb-5 text-sm leading-7 slate-muted">
+                No one yet. Find talent on What&apos;s Live.
               </p>
-              <a
-                href="/live"
-                className="inline-block rounded-full border border-white/25 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:border-white"
-              >
-                See what&apos;s live →
+              <a href="/live" className="slate-btn slate-btn-ghost">
+                What&apos;s Live
               </a>
             </div>
           ) : (
@@ -239,23 +231,18 @@ export default function AccountPage() {
           )}
         </section>
 
-        <div className="border-t border-white/10" />
+        <div className="slate-rule" />
 
         {/* ── Section 2: Venues you've vibed ──────────────────────────────── */}
         <section className="py-12">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-            Venues you&apos;ve vibed
-          </p>
+          <p className="slate-eyebrow mb-6">Vibes</p>
           {vibeReports.length === 0 ? (
             <div>
-              <p className="mb-5 text-sm leading-7" style={{ color: '#606060' }}>
-                You haven&apos;t reported any vibes yet. Go out tonight and share what&apos;s happening.
+              <p className="mb-5 text-sm leading-7 slate-muted">
+                No vibes reported yet.
               </p>
-              <a
-                href="/live"
-                className="inline-block rounded-full border border-white/25 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:border-white"
-              >
-                See what&apos;s live →
+              <a href="/live" className="slate-btn slate-btn-ghost">
+                Report a vibe
               </a>
             </div>
           ) : (
@@ -275,16 +262,14 @@ export default function AccountPage() {
           )}
         </section>
 
-        <div className="border-t border-white/10" />
+        <div className="slate-rule" />
 
         {/* ── Section 3: Ratings you've left ──────────────────────────────── */}
         <section className="py-12">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-            Ratings you&apos;ve left
-          </p>
+          <p className="slate-eyebrow mb-6">Ratings</p>
           {ratingsLeft.length === 0 ? (
-            <p className="text-sm leading-7" style={{ color: '#606060' }}>
-              You haven&apos;t rated anyone yet. Scan a server&apos;s QR code after great service.
+            <p className="text-sm leading-7 slate-muted">
+              No ratings yet. Scan a QR after great service.
             </p>
           ) : (
             <div className="flex flex-col divide-y divide-white/10">
@@ -317,46 +302,40 @@ export default function AccountPage() {
           )}
         </section>
 
-        <div className="border-t border-white/10" />
+        <div className="slate-rule" />
 
         {/* ── Section 4: Slate Points activity ─────────────────────────────── */}
         <section className="py-12">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-            Slate Points
-          </p>
-          <p className="mb-6 text-xs" style={{ color: '#606060' }}>Converts 1:1 to $SERVE at token launch</p>
+          <p className="slate-eyebrow mb-6">Slate Points</p>
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-4">
+            <div className="slate-card flex items-center justify-between px-4 py-4">
               <div>
-                <p className="text-sm font-medium text-white">Ratings left</p>
-                <p className="text-xs" style={{ color: '#606060' }}>10 points per verified rating</p>
+                <p className="text-sm font-medium text-white">Ratings</p>
+                <p className="text-xs slate-muted">10 pts each</p>
               </div>
-              <p className="text-sm font-bold text-white">+{ratingsLeft.length * 10} pts</p>
+              <p className="text-sm font-bold text-white">+{ratingsLeft.length * 10}</p>
             </div>
-            <div className="flex items-center justify-between rounded-xl border border-white/10 px-4 py-4">
+            <div className="slate-card flex items-center justify-between px-4 py-4">
               <div>
-                <p className="text-sm font-medium text-white">Vibe reports</p>
-                <p className="text-xs" style={{ color: '#606060' }}>1–5 points per report</p>
+                <p className="text-sm font-medium text-white">Vibes</p>
+                <p className="text-xs slate-muted">1–5 pts each</p>
               </div>
-              <p className="text-sm font-bold text-white">+{vibeReports.length > 0 ? `~${vibeReports.length * 3}` : 0} pts</p>
+              <p className="text-sm font-bold text-white">+{vibeReports.length > 0 ? `~${vibeReports.length * 3}` : 0}</p>
             </div>
-            <div className="flex items-center justify-between rounded-xl border border-white/25 px-4 py-4">
-              <p className="text-sm font-semibold text-white">Total earned</p>
-              <p className="text-base font-bold text-white">{serveBalance} pts</p>
+            <div className="slate-card flex items-center justify-between px-4 py-4" style={{ borderColor: 'var(--slate-border-strong)' }}>
+              <p className="text-sm font-semibold text-white">Total</p>
+              <p className="text-base font-bold text-white">{serveBalance}</p>
             </div>
           </div>
-          <p className="mt-5 text-xs leading-6" style={{ color: '#404040' }}>
-            Every point is locked in and waiting. $SERVE launches after Slate hits its traction milestones.
-          </p>
         </section>
 
-        <div className="border-t border-white/10 py-8">
+        <div className="slate-rule" />
+        <div className="py-8">
           <button
             onClick={async () => { await supabase.auth.signOut(); router.push('/') }}
-            className="text-xs font-medium transition-colors hover:text-white"
-            style={{ color: '#404040' }}
+            className="text-xs font-medium slate-muted transition-colors hover:text-white"
           >
-            Sign out →
+            Sign out
           </button>
         </div>
 

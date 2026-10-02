@@ -256,10 +256,10 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
     if (!session) {
       return (
         <div className="hidden items-center gap-3 md:flex">
-          <a href="/login" className="text-xs font-medium text-white/50 transition-colors hover:text-white">
+          <a href="/login" className="slate-nav-link text-xs font-medium text-white/50 hover:text-white">
             Sign in
           </a>
-          <a href="/get-started" className="rounded-full bg-white px-5 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-80">
+          <a href="/get-started" className="slate-btn slate-btn-primary !px-5 !py-1.5 !text-xs">
             Get Started
           </a>
         </div>
@@ -268,19 +268,19 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
     return (
       <div className="hidden items-center gap-4 md:flex">
         {isManager && (
-          <a href="/restaurant/dashboard" className="text-xs font-medium text-white/50 transition-colors hover:text-white">
+          <a href="/restaurant/dashboard" className="slate-nav-link text-xs font-medium text-white/50 hover:text-white">
             Dashboard
           </a>
         )}
         {isServer && (
           <>
-            <a href={`/server/${serverId}`} className="text-xs font-medium text-white/50 transition-colors hover:text-white">
+            <a href={`/server/${serverId}`} className="slate-nav-link text-xs font-medium text-white/50 hover:text-white">
               My Profile
             </a>
-            <a href="/dashboard" className="text-xs font-medium text-white/50 transition-colors hover:text-white">
+            <a href="/dashboard" className="slate-nav-link text-xs font-medium text-white/50 hover:text-white">
               Dashboard
             </a>
-            <a href="/dashboard/followers" className="relative text-xs font-medium text-white/50 transition-colors hover:text-white">
+            <a href="/dashboard/followers" className="slate-nav-link relative text-xs font-medium text-white/50 hover:text-white">
               Followers
               {pendingFollowerCount > 0 && (
                 <span style={{
@@ -297,7 +297,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           </>
         )}
         {isGuest && (
-          <a href="/account" className="text-xs font-medium text-white/50 transition-colors hover:text-white">
+          <a href="/account" className="slate-nav-link text-xs font-medium text-white/50 hover:text-white">
             My Account
           </a>
         )}
@@ -328,10 +328,13 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
           {showNotifications && (
             <div style={{
               position: 'absolute', top: 'calc(100% + 12px)', right: 0,
-              background: '#0a0a0a', border: '1px solid #1e1e1e',
+              background: 'rgba(10,10,10,0.92)', border: '1px solid rgba(255,255,255,0.1)',
               width: 320, maxHeight: 400, overflowY: 'auto',
-              zIndex: 1000, borderRadius: 8,
-              boxShadow: '0 16px 48px rgba(0,0,0,0.8)',
+              zIndex: 1000, borderRadius: 12,
+              boxShadow: '0 24px 64px rgba(0,0,0,0.65)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              animation: 'slate-fade-up 200ms cubic-bezier(0.22, 1, 0.36, 1)',
             }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid #1a1a1a', fontSize: 11, letterSpacing: '2px', color: '#444', textTransform: 'uppercase' }}>
                 Notifications
@@ -346,7 +349,9 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
                     key={n.id}
                     href={n.link ?? '#'}
                     onClick={() => markRead(n.id)}
-                    style={{ display: 'block', padding: '14px 16px', borderBottom: '1px solid #111', textDecoration: 'none', color: 'white' }}
+                    style={{ display: 'block', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', textDecoration: 'none', color: 'white', transition: 'background 160ms ease' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.04)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent' }}
                   >
                     <div style={{ fontSize: 13, marginBottom: 4, lineHeight: 1.4 }}>{n.title}</div>
                     <div style={{ fontSize: 11, color: '#555' }}>
@@ -361,7 +366,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
 
         <button
           onClick={handleSignOut}
-          className="rounded-full border border-white/20 px-5 py-1.5 text-xs font-semibold text-white transition-colors hover:border-white"
+          className="slate-btn slate-btn-ghost !px-5 !py-1.5 !text-xs"
         >
           Sign out
         </button>
@@ -373,18 +378,18 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
     <>
       <header
         className={[
-          'flex h-16 items-center justify-between px-8 lg:px-16',
-          overlay ? 'absolute left-0 right-0 top-0 z-20' : '',
+          'slate-nav flex h-16 items-center justify-between px-8 lg:px-16 z-30',
+          overlay ? 'slate-nav-overlay absolute left-0 right-0 top-0' : 'sticky top-0',
         ].filter(Boolean).join(' ')}
       >
-        <a href="/" className="flex items-center gap-2.5">
+        <a href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
           {LOGO}
           <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white">Slate</span>
         </a>
 
         <nav className="hidden items-center gap-8 md:flex">
           {visibleNavLinks.map(({ href, label, pulse }) => (
-            <a key={href} href={href} className="flex items-center gap-2 text-xs font-medium text-white/50 transition-colors hover:text-white">
+            <a key={href} href={href} className="slate-nav-link flex items-center gap-2 text-xs font-medium text-white/50 hover:text-white">
               {pulse && (
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40" />
@@ -410,7 +415,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
       </header>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-black md:hidden">
+        <div className="fixed inset-0 z-50 flex flex-col bg-black/95 backdrop-blur-md md:hidden" style={{ animation: 'slate-fade-in 180ms ease' }}>
           <div className="flex h-16 shrink-0 items-center justify-between px-8">
             <a href="/" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5">
               {LOGO}

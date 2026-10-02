@@ -248,7 +248,7 @@ function RateForm() {
 
   if (!serverId) {
     return (
-      <div className="flex min-h-screen flex-col" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+      <div className="slate-page flex flex-col">
         <Navbar />
         <main className="flex flex-1 flex-col items-center justify-center px-8 text-center">
           <p className="text-sm" style={{ color: '#A0A0A0' }}>
@@ -263,7 +263,7 @@ function RateForm() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen flex-col" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+      <div className="slate-page flex flex-col">
         <Navbar />
         <main className="flex flex-1 flex-col items-center justify-center px-8 py-16 text-center">
           <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-full border border-white/20">
@@ -368,8 +368,8 @@ function RateForm() {
             )}
           </div>
 
-          <a href="/" className="mt-8 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80">
-            Back to home
+          <a href="/" className="slate-btn slate-btn-primary mt-8">
+            Back home
           </a>
         </main>
       </div>
@@ -379,27 +379,23 @@ function RateForm() {
   // ── Rating form ───────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen text-white" style={{ backgroundColor: '#000000', fontFamily: 'var(--font-geist-sans)' }}>
+    <div className="slate-page">
       <Navbar />
-      <div className="border-t border-white/10" />
+      <div className="slate-rule" />
 
-      <main className="mx-auto max-w-lg px-8 pb-32 pt-16 lg:px-0">
+      <main className="slate-main mx-auto max-w-lg px-8 pb-32 pt-16 lg:px-0">
 
         {/* ── Header ──────────────────────────────────────────────────── */}
-        <section className="mb-14">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#A0A0A0' }}>
-            Rate your experience
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            How was your experience with {serverFirstName}?
+        <section className="mb-12">
+          <p className="slate-eyebrow mb-4">Rate</p>
+          <h1 className="slate-title text-3xl sm:text-4xl">
+            How was {serverFirstName}?
           </h1>
         </section>
 
         {/* ── Star rating ─────────────────────────────────────────────── */}
-        <section className="mb-14">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: '#A0A0A0' }}>
-            Overall rating
-          </p>
+        <section className="mb-12">
+          <p className="slate-eyebrow mb-6">Overall</p>
           <StarSelector value={rating} onChange={setRating} />
           <div className="mt-4 h-5">
             {rating > 0 && (
@@ -408,12 +404,12 @@ function RateForm() {
           </div>
         </section>
 
-        <div className="border-t border-white/10 mb-14" />
+        <div className="slate-rule mb-12" />
 
         {/* ── Quick tags ──────────────────────────────────────────────── */}
-        <section className="mb-14">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: '#A0A0A0' }}>
-            What stood out? <span className="normal-case tracking-normal font-normal">(optional)</span>
+        <section className="mb-12">
+          <p className="slate-eyebrow mb-6">
+            Highlights <span className="normal-case tracking-normal font-normal opacity-60">(optional)</span>
           </p>
           <div className="flex flex-wrap gap-2">
             {tags.map((tag) => {
@@ -422,7 +418,7 @@ function RateForm() {
                 <button
                   key={tag}
                   onClick={() => toggleTag(tag)}
-                  className="rounded-full border px-4 py-2 text-xs font-medium transition-colors"
+                  className="rounded-full border px-4 py-2 text-xs font-medium"
                   style={{
                     borderColor: active ? '#FFFFFF' : 'rgba(255,255,255,0.2)',
                     backgroundColor: active ? '#FFFFFF' : 'transparent',
@@ -436,24 +432,24 @@ function RateForm() {
           </div>
         </section>
 
-        <div className="border-t border-white/10 mb-14" />
+        <div className="slate-rule mb-12" />
 
         {/* ── Written comment ─────────────────────────────────────────── */}
-        <section className="mb-14">
+        <section className="mb-12">
           <label
             htmlFor="comment"
-            className="mb-6 block text-xs font-semibold uppercase tracking-[0.15em]"
-            style={{ color: '#A0A0A0' }}
+            className="slate-eyebrow mb-6 block"
           >
-            Written review <span className="normal-case tracking-normal font-normal">(optional)</span>
+            Review <span className="normal-case tracking-normal font-normal opacity-60">(optional)</span>
           </label>
           <textarea
             id="comment"
-            rows={5}
+            rows={4}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder={`Tell ${serverFirstName === 'your server' ? 'future guests' : serverFirstName + ' and future guests'} about your experience...`}
-            className="w-full resize-none border-b border-white/20 bg-transparent pb-4 pt-1 text-sm text-white placeholder-white/20 focus:border-white focus:outline-none"
+            placeholder="What made it great?"
+            className="w-full resize-none border-b border-white/15 bg-transparent pb-4 pt-1 text-sm text-white placeholder-white/25 transition-colors focus:border-white focus:outline-none"
+            maxLength={280}
           />
           <div className="mt-2 flex justify-end">
             <span className="text-xs tabular-nums" style={{ color: comment.length > 0 ? '#A0A0A0' : 'transparent' }}>
@@ -462,55 +458,39 @@ function RateForm() {
           </div>
         </section>
 
-        <div className="border-t border-white/10 mb-14" />
+        <div className="slate-rule mb-12" />
 
         {/* ── Follow ──────────────────────────────────────────────────── */}
-        <section className="mb-14">
-          <p className="mb-6 text-xs font-semibold uppercase tracking-[0.15em]" style={{ color: '#A0A0A0' }}>
-            Want to follow {serverFirstName}?
-          </p>
-          {!isFollowing && (
+        <section className="mb-12">
+          <p className="slate-eyebrow mb-5">Follow</p>
+          {!isFollowing ? (
             <button
               onClick={handleFollow}
-              style={{
-                width: '100%',
-                background: 'transparent',
-                color: 'white',
-                border: '1px solid #333',
-                padding: '16px',
-                fontSize: '14px',
-                letterSpacing: '2px',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                marginTop: '12px',
-              }}
+              className="slate-btn slate-btn-ghost w-full"
             >
-              Follow {serverData?.name?.split(' ')[0] ?? ''}
+              Follow {serverData?.name?.split(' ')[0] ?? serverFirstName}
             </button>
-          )}
-          {isFollowing && (
-            <p style={{ color: '#444', textAlign: 'center', fontSize: '13px', marginTop: '12px' }}>
-              Following ✓
-            </p>
+          ) : (
+            <p className="text-center text-sm slate-muted">Following</p>
           )}
         </section>
 
-        <div className="border-t border-white/10 mb-14" />
+        <div className="slate-rule mb-12" />
 
         {/* ── $SERVE notice ───────────────────────────────────────────── */}
-        <section className="mb-14">
-          <div className="flex items-start gap-4">
-            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/20">
+        <section className="mb-12">
+          <div className="slate-card flex items-start gap-4 px-4 py-4">
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15">
               <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={1.5} className="h-4 w-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
               </svg>
             </div>
             <div>
               <p className="text-sm font-semibold text-white">
-                Your rating earns {serverFirstName} Slate Points
+                Earns {serverFirstName} Slate Points
               </p>
-              <p className="mt-1 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
-                Every rating you leave builds {serverFirstName}&apos;s permanent on-chain reputation.
+              <p className="mt-1 text-xs leading-relaxed slate-secondary">
+                Builds their on-chain reputation.
               </p>
             </div>
           </div>
@@ -528,7 +508,7 @@ function RateForm() {
           <button
             onClick={handleSubmitRating}
             disabled={rating === 0 || loading}
-            className="w-full rounded-full bg-white py-4 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-25"
+            className="slate-btn slate-btn-primary slate-btn-lg w-full disabled:opacity-25"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
@@ -538,11 +518,11 @@ function RateForm() {
                 </svg>
                 Submitting…
               </span>
-            ) : 'Submit Rating'}
+            ) : 'Submit'}
           </button>
           {rating === 0 && !loading && (
-            <p className="text-center text-xs" style={{ color: '#A0A0A0' }}>
-              Select a star rating to continue
+            <p className="text-center text-xs slate-muted">
+              Pick a rating to continue
             </p>
           )}
         </div>

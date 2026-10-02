@@ -253,7 +253,7 @@ export default function ServerProfilePage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ minHeight: '100vh', background: '#000000', color: 'white', fontFamily: 'var(--font-geist-sans, system-ui, sans-serif)' }}>
+    <div className="slate-page" style={{ fontFamily: 'var(--font-geist-sans, system-ui, sans-serif)' }}>
       {/* Editorial fonts */}
       <link
         rel="stylesheet"
@@ -268,15 +268,14 @@ export default function ServerProfilePage() {
           0%   { opacity: 0.6; transform: scale(0.9); }
           100% { opacity: 0;   transform: scale(2.4); }
         }
-        .slate-share-link { color: #444; transition: color 0.15s, border-color 0.15s; border-bottom: 1px solid transparent; }
-        .slate-share-link:hover { color: #FFFFFF; border-bottom-color: #FFFFFF; }
+        .slate-share-link { color: #555; transition: color 0.2s cubic-bezier(0.22,1,0.36,1), border-color 0.2s cubic-bezier(0.22,1,0.36,1); border-bottom: 1px solid transparent; }
+        .slate-share-link:hover { color: #FFFFFF; border-bottom-color: rgba(255,255,255,0.7); }
       `}} />
 
       <Navbar />
-      {/* Thin white top border on the page */}
-      <div style={{ height: '1px', background: 'rgba(255,255,255,0.7)' }} />
+      <div className="slate-rule" />
 
-      <main style={{ maxWidth: '680px', margin: '0 auto', padding: '72px 32px 120px' }}>
+      <main className="slate-main" style={{ maxWidth: '680px', margin: '0 auto', padding: '64px 32px 120px' }}>
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <section ref={profileCardRef} style={{ marginBottom: '48px' }}>
@@ -293,7 +292,7 @@ export default function ServerProfilePage() {
                   height: '100px',
                   borderRadius: '50%',
                   objectFit: 'cover',
-                  border: '1px solid #222',
+                  border: '1px solid rgba(255,255,255,0.12)',
                 }}
               />
             ) : (
@@ -302,7 +301,7 @@ export default function ServerProfilePage() {
                 height: '100px',
                 borderRadius: '50%',
                 background: '#0a0a0a',
-                border: '1px solid #222',
+                border: '1px solid rgba(255,255,255,0.12)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -364,11 +363,9 @@ export default function ServerProfilePage() {
 
         {/* ── Current shift (only when on shift) ─────────────────────────── */}
         {currentShift && (
-          <section style={{
+          <section className="slate-card" style={{
             marginBottom: '48px',
             padding: '20px 24px',
-            border: '1px solid #0f0f0f',
-            background: '#050505',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
