@@ -1,5 +1,10 @@
+import type { Metadata } from 'next'
 import Navbar from '@/app/components/Navbar'
 import PrintButton from '@/app/components/PrintButton'
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+}
 
 export default function WhitepaperPage() {
   return (

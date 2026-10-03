@@ -265,7 +265,6 @@ export default function Home() {
                 { label: 'Live',            href: '/live' },
                 { label: 'For Servers',     href: '/for-servers' },
                 { label: 'For Restaurants', href: '/for-restaurants' },
-                { label: 'Whitepaper',      href: '/whitepaper' },
                 { label: 'How it Works',    href: '/how-it-works' },
               ].map(link => (
                 <a

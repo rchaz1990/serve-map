@@ -27,7 +27,6 @@ const NAV_LINKS = [
   { href: '/live',              label: "What's Live",     pulse: true,  marketing: false },
   { href: '/for-servers',       label: 'For Servers',     pulse: false, marketing: true  },
   { href: '/for-restaurants',   label: 'For Restaurants', pulse: false, marketing: true  },
-  { href: '/whitepaper',        label: 'Whitepaper',      pulse: false, marketing: false },
 ]
 
 type ServerRow = { id: string; name: string | null }
