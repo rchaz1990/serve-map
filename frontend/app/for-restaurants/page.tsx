@@ -43,7 +43,7 @@ export default function ForRestaurantsPage() {
             >
               Get Started Free →
             </a>
-            <p className="mt-4 text-xs" style={{ color: '#404040' }}>Free to get started. No contract.</p>
+            <p className="mt-4 text-xs" style={{ color: '#404040' }}>Free for 60 days, then $29 a month.</p>
           </div>
         </section>
 
@@ -90,68 +90,34 @@ export default function ForRestaurantsPage() {
             <p className="mb-10 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
               Pricing
             </p>
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-              {[
-                {
-                  tier: 'Free',
-                  price: '$0',
-                  cadence: 'forever',
-                  highlight: false,
-                  features: [
-                    'Ghost listing',
-                    'Vibe reports',
-                    'Basic venue page',
-                  ],
-                },
-                {
-                  tier: 'Verified Partner',
-                  price: '$99',
-                  cadence: 'per month',
-                  highlight: true,
-                  features: [
-                    'Staff analytics',
-                    'Talent discovery',
-                    'Priority placement',
-                    'Guest intelligence reports',
-                  ],
-                },
-                {
-                  tier: 'Premium',
-                  price: '$299',
-                  cadence: 'per month',
-                  highlight: false,
-                  features: [
-                    'Everything in Verified Partner',
-                    'Scheduling tools',
-                    'Reservation features',
-                  ],
-                },
-              ].map(plan => (
-                <div
-                  key={plan.tier}
-                  className="flex flex-col rounded-2xl px-7 py-8"
-                  style={{
-                    border: plan.highlight ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
-                    backgroundColor: plan.highlight ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)',
-                  }}
-                >
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-white">{plan.tier}</p>
-                  <div className="mb-6 flex items-baseline gap-2">
-                    <span className="text-4xl font-bold tracking-tight text-white">{plan.price}</span>
-                    <span className="text-xs" style={{ color: '#606060' }}>{plan.cadence}</span>
-                  </div>
-                  <ul className="flex flex-1 flex-col gap-3">
-                    {plan.features.map(f => (
-                      <li key={f} className="flex items-start gap-2.5 text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-white">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                        </svg>
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+            <div
+              className="max-w-md rounded-2xl px-7 py-8"
+              style={{
+                border: '1px solid rgba(255,255,255,0.4)',
+                backgroundColor: 'rgba(255,255,255,0.04)',
+              }}
+            >
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-white">Slate</p>
+              <div className="mb-3 flex items-baseline gap-2">
+                <span className="text-4xl font-bold tracking-tight text-white">$29</span>
+                <span className="text-xs" style={{ color: '#606060' }}>a month</span>
+              </div>
+              <p className="mb-6 text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
+                Free for 60 days, then $29 a month.
+              </p>
+              <ul className="flex flex-col gap-3">
+                {[
+                  'Guests scan a QR and rate the server',
+                  'Live staff leaderboard',
+                ].map(f => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-white">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                    {f}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </section>
@@ -162,9 +128,9 @@ export default function ForRestaurantsPage() {
         <section className="px-6 py-24 text-center lg:px-24 lg:py-36">
           <div className="mx-auto max-w-xl">
             <h2 className="mb-5 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Free to get started.
+              Free for 60 days.
               <br />
-              No contract.
+              Then $29 a month.
             </h2>
             <p className="mx-auto mb-10 text-base leading-relaxed" style={{ color: '#606060' }}>
               Claim your restaurant in two minutes. See who&apos;s driving your repeat business tonight.

@@ -5,12 +5,6 @@ import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
 
-const PLANS = [
-  { value: 'free',     label: 'Free listing',              note: 'Claim your page, see guest reports' },
-  { value: 'verified', label: 'Verified Partner',          note: '$99/mo — staff analytics + priority placement' },
-  { value: 'premium',  label: 'Premium Partner',           note: '$299/mo — everything + recruiting tools' },
-]
-
 const ROLES = ['Owner', 'Manager', 'GM']
 
 export default function WaitlistPage() {
@@ -19,7 +13,6 @@ export default function WaitlistPage() {
   const [role, setRole] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [plan, setPlan] = useState('free')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,7 +83,7 @@ export default function WaitlistPage() {
         email,
         firstName: yourName.split(' ')[0],
         lastName: yourName.split(' ').slice(1).join(' '),
-        role: `Restaurant ${role} · ${plan}`,
+        role: `Restaurant ${role}`,
         venue: restaurantName,
         notifyMainnet: true,
       }),
@@ -151,7 +144,7 @@ export default function WaitlistPage() {
               Claim your venue on Slate
             </h1>
             <p className="text-sm leading-6" style={{ color: '#A0A0A0' }}>
-              Your venue may already be on Slate&apos;s live map. Claim it for free and see what guests are saying tonight.
+              Your venue may already be on Slate&apos;s live map. Free for 60 days, then $29 a month.
             </p>
           </div>
 
@@ -250,35 +243,6 @@ export default function WaitlistPage() {
               />
             </div>
 
-            {/* Plan */}
-            <div>
-              <label className="mb-2 block text-xs font-medium" style={{ color: '#A0A0A0' }}>Which plan interests you?</label>
-              <div className="flex flex-col gap-2">
-                {PLANS.map(p => (
-                  <label
-                    key={p.value}
-                    className={[
-                      'flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-colors',
-                      plan === p.value ? 'border-white bg-white/[0.04]' : 'border-white/15 hover:border-white/30',
-                    ].join(' ')}
-                  >
-                    <input
-                      type="radio"
-                      name="plan"
-                      value={p.value}
-                      checked={plan === p.value}
-                      onChange={() => setPlan(p.value)}
-                      className="mt-0.5 accent-white"
-                    />
-                    <div>
-                      <p className="text-sm font-semibold text-white">{p.label}</p>
-                      <p className="text-xs leading-5" style={{ color: '#606060' }}>{p.note}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-
             {error && (
               <p className="text-xs text-red-400">{error}</p>
             )}
@@ -292,7 +256,7 @@ export default function WaitlistPage() {
             </button>
 
             <p className="text-center text-xs" style={{ color: '#404040' }}>
-              Free listing is free forever. No credit card required.
+              Free for 60 days, then $29 a month.
             </p>
 
           </form>

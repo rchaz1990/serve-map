@@ -1,5 +1,10 @@
+import type { Metadata } from 'next'
 import Navbar from '@/app/components/Navbar'
 import PrintButton from '@/app/components/PrintButton'
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+}
 
 export default function WhitepaperPage() {
   return (
@@ -523,7 +528,7 @@ export default function WhitepaperPage() {
               {
                 stream: 'Stream 1',
                 title: 'Restaurant Subscriptions',
-                body: '$99/month for Verified Partner tier and $299/month for Premium — includes advanced analytics, scheduling tools, and Scheduling & Reservations. Predictable recurring revenue from restaurants that benefit from better staff retention and performance data.',
+                body: 'Restaurants are free for 60 days, then $29 a month. Predictable recurring revenue from restaurants that benefit from better staff retention and performance data.',
               },
               {
                 stream: 'Stream 2',
