@@ -195,6 +195,16 @@ body {
   transform: translateY(0);
 }
 
+.slate-hover-lift {
+  transition:
+    transform var(--slate-duration) var(--slate-ease),
+    box-shadow var(--slate-duration) var(--slate-ease);
+}
+.slate-hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--slate-shadow-md);
+}
+
 .slate-stat {
   display: flex;
   flex-direction: column;
@@ -408,6 +418,58 @@ main button.rounded-full.border {
     transform var(--slate-duration) var(--slate-ease);
 }
 
+/* ── Scroll fade for sections that are not already MotionSection ─────────── */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    main > section:not([data-slate-motion]) {
+      animation: slate-fade-up 0.7s var(--slate-ease) both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 20%;
+    }
+  }
+}
+
+/* Soft glow for outline pills that are not .slate-btn */
+@media (prefers-reduced-motion: no-preference) {
+  main a.rounded-full.border:hover,
+  main button.rounded-full.border:hover:not(:disabled) {
+    box-shadow: 0 0 16px rgba(255, 255, 255, 0.12);
+  }
+}
+
+/* ── Shift pulse (manager floor count) ─────────────────────────────────────── */
+@keyframes slate-shift-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.55); }
+}
+
+.slate-shift-pulse {
+  position: relative;
+  display: inline-flex;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.15rem;
+  vertical-align: middle;
+}
+
+.slate-shift-pulse::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  animation: slate-shift-pulse 2.6s ease-in-out infinite;
+}
+
+.slate-shift-pulse::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+}
+
 /* ── Live pulse (shared) ───────────────────────────────────────────────────── */
 @keyframes slate-live-dot {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -459,7 +521,9 @@ main button.rounded-full.border {
   .anim-live,
   .anim-packed,
   .anim-hot-badge,
-  .slate-gradient-bg {
+  .slate-gradient-bg,
+  .slate-shift-pulse::before,
+  main > section:not([data-slate-motion]) {
     animation: none !important;
   }
   main .rounded-2xl.border,
@@ -470,6 +534,7 @@ main button.rounded-full.border {
   }
   .slate-card:hover,
   .slate-card-interactive:hover,
+  .slate-hover-lift:hover,
   main .rounded-2xl.border:hover,
   main .rounded-xl.border:hover {
     transform: none !important;

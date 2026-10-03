@@ -1,4 +1,5 @@
 import Navbar from '@/app/components/Navbar'
+import { MotionSection } from '@/app/components/motion'
 
 export default function GetStartedPage() {
   return (
@@ -12,7 +13,7 @@ export default function GetStartedPage() {
       <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-6 py-20">
 
         {/* Header */}
-        <div className="mb-16 text-center">
+        <MotionSection as="div" immediate className="mb-16 text-center">
           <p
             className="mb-8 text-[10px] font-semibold uppercase tracking-[0.4em]"
             style={{ color: 'rgba(255,255,255,0.2)' }}
@@ -25,14 +26,14 @@ export default function GetStartedPage() {
           <p className="text-base" style={{ color: '#606060' }}>
             We&apos;ll get you set up in the right place.
           </p>
-        </div>
+        </MotionSection>
 
         {/* Cards */}
-        <div className="grid w-full max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
+        <MotionSection as="div" className="grid w-full max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
 
           {/* Card 1 — Guests */}
           <div
-            className="flex flex-col px-8 py-10"
+            className="slate-hover-lift flex flex-col px-8 py-10"
             style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: '#000' }}
           >
             <p
@@ -66,7 +67,7 @@ export default function GetStartedPage() {
 
           {/* Card 2 — Servers (prominent) */}
           <div
-            className="flex flex-col px-8 py-10"
+            className="slate-hover-lift flex flex-col px-8 py-10"
             style={{ border: '1px solid rgba(255,255,255,0.7)', backgroundColor: '#000' }}
           >
             <p
@@ -92,7 +93,7 @@ export default function GetStartedPage() {
 
           {/* Card 3 — Restaurants */}
           <div
-            className="flex flex-col px-8 py-10"
+            className="slate-hover-lift flex flex-col px-8 py-10"
             style={{ border: '1px solid rgba(255,255,255,0.15)', backgroundColor: '#000' }}
           >
             <p
@@ -116,7 +117,7 @@ export default function GetStartedPage() {
             </a>
           </div>
 
-        </div>
+        </MotionSection>
 
         {/* Footer note */}
         <p className="mt-14 text-xs" style={{ color: '#404040' }}>
