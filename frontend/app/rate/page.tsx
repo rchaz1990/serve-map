@@ -58,23 +58,6 @@ type ServerRow = {
   follower_count: number | null
 }
 
-// Merit-based $SERVE reward: stars + comment + follow
-function calculateServeReward(stars: number, hasComment: boolean, guestFollowed: boolean) {
-  const starReward =
-    stars === 5 ? 35 :
-    stars === 4 ? 20 :
-    stars === 3 ? 10 :
-    stars === 2 ? 5 : 2
-  const commentBonus = hasComment ? 10 : 0
-  const followBonus = guestFollowed ? 5 : 0
-  return {
-    starReward,
-    commentBonus,
-    followBonus,
-    total: starReward + commentBonus + followBonus,
-  }
-}
-
 function RateForm() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -176,67 +159,52 @@ function RateForm() {
       setError('Server not found. Please scan the QR code again.')
       return
     }
+    if (rating < 1) {
+      setError('Pick a rating to continue.')
+      return
+    }
 
     try {
       setLoading(true)
       setError('')
 
       const { data: { session } } = await supabase.auth.getSession()
-
-      // Compute merit-based reward (use the truthy snapshot of follow state at submit time)
-      const reward = calculateServeReward(rating, comment.trim().length > 0, isFollowing)
-
-      const { error: ratingError } = await supabase
-        .from('ratings')
-        .insert({
-          server_id: serverId,
-          score: rating,
-          comment: comment || null,
-          tags: selectedTags.length > 0 ? selectedTags : null,
-          guest_email: session?.user?.email || 'anonymous',
-          gps_verified: false,
-          verification_method: 'qr_scan',
-          serve_reward: reward.total,
-        })
-
-      if (ratingError) {
-        console.error('Rating insert error:', ratingError)
-        setError(`Failed to submit rating: ${ratingError.message}`)
+      if (!session?.access_token) {
+        router.push(`/login?redirect=/rate?server=${serverId}`)
         return
       }
 
-      // Update server stats — best-effort, non-blocking
-      const { data: fresh, error: fetchErr } = await supabase
-        .from('servers')
-        .select('average_rating, total_ratings, serve_balance, serve_balance_lifetime')
-        .eq('id', serverId)
-        .maybeSingle()
+      // Reward is recomputed on the server. This request does not send an amount.
+      const res = await fetch('/api/submit-rating', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          serverId,
+          score: rating,
+          comment: comment.trim() ? comment.trim() : null,
+          tags: selectedTags,
+        }),
+      })
 
-      if (fetchErr) console.error('Server fetch error (non-fatal):', fetchErr)
+      const body = await res.json().catch(() => null) as {
+        error?: string
+        reward?: { starReward: number; commentBonus: number; followBonus: number; total: number }
+      } | null
 
-      if (fresh) {
-        const newTotal = (fresh.total_ratings || 0) + 1
-        const newAverage = (((fresh.average_rating || 0) * (fresh.total_ratings || 0)) + rating) / newTotal
-        const currentAvailable = fresh.serve_balance || 0
-        const currentLifetime = fresh.serve_balance_lifetime || 0
-
-        const { error: updateErr } = await supabase
-          .from('servers')
-          .update({
-            average_rating: parseFloat(newAverage.toFixed(1)),
-            total_ratings: newTotal,
-            serve_balance: currentAvailable + reward.total,
-            serve_balance_lifetime: currentLifetime + reward.total,
-          })
-          .eq('id', serverId)
-
-        if (updateErr) console.error('Server stats update error (non-fatal):', updateErr)
+      if (res.status === 401) {
+        router.push(`/login?redirect=/rate?server=${serverId}`)
+        return
+      }
+      if (!res.ok || !body?.reward) {
+        setError(body?.error || 'Failed to submit rating. Please try again.')
+        return
       }
 
-      // Stash the breakdown for the success view
-      setLastReward(reward)
+      setLastReward(body.reward)
       setSuccess(true)
-
     } catch (err) {
       console.error('Rating submission error:', err)
       setError('Failed to submit rating. Please try again.')

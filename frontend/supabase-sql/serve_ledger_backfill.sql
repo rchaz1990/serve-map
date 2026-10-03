@@ -1,0 +1,138 @@
+-- =============================================================================
+-- DO NOT RUN.
+-- Proposed backfill only. Every statement in this file is commented out.
+-- Do not execute it against the live Supabase project.
+-- Do not UPDATE servers.serve_balance or servers.serve_balance_lifetime.
+-- Do not UPDATE guest_rewards. Balances stay wrong until a reviewed backfill
+-- is explicitly run later, and even then this script does not repair them.
+-- =============================================================================
+--
+-- What a later, reviewed run would do:
+--   1. Insert one serve_ledger row per ratings row with serve_reward > 0.
+--      source = 'rating', source_id = ratings.id::text (same key the live
+--      RPC uses, so ON CONFLICT cannot double-credit).
+--   2. Insert one serve_ledger row per vibe_reports row with serve_reward > 0.
+--      source = 'vibe', source_id = vibe_reports.id::text.
+--      If reported_by matches exactly one servers.email (case-insensitive),
+--      account_type = 'server' and account_id = that servers.id.
+--      Otherwise account_type = 'guest', account_id NULL, email = reported_by.
+--      guest_rewards is matched by email in the app and is not assumed to have
+--      a uuid id. Ambiguous server emails are NOT credited to every row.
+--   3. SELECT-only checks comparing ledger sums to ratings.serve_reward and
+--      vibe_reports.serve_reward. Those checks do not write.
+--
+-- What it will NOT do:
+--   * It will not change live balances (1498 on both server columns stays).
+--   * It will not turn the 14 zero-reward 5-star ratings into 35.
+--   * It will not move guest_rewards.slate_points onto serve_balance.
+--   * It will not invent a Solana wallet. wallet_address is a Supabase user id.
+--   * It will not delete or update existing ledger rows (table is append-only).
+--
+-- Snapshot these checks were written against (2026-10-03, read-only counts):
+--   ratings: 19 total. 14 with serve_reward = 0, all score 5, created April 2026.
+--   5 ratings with serve_reward > 0, sum 205.
+--   servers.serve_balance sum 1498. servers.serve_balance_lifetime sum 1498.
+--   Those 1498 points are NOT equal to 205. Eight servers have a balance and
+--   no ratings. Do not sum serve_balance for an airdrop.
+--   vibe_reports: 185 rows, serve_reward sum 647 (includes legacy reward 2,
+--   which current verify-vibe does not write; current code writes 5 or 1).
+--   guest_rewards.slate_points sum 379. One guest is short 235 versus their
+--   own vibe rewards. Vibe points never landed on servers.serve_balance.
+--   servers.slate_points was dropped; verify-vibe still tries it and ignores
+--   the error.
+--
+-- GAP, do not auto-fill: the 14 rows below would be skipped because
+-- serve_reward is 0. A human has to decide whether they should have been 35
+-- (5 stars, no comment bonus, no follow bonus) before any airdrop. This
+-- script does not decide that.
+
+-- SELECT id, server_id, score, serve_reward, created_at
+-- FROM public.ratings
+-- WHERE score = 5
+--   AND COALESCE(serve_reward, 0) = 0
+-- ORDER BY created_at;
+
+-- ---------------------------------------------------------------------------
+-- 1. Historical rating credits. Commented. DO NOT RUN.
+-- ---------------------------------------------------------------------------
+
+-- INSERT INTO public.serve_ledger (
+--   source, source_id, account_type, account_id, email, amount, balance_after
+-- )
+-- SELECT
+--   'rating',
+--   r.id::text,
+--   'server',
+--   r.server_id,
+--   s.email,
+--   r.serve_reward,
+--   NULL
+-- FROM public.ratings r
+-- LEFT JOIN public.servers s ON s.id = r.server_id
+-- WHERE COALESCE(r.serve_reward, 0) > 0
+-- ON CONFLICT (source, source_id) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- 2. Historical vibe credits. Commented. DO NOT RUN.
+--    One server email match -> server. Zero or many matches -> guest, no id.
+-- ---------------------------------------------------------------------------
+
+-- INSERT INTO public.serve_ledger (
+--   source, source_id, account_type, account_id, email, amount, balance_after
+-- )
+-- SELECT
+--   'vibe',
+--   v.id::text,
+--   CASE WHEN m.server_id IS NOT NULL THEN 'server' ELSE 'guest' END,
+--   m.server_id,
+--   v.reported_by,
+--   v.serve_reward,
+--   NULL
+-- FROM public.vibe_reports v
+-- LEFT JOIN LATERAL (
+--   SELECT s.id AS server_id
+--   FROM public.servers s
+--   WHERE v.reported_by IS NOT NULL
+--     AND s.email IS NOT NULL
+--     AND lower(s.email) = lower(v.reported_by)
+--     AND (
+--       SELECT count(*)
+--       FROM public.servers s2
+--       WHERE s2.email IS NOT NULL
+--         AND lower(s2.email) = lower(v.reported_by)
+--     ) = 1
+--   LIMIT 1
+-- ) m ON true
+-- WHERE COALESCE(v.serve_reward, 0) > 0
+-- ON CONFLICT (source, source_id) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- 3. CHECK queries. SELECT only. Still commented. Safe to copy out later,
+--    after the ledger table exists. They do not UPDATE anything.
+--    After a real backfill, ratings_positive_sum must equal ledger_rating_sum
+--    and vibe_positive_sum must equal ledger_vibe_sum.
+--    five_star_zero_reward_count is the gap (expected 14 until a human decides).
+--    server_balance_sum will NOT equal ledger_rating_sum. That difference
+--    (1498 vs 205 at the time of writing) is left in place on purpose.
+-- ---------------------------------------------------------------------------
+
+-- SELECT
+--   (SELECT COALESCE(sum(serve_reward), 0) FROM public.ratings WHERE COALESCE(serve_reward, 0) > 0) AS ratings_positive_sum,
+--   (SELECT count(*) FROM public.ratings WHERE COALESCE(serve_reward, 0) > 0) AS ratings_positive_count,
+--   (SELECT count(*) FROM public.ratings WHERE score = 5 AND COALESCE(serve_reward, 0) = 0) AS five_star_zero_reward_count,
+--   (SELECT COALESCE(sum(amount), 0) FROM public.serve_ledger WHERE source = 'rating') AS ledger_rating_sum,
+--   (SELECT count(*) FROM public.serve_ledger WHERE source = 'rating') AS ledger_rating_count,
+--   (SELECT COALESCE(sum(serve_reward), 0) FROM public.vibe_reports WHERE COALESCE(serve_reward, 0) > 0) AS vibe_positive_sum,
+--   (SELECT count(*) FROM public.vibe_reports WHERE COALESCE(serve_reward, 0) > 0) AS vibe_positive_count,
+--   (SELECT COALESCE(sum(amount), 0) FROM public.serve_ledger WHERE source = 'vibe') AS ledger_vibe_sum,
+--   (SELECT count(*) FROM public.serve_ledger WHERE source = 'vibe') AS ledger_vibe_count,
+--   (SELECT COALESCE(sum(serve_balance), 0) FROM public.servers) AS server_balance_sum,
+--   (SELECT COALESCE(sum(serve_balance_lifetime), 0) FROM public.servers) AS server_lifetime_sum,
+--   (SELECT COALESCE(sum(slate_points), 0) FROM public.guest_rewards) AS guest_slate_points_sum;
+
+-- Emails on more than one server row. Vibe backfill will not pick one of these.
+-- SELECT lower(email) AS email, count(*) AS server_rows
+-- FROM public.servers
+-- WHERE email IS NOT NULL AND btrim(email) <> ''
+-- GROUP BY lower(email)
+-- HAVING count(*) > 1;
