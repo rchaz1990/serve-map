@@ -523,7 +523,7 @@ export default function WhitepaperPage() {
               {
                 stream: 'Stream 1',
                 title: 'Restaurant Subscriptions',
-                body: 'Restaurants are free for 60 days, then $29 a month. One offer, no tier names. Predictable recurring revenue from restaurants that benefit from better staff retention and performance data.',
+                body: 'Restaurants are free for 60 days, then $29 a month. Predictable recurring revenue from restaurants that benefit from better staff retention and performance data.',
               },
               {
                 stream: 'Stream 2',
