@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Navbar from '@/app/components/Navbar'
+import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
 
 const FILTERS = ['All', 'Claimed', 'Top Rated Staff', 'NYC'] as const
@@ -191,7 +192,7 @@ export default function ExplorePage() {
       <main className="mx-auto max-w-5xl px-8 py-16 lg:px-16">
 
         {/* ── Header ── */}
-        <div className="mb-10">
+        <MotionSection as="div" immediate className="mb-10">
           <h1 className="mb-3 text-3xl font-bold tracking-tight text-white lg:text-4xl">
             Find your restaurant
           </h1>
@@ -247,7 +248,7 @@ export default function ExplorePage() {
               </button>
             ))}
           </div>
-        </div>
+        </MotionSection>
 
         {/* ── Results count ── */}
         <p className="mb-6 text-xs" style={{ color: '#606060' }}>
@@ -261,6 +262,7 @@ export default function ExplorePage() {
         </p>
 
         {/* ── Restaurant grid ── */}
+        <MotionSection as="div">
         {loading ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[0, 1, 2].map((i) => (
@@ -350,9 +352,10 @@ export default function ExplorePage() {
             )}
           </div>
         )}
+        </MotionSection>
 
         {/* ── Bottom banner ── */}
-        <div className="mt-16 flex flex-col items-center justify-between gap-4 rounded-2xl border border-white/10 px-8 py-8 text-center sm:flex-row sm:text-left">
+        <MotionSection as="div" className="mt-16 flex flex-col items-center justify-between gap-4 rounded-2xl border border-white/10 px-8 py-8 text-center sm:flex-row sm:text-left">
           <div>
             <p className="text-base font-semibold text-white">Are you a restaurant owner?</p>
             <p className="mt-1 text-sm" style={{ color: '#A0A0A0' }}>
@@ -365,7 +368,7 @@ export default function ExplorePage() {
           >
             List your restaurant
           </a>
-        </div>
+        </MotionSection>
 
       </main>
     </div>

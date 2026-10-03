@@ -67,6 +67,8 @@ type Analytics = {
   recentVibesList: VibeListRow[]
   comments: CommentRow[]
   trendingByServerId: Record<string, Trending>
+  /** Real rating points already fetched for sparklines. Not synthesized. */
+  scoreHistory: { server_id: string; score: number; created_at: string }[]
 }
 
 type VibeListRow = {
@@ -74,6 +76,37 @@ type VibeListRow = {
   vibe: string | null
   created_at: string
   gps_verified: boolean | null
+}
+
+type ActivityItem = {
+  id: string
+  at: string
+  kind: 'rating' | 'vibe'
+  title: string
+  detail: string
+}
+
+function guestActivity(ratings: RatingRow[], vibes: VibeListRow[]): ActivityItem[] {
+  const fromRatings: ActivityItem[] = ratings.map(r => ({
+    id: `rating-${r.id}`,
+    at: r.created_at,
+    kind: 'rating',
+    title: `Guest rated ${r.server_name ?? 'a server'}`,
+    detail: `${'★'.repeat(Math.max(0, Math.min(5, Math.round(r.score))))}${r.comment ? ` · ${r.comment}` : ''}`,
+  }))
+  const fromVibes: ActivityItem[] = vibes.map(v => {
+    const key = (v.vibe ?? '').toUpperCase()
+    return {
+      id: `vibe-${v.id}`,
+      at: v.created_at,
+      kind: 'vibe',
+      title: `${VIBE_EMOJI[key] ?? ''} ${VIBE_LABEL[key] ?? (v.vibe || 'Vibe')} report`.trim(),
+      detail: v.gps_verified ? 'GPS verified' : 'Guest vibe',
+    }
+  })
+  return [...fromRatings, ...fromVibes]
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, 8)
 }
 
 type TalentServer = {
@@ -116,6 +149,45 @@ function timeAgo(iso: string) {
   const days = Math.floor(hrs / 24)
   if (days < 7) return `${days}d ago`
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+/** Chronological scores already loaded for this server. Never invents points. */
+function recentScoresForServer(serverId: string, rows: { server_id: string; score: number; created_at: string }[]): number[] {
+  return rows
+    .filter(r => r.server_id === serverId)
+    .slice()
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .map(r => r.score)
+    .slice(-12)
+}
+
+function RatingSparkline({ scores }: { scores: number[] }) {
+  const w = 72
+  const h = 22
+  const pad = 2
+  const label = scores.length < 2
+    ? 'Not enough ratings for a trend'
+    : `Rating trend from ${scores.length} recent scores`
+  if (scores.length < 2) {
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} role="img" aria-label={label} style={{ display: 'block', flexShrink: 0 }}>
+        <line x1={pad} y1={h / 2} x2={w - pad} y2={h / 2} stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+      </svg>
+    )
+  }
+  const min = 1
+  const max = 5
+  const pts = scores.map((s, i) => {
+    const clamped = Math.min(max, Math.max(min, s))
+    const x = pad + (i / (scores.length - 1)) * (w - pad * 2)
+    const y = pad + (1 - (clamped - min) / (max - min)) * (h - pad * 2)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} role="img" aria-label={label} style={{ display: 'block', flexShrink: 0 }}>
+      <polyline fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round" points={pts} />
+    </svg>
+  )
 }
 
 function startOfMonth(d = new Date()) {
@@ -372,6 +444,7 @@ export default function RestaurantManagerDashboard() {
         recentVibesList: (recentVibesRes.data ?? []) as VibeListRow[],
         comments: (commentsRes.data ?? []) as CommentRow[],
         trendingByServerId: {},
+        scoreHistory: [],
       })
       return
     }
@@ -393,8 +466,9 @@ export default function RestaurantManagerDashboard() {
         .order('created_at', { ascending: false }),
       supabase
         .from('ratings')
-        .select('score')
-        .in('server_id', ids),
+        .select('server_id, score, created_at')
+        .in('server_id', ids)
+        .order('created_at', { ascending: true }),
       supabase
         .from('vibe_reports')
         .select('id', { count: 'exact', head: true })
@@ -439,7 +513,7 @@ export default function RestaurantManagerDashboard() {
         server_name: nested?.name ?? null,
       }
     })
-    const allScores = (allScoresRes.data ?? []) as { score: number }[]
+    const allScores = (allScoresRes.data ?? []) as { server_id: string; score: number; created_at: string }[]
 
     const totalRatingsThisMonth = monthlyRatings.filter(r => r.created_at >= monthStart).length
     const avgStaffRating = allScores.length === 0
@@ -483,6 +557,7 @@ export default function RestaurantManagerDashboard() {
       recentVibesList: (recentVibesRes.data ?? []) as VibeListRow[],
       comments: (commentsRes.data ?? []) as CommentRow[],
       trendingByServerId,
+      scoreHistory: allScores.filter(r => r.server_id && r.created_at),
     })
   }, [])
 
@@ -874,7 +949,10 @@ export default function RestaurantManagerDashboard() {
             Flip someone on shift to show guests who&apos;s working tonight. Each on-shift server gets a guest rating QR.
           </p>
 
-          <div className="mt-7 flex items-baseline gap-3">
+          <div className="mt-7 flex items-center gap-3">
+            {onShiftCount > 0 && (
+              <span className="slate-shift-pulse" aria-hidden />
+            )}
             <span
               className="text-white"
               style={{
@@ -1087,10 +1165,11 @@ export default function RestaurantManagerDashboard() {
                         >
                           {member.role ?? 'Server'}
                         </div>
-                        <div style={{ display: 'flex', gap: '20px', marginTop: '10px' }}>
+                        <div style={{ display: 'flex', gap: '16px', marginTop: '10px', alignItems: 'center' }}>
                           <span style={{ color: '#555', fontSize: '12px', fontFamily: '"Space Mono", ui-monospace, monospace' }}>
                             {member.average_rating > 0 ? member.average_rating.toFixed(1) : '—'} rating
                           </span>
+                          <RatingSparkline scores={recentScoresForServer(member.server_id, analytics?.scoreHistory ?? [])} />
                           <span style={{ color: '#555', fontSize: '12px', fontFamily: '"Space Mono", ui-monospace, monospace' }}>
                             {member.follower_count || 0} followers
                           </span>
@@ -1251,6 +1330,41 @@ export default function RestaurantManagerDashboard() {
                 })}
               </div>
             )}
+
+            <div style={{ marginTop: '36px', paddingTop: '28px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <p style={{ fontFamily: '"Space Mono", ui-monospace, monospace', fontSize: '10px', letterSpacing: '0.25em', textTransform: 'uppercase', color: '#555' }}>
+                Guest activity
+              </p>
+              <p className="mt-2 mb-4 text-xs" style={{ color: '#555' }}>
+                Recent ratings and vibe reports for this venue.
+              </p>
+              {(() => {
+                if (!analytics) {
+                  return <p className="text-sm" style={{ color: '#606060' }}>Loading activity…</p>
+                }
+                const items = guestActivity(analytics.monthlyRatings, analytics.recentVibesList)
+                if (items.length === 0) {
+                  return <p className="text-sm" style={{ color: '#606060' }}>No guest activity yet.</p>
+                }
+                return (
+                  <div className="flex flex-col divide-y divide-white/10">
+                    {items.map(item => (
+                      <div key={item.id} className="flex items-baseline justify-between gap-4 py-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm text-white">{item.title}</p>
+                          {item.detail && (
+                            <p className="truncate text-xs" style={{ color: '#666' }}>{item.detail}</p>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-[11px]" style={{ color: '#555', fontFamily: '"Space Mono", ui-monospace, monospace' }}>
+                          {timeAgo(item.at)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
           </MotionSection>
         )}
 

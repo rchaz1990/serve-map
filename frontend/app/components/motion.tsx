@@ -58,7 +58,7 @@ export const MotionSection = forwardRef<HTMLElement, MotionSectionProps>(
     if (reduce) {
       const Static = as
       return (
-        <Static className={className} style={style} id={id} ref={ref as never}>
+        <Static className={className} style={style} id={id} data-slate-motion="true" ref={ref as never}>
           {children}
         </Static>
       )
@@ -81,6 +81,7 @@ export const MotionSection = forwardRef<HTMLElement, MotionSectionProps>(
           animate="visible"
           variants={fadeUp}
           transition={transition}
+          data-slate-motion="true"
           {...rest}
         >
           {children}
@@ -94,6 +95,7 @@ export const MotionSection = forwardRef<HTMLElement, MotionSectionProps>(
         style={style}
         id={id}
         ref={ref}
+        data-slate-motion="true"
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.15, margin: '0px 0px -40px 0px' }}
