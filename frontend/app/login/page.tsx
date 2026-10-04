@@ -1,7 +1,7 @@
 'use client'
 import { useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
-import { getAuthCallbackUrl, getAppOrigin } from '@/lib/auth-redirect'
+import { getAuthCallbackUrl, getAppOrigin, safeInternalPath, setOAuthNextHint } from '@/lib/auth-redirect'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 function LoginForm() {
@@ -29,11 +29,14 @@ function LoginForm() {
         .select('id, restaurant_name')
         .eq('auth_id', data.user.id)
         .maybeSingle()
+      // A safe return path beats the role dashboard. Signup does not use this.
+      const next = safeInternalPath(searchParams.get('redirect'))
+
       if (managerRow) {
         localStorage.setItem('slateUserType', 'manager')
         localStorage.setItem('slateManagerId', managerRow.id)
         localStorage.setItem('slateRestaurantName', managerRow.restaurant_name)
-        router.push('/restaurant/dashboard')
+        router.push(next ?? '/restaurant/dashboard')
         return
       }
 
@@ -45,12 +48,12 @@ function LoginForm() {
       if (serverRow) {
         localStorage.setItem('slateServerId', serverRow.id)
         localStorage.setItem('slateUserType', 'server')
-        router.push('/dashboard')
+        router.push(next ?? '/dashboard')
         return
       }
 
       localStorage.setItem('slateUserType', 'guest')
-      router.push('/live')
+      router.push(next ?? '/live')
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed. Please try again.'
       setError(msg)
@@ -88,6 +91,8 @@ function LoginForm() {
   }
 
   const handleGoogle = async () => {
+    const next = safeInternalPath(searchParams.get('redirect'))
+    if (next) setOAuthNextHint(next)
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

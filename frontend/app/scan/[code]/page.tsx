@@ -79,7 +79,7 @@ export default function ScanPage() {
   const handleFollow = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
-      router.push(`/login?redirect=/scan/${serverId}`)
+      router.push(`/login?redirect=${encodeURIComponent(`/scan/${serverId}`)}`)
       return
     }
 

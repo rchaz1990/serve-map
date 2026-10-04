@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
-import { OAUTH_NEXT_COOKIE } from '@/lib/auth-redirect'
+import { OAUTH_NEXT_COOKIE, safeInternalPath } from '@/lib/auth-redirect'
 
 type CookieOp = { name: string; value: string; options: Parameters<NextResponse['cookies']['set']>[2] }
 
@@ -34,16 +34,8 @@ export async function GET(request: Request) {
     // Query next is still accepted for older clients / defensive middleware forwards.
     const nextFromCookie = cookieStore.get(OAUTH_NEXT_COOKIE)?.value
     const nextFromQuery = requestUrl.searchParams.get('next')
-    let nextHint: string | null = null
-    if (nextFromCookie) {
-      try {
-        nextHint = decodeURIComponent(nextFromCookie)
-      } catch {
-        nextHint = nextFromCookie
-      }
-    } else if (nextFromQuery) {
-      nextHint = nextFromQuery
-    }
+    // Cookie is the source of truth. safeInternalPath decodes once and drops open redirects.
+    const nextHint = safeInternalPath(nextFromCookie) ?? safeInternalPath(nextFromQuery)
     // Always clear the hint cookie on the redirect response
     cookiesToApply.push({
       name: OAUTH_NEXT_COOKIE,
@@ -79,10 +71,8 @@ export async function GET(request: Request) {
       )
     }
 
-    // Determine redirect target by user type:
-    // restaurant_managers first → /restaurant/dashboard
-    // servers → /dashboard
-    // else → /get-started (or nextHint when safe)
+    // A safe next hint (except the manager-login sentinel) wins.
+    // Otherwise: restaurant_managers → /restaurant/dashboard, servers → /dashboard, else /get-started.
     const { data: { user } } = await supabase.auth.getUser()
 
     let targetPath = '/get-started'
@@ -136,6 +126,9 @@ export async function GET(request: Request) {
         } else {
           targetPath = '/restaurant/login?error=no_manager'
         }
+      } else if (nextHint) {
+        // Explicit return path (rate form, scan page). Beats the role dashboard.
+        targetPath = nextHint
       } else if (managerData) {
         // No manager intent cookie — still prefer managers over servers
         targetPath = '/restaurant/dashboard'
@@ -152,12 +145,6 @@ export async function GET(request: Request) {
 
         if (serverData) {
           targetPath = '/dashboard'
-        } else if (
-          nextHint &&
-          nextHint.startsWith('/') &&
-          !nextHint.startsWith('//')
-        ) {
-          targetPath = nextHint
         }
       }
     }
