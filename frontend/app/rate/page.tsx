@@ -45,6 +45,11 @@ const ratingLabels: Record<number, string> = {
   1: 'Poor', 2: 'Below average', 3: 'Good', 4: 'Great', 5: 'Exceptional',
 }
 
+/** Login URL that keeps the full /rate?server= path. Used by submit and follow. */
+function rateLoginHref(serverId: string): string {
+  return `/login?redirect=${encodeURIComponent(`/rate?server=${serverId}`)}`
+}
+
 // ── Inner form (needs Suspense because of useSearchParams) ────────────────────
 
 type ServerRow = {
@@ -122,9 +127,14 @@ function RateForm() {
   }, [serverId])
 
   const handleFollow = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      router.push(`/login?redirect=/rate?server=${serverId}`)
+    if (!serverId) return
+    let session = (await supabase.auth.getSession()).data.session
+    if (!session?.access_token) {
+      const { data } = await supabase.auth.refreshSession()
+      session = data.session
+    }
+    if (!session?.access_token || !session.user) {
+      router.push(rateLoginHref(serverId))
       return
     }
 
@@ -168,18 +178,22 @@ function RateForm() {
       setLoading(true)
       setError('')
 
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) {
-        router.push(`/login?redirect=/rate?server=${serverId}`)
+      let token = (await supabase.auth.getSession()).data.session?.access_token ?? null
+      if (!token) {
+        const { data } = await supabase.auth.refreshSession()
+        token = data.session?.access_token ?? null
+      }
+      if (!token) {
+        router.push(rateLoginHref(serverId))
         return
       }
 
       // Reward is recomputed on the server. This request does not send an amount.
-      const res = await fetch('/api/submit-rating', {
+      const postRating = (accessToken: string) => fetch('/api/submit-rating', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           serverId,
@@ -189,15 +203,22 @@ function RateForm() {
         }),
       })
 
+      let res = await postRating(token)
+
+      if (res.status === 401) {
+        const { data } = await supabase.auth.refreshSession()
+        const retryToken = data.session?.access_token
+        if (retryToken) res = await postRating(retryToken)
+        if (res.status === 401) {
+          router.push(rateLoginHref(serverId))
+          return
+        }
+      }
+
       const body = await res.json().catch(() => null) as {
         error?: string
         reward?: { starReward: number; commentBonus: number; followBonus: number; total: number }
       } | null
-
-      if (res.status === 401) {
-        router.push(`/login?redirect=/rate?server=${serverId}`)
-        return
-      }
       if (!res.ok || !body?.reward) {
         setError(body?.error || 'Failed to submit rating. Please try again.')
         return

@@ -26,10 +26,28 @@ export function getAuthCallbackUrl(): string {
   return `${getAppOrigin()}/auth/callback`
 }
 
+/**
+ * One decode. Internal only: a single leading slash, not //, no scheme, no backslash.
+ * Returns null when the value should be ignored.
+ */
+export function safeInternalPath(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(raw)
+  } catch {
+    return null
+  }
+  if (!decoded.startsWith('/') || decoded.startsWith('//')) return null
+  if (decoded.includes('://') || decoded.includes('\\')) return null
+  return decoded
+}
+
 /** Store where /auth/callback should send the user after exchange. */
 export function setOAuthNextHint(path: string): void {
   if (typeof document === 'undefined') return
-  if (!path.startsWith('/') || path.startsWith('//')) return
+  const safe = safeInternalPath(path)
+  if (!safe) return
   const secure = window.location.protocol === 'https:'
-  document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(path)}; Path=/; Max-Age=600; SameSite=Lax${secure ? '; Secure' : ''}`
+  document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(safe)}; Path=/; Max-Age=600; SameSite=Lax${secure ? '; Secure' : ''}`
 }
