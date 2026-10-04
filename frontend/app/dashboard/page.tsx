@@ -1185,13 +1185,15 @@ export default function DashboardPage() {
       setRestaurants(rows)
       if (rows.length === 1) setSelectedRestaurant(rows[0].restaurant_name)
 
-      // Followers — use the DB column as source of truth (maintained by atomic RPC)
-      const { data: followRows } = await supabase
+      // Followers — prefer the live approved list; fall back to stored count on query error
+      const { data: followRows, error: followRowsError } = await supabase
         .from('follows')
         .select('id, created_at')
         .eq('server_id', row.id)
         .eq('status', 'approved')
-      const followerCount = row.follower_count ?? followRows?.length ?? 0
+      const followerCount = !followRowsError
+        ? (followRows?.length ?? 0)
+        : (row.follower_count ?? 0)
 
       // Ratings — no guest_name column (42703); match restaurant dashboard remap
       const { data: ratingRows } = await supabase

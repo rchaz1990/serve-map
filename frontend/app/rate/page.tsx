@@ -113,13 +113,13 @@ function RateForm() {
       // Check if the current guest is already following
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user?.id) {
-        const { data: existingFollow } = await supabase
+        const { data: existingFollows } = await supabase
           .from('follows')
           .select('id')
           .eq('server_id', serverId)
           .eq('follower_id', session.user.id)
-          .maybeSingle()
-        setIsFollowing(!!existingFollow)
+          .limit(1)
+        setIsFollowing(!!existingFollows?.length)
       }
     }
 
@@ -138,20 +138,36 @@ function RateForm() {
       return
     }
 
-    await supabase.from('follows').insert({
+    const { data: existingFollows } = await supabase
+      .from('follows')
+      .select('id')
+      .eq('server_id', serverId)
+      .eq('follower_id', session.user.id)
+      .limit(1)
+    if (existingFollows?.length) {
+      setIsFollowing(true)
+      return
+    }
+
+    const { error: followError } = await supabase.from('follows').insert({
       follower_id: session.user.id,
       follower_email: session.user.email,
       server_id: serverId,
       follower_type: 'guest',
     })
 
-    await supabase
-      .from('servers')
-      .update({
-        follower_count: (serverData?.follower_count || 0) + 1,
-      })
-      .eq('id', serverId)
+    if (followError) {
+      const isDuplicate =
+        followError.code === '23505' ||
+        /duplicate|unique/i.test(followError.message)
+      if (isDuplicate) {
+        setIsFollowing(true)
+      }
+      return
+    }
 
+    // Do not bump follower_count on insert — new follows are pending;
+    // approve_follow_request RPC increments the count on approval.
     setIsFollowing(true)
   }
 
