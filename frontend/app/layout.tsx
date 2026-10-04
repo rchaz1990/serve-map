@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { GradientBackground } from "@/app/components/motion";
+import { PageViewBeacon } from "@/app/components/PageViewBeacon";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -43,6 +44,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-black text-white font-sans">
+        <PageViewBeacon />
         <GradientBackground />
         <div className="relative z-[1] flex min-h-full flex-1 flex-col">
           {children}
