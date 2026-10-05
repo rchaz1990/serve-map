@@ -86,7 +86,8 @@ export default function AccountPage() {
         // ratings has no guest_name/server_name columns — join servers for display name
         supabase
           .from('ratings')
-          .select('id, score, comment, restaurant_name, created_at, server_id, servers(name)')
+          // restaurant_name is never written to ratings; selecting it can fail the whole query
+          .select('id, score, comment, created_at, server_id, servers(name)')
           .eq('guest_id', authUser.id)
           .order('created_at', { ascending: false }),
         // vibe_reports uses reported_by (email), not guest_id
@@ -111,7 +112,7 @@ export default function AccountPage() {
             id: r.id as string,
             score: r.score as number,
             comment: (r.comment as string | null) ?? null,
-            restaurant_name: (r.restaurant_name as string | null) ?? null,
+            restaurant_name: null,
             created_at: r.created_at as string,
             server_name: srv?.name ?? null,
           }

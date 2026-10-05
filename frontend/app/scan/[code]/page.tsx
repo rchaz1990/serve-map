@@ -1,7 +1,8 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getAnonSessionId, isTestDevice } from '@/lib/funnel'
 import Navbar from '@/app/components/Navbar'
 
 export default function ScanPage() {
@@ -15,6 +16,23 @@ export default function ScanPage() {
   const [error, setError] = useState('')
   const [followStatus, setFollowStatus] = useState<'none' | 'pending' | 'approved'>('none')
   const [followerCount, setFollowerCount] = useState(0)
+  const scanRecordedFor = useRef<string | null>(null)
+
+  // Record the QR scan once per page load (no login required). Fire-and-forget.
+  useEffect(() => {
+    if (!serverId || scanRecordedFor.current === serverId) return
+    scanRecordedFor.current = serverId
+    fetch('/api/track-scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        serverId,
+        sessionId: getAnonSessionId(),
+        isTest: isTestDevice(),
+      }),
+      keepalive: true,
+    }).catch(err => console.error('[scan] track failed:', err))
+  }, [serverId])
 
   useEffect(() => {
     if (params.code) {

@@ -57,11 +57,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
-  const { serverId, score, comment, tags } = body as {
+  const { serverId, score, comment, tags, isTest } = body as {
     serverId?: unknown
     score?: unknown
     comment?: unknown
     tags?: unknown
+    isTest?: unknown
   }
 
   if (typeof serverId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(serverId)) {
@@ -125,6 +126,17 @@ export async function POST(request: Request) {
       )
     }
     return NextResponse.json({ error: 'Could not submit rating.' }, { status: 500 })
+  }
+
+  // Attribution for analysis: who rated (from the verified token) and whether it came
+  // from a test device. Best-effort — the rating and reward are already saved.
+  const ratingId = (data as { rating_id?: string } | null)?.rating_id
+  if (ratingId) {
+    const { error: attrErr } = await supabaseAdmin
+      .from('ratings')
+      .update({ guest_id: user.id, is_test: isTest === true })
+      .eq('id', ratingId)
+    if (attrErr) console.error('[submit-rating] attribution update:', attrErr.message)
   }
 
   return NextResponse.json({ success: true, reward, result: data })

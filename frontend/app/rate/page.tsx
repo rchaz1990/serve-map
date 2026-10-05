@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
+import { isTestDevice } from '@/lib/funnel'
 
 // ── Tags + stars ──────────────────────────────────────────────────────────────
 
@@ -200,6 +201,7 @@ function RateForm() {
           score: rating,
           comment: comment.trim() ? comment.trim() : null,
           tags: selectedTags,
+          isTest: isTestDevice(),
         }),
       })
 
