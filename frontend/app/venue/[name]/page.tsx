@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
+import { geocodeAddress } from '@/lib/geocode'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -121,12 +122,9 @@ function VibeForm({ venueName, onSubmitted }: { venueName: string; onSubmitted: 
         const userLng = pos.coords.longitude
         setUserCoords({ lat: userLat, lng: userLng })
         try {
-          const res = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venueName + ' NYC')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
-          )
-          const data = await res.json()
-          const vLat: number | null = data.results?.[0]?.geometry?.location?.lat ?? null
-          const vLng: number | null = data.results?.[0]?.geometry?.location?.lng ?? null
+          const venue = await geocodeAddress(venueName + ' NYC')
+          const vLat: number | null = venue?.lat ?? null
+          const vLng: number | null = venue?.lng ?? null
           if (vLat !== null && vLng !== null && getDistanceMeters(userLat, userLng, vLat, vLng) <= 500) {
             setGpsVerified(true)
           }
