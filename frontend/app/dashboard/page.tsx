@@ -7,6 +7,7 @@ import QRCode from 'react-qr-code'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
+import { geocodeAddress } from '@/lib/geocode'
 
 const QR_DURATION_MS = 8 * 60 * 60 * 1000 // 8 hours
 
@@ -1404,16 +1405,10 @@ export default function DashboardPage() {
         const userLat = position.coords.latitude
         const userLng = position.coords.longitude
         try {
-          let geoData: { results: { geometry: { location: { lat: number; lng: number } } }[]; status: string }
-          const res1 = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(restaurantName)}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`)
-          geoData = await res1.json()
-          if (!geoData.results?.length) {
-            const res2 = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(restaurantName + ' NYC')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`)
-            geoData = await res2.json()
-          }
-          if (geoData.results?.length) {
-            const rLat = geoData.results[0].geometry.location.lat
-            const rLng = geoData.results[0].geometry.location.lng
+          const restaurant = (await geocodeAddress(restaurantName)) ?? (await geocodeAddress(restaurantName + ' NYC'))
+          if (restaurant) {
+            const rLat = restaurant.lat
+            const rLng = restaurant.lng
             const R = 6371000
             const dLat = (rLat - userLat) * Math.PI / 180
             const dLon = (rLng - userLng) * Math.PI / 180

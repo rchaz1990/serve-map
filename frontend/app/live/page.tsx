@@ -6,6 +6,7 @@ import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
+import { geocodeAddress } from '@/lib/geocode'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -271,12 +272,9 @@ function VenueCard({
         setUserCoords({ lat: userLat, lng: userLng })
 
         try {
-          const res = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(venueName + ' NYC')}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_KEY}`
-          )
-          const data = await res.json()
-          const venueLat: number | null = data.results?.[0]?.geometry?.location?.lat ?? null
-          const venueLng: number | null = data.results?.[0]?.geometry?.location?.lng ?? null
+          const venue = await geocodeAddress(venueName + ' NYC')
+          const venueLat: number | null = venue?.lat ?? null
+          const venueLng: number | null = venue?.lng ?? null
           if (venueLat !== null && venueLng !== null) {
             const dist = getDistanceMeters(userLat, userLng, venueLat, venueLng)
             if (dist <= 500) {
