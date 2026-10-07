@@ -54,7 +54,7 @@ export default function ScanPage() {
 
     const { data: server, error } = await supabase
       .from('servers')
-      .select('*, server_restaurants(*)')
+      .select('id, name, role, photo_url, average_rating, total_ratings, follower_count, server_restaurants(*)')
       .eq('id', serverId)
       .maybeSingle()
 
@@ -101,19 +101,29 @@ export default function ScanPage() {
       return
     }
 
-    // Fix 7: prevent self-follow
-    if (session.user.id === serverId) return
-
-    const { error: followError } = await supabase.from('follows').insert({
+    // The database sets the status from the server's setting (approved for
+    // automatic servers, pending for servers that approve followers), blocks
+    // self-follows, and keeps follower_count in step.
+    const { data: inserted, error: followError } = await supabase.from('follows').insert({
       follower_id: session.user.id,
       follower_email: session.user.email,
       server_id: serverId,
-      follower_type: 'guest'
-      // status defaults to 'pending' — follower_count only increments on approval
-    })
+      follower_type: 'guest',
+    }).select('status').single()
 
     if (!followError) {
-      setFollowStatus('pending')
+      const status = inserted?.status === 'approved' ? 'approved' : 'pending'
+      setFollowStatus(status)
+      if (status === 'approved') setFollowerCount(prev => prev + 1)
+    } else if (followError.code === '23505') {
+      // Already following: show the saved status instead of failing silently.
+      const { data: existing } = await supabase
+        .from('follows')
+        .select('status')
+        .eq('follower_id', session.user.id)
+        .eq('server_id', serverId)
+        .maybeSingle()
+      if (existing) setFollowStatus(existing.status === 'approved' ? 'approved' : 'pending')
     }
   }
 

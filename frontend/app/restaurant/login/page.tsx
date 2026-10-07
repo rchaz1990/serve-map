@@ -77,31 +77,21 @@ function RestaurantManagerLoginForm() {
 
       let manager = managerData
 
-      // Email fallback (e.g. waitlist row created before auth_id was set)
+      // Email fallback (e.g. waitlist row created before auth_id was set).
+      // The database links the row by the signed-in user's verified email.
       if (!manager && data.session.user.email) {
-        const { data: byEmail, error: emailErr } = await supabase
-          .from('restaurant_managers')
-          .select('id, restaurant_name, auth_id')
-          .ilike('email', data.session.user.email)
-          .maybeSingle()
+        const { data: linked, error: linkErr } = await supabase.rpc('link_my_manager')
 
         if (timedOut) return
 
-        if (emailErr) {
-          setError(emailErr.message)
+        if (linkErr) {
+          setError(linkErr.message)
           await supabase.auth.signOut()
           return
         }
 
-        if (byEmail) {
-          manager = byEmail
-          if (!byEmail.auth_id) {
-            await supabase
-              .from('restaurant_managers')
-              .update({ auth_id: data.session.user.id })
-              .eq('id', byEmail.id)
-          }
-        }
+        const row = Array.isArray(linked) ? linked[0] : null
+        if (row) manager = { id: row.id as string, restaurant_name: row.restaurant_name as string }
       }
 
       if (manager) {

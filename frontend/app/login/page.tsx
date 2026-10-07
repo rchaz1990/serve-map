@@ -1,5 +1,6 @@
 'use client'
 import { useState, Suspense } from 'react'
+import { authJsonHeaders } from '@/lib/auth-fetch'
 import { supabase } from '@/lib/supabase'
 import { getAuthCallbackUrl, getAppOrigin, safeInternalPath, setOAuthNextHint } from '@/lib/auth-redirect'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -65,15 +66,20 @@ function LoginForm() {
   const handleSignUp = async () => {
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
+    const { data: signUpData, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
     if (error) { setError(error.message); setLoading(false); return }
     localStorage.setItem('slateUserType', 'guest')
-    // Send welcome email — fire and forget
-    fetch('/api/welcome-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name: name || email, type: 'guest' }),
-    }).catch(() => {})
+    // Send welcome email — fire and forget. The route sends only to the signed-in
+    // user's own address, so it needs the new session (absent if email
+    // confirmation is required; then no welcome email is sent).
+    const welcomeToken = signUpData.session?.access_token
+    if (welcomeToken) {
+      authJsonHeaders(welcomeToken).then(headers => fetch('/api/welcome-email', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: name || email }),
+      })).catch(() => {})
+    }
     router.push('/live')
   }
 

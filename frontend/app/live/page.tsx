@@ -703,9 +703,9 @@ export default function LivePage() {
       const weekAgo   = new Date(Date.now() -  7 * 24 * 60 * 60 * 1000).toISOString()
 
       const [verifiedRes, unverifiedRes, hotRes, weeklyRes] = await Promise.all([
-        supabase.from('vibe_reports').select('*').eq('gps_verified', true)
+        supabase.from('vibe_reports').select('id, restaurant_name, vibe, bar_seats, wait_time, gps_verified, integrity_score, created_at').eq('gps_verified', true)
           .gte('created_at', since24h).order('created_at', { ascending: false }),
-        supabase.from('vibe_reports').select('*').eq('gps_verified', false)
+        supabase.from('vibe_reports').select('id, restaurant_name, vibe, bar_seats, wait_time, gps_verified, integrity_score, created_at').eq('gps_verified', false)
           .gte('created_at', since24h).order('created_at', { ascending: false }),
         supabase.from('vibe_reports').select('restaurant_name, vibe, created_at')
           .in('vibe', ['PACKED', 'LIVE', 'Packed', 'Live'])

@@ -1,30 +1,63 @@
-import { Resend } from 'resend'
 import { NextResponse } from 'next/server'
+import { escapeHtml, getRequestUser, supabaseAdmin } from '@/lib/server-auth'
 
+// A signed-in restaurant manager asks to connect with a server who opted in to
+// talent discovery. The recipient address is looked up here, never taken from
+// the request, and only opted-in servers can be contacted.
 export async function POST(request: Request) {
-  const { Resend: ResendClass } = await import('resend')
-  const resend = new ResendClass(process.env.RESEND_API_KEY)
+  const user = await getRequestUser(request)
+  if (!user) return NextResponse.json({ error: 'Sign in required' }, { status: 401 })
 
-  const {
-    serverEmail, serverName, restaurantName,
-    managerName, managerEmail
-  } = await request.json()
+  const body = await request.json().catch(() => null)
+  const serverId = (body as { serverId?: unknown } | null)?.serverId
+  if (typeof serverId !== 'string' || !serverId) {
+    return NextResponse.json({ error: 'Missing serverId' }, { status: 400 })
+  }
 
-  const firstName = serverName.split(' ')[0]
+  const admin = supabaseAdmin()
+  const { data: manager } = await admin
+    .from('restaurant_managers')
+    .select('name, email, restaurant_name')
+    .eq('auth_id', user.id)
+    .maybeSingle()
+  if (!manager) return NextResponse.json({ error: 'Restaurant manager account required' }, { status: 403 })
 
-  await resend.emails.send({
+  const { data: server } = await admin
+    .from('servers')
+    .select('name, email, open_to_opportunities')
+    .eq('id', serverId)
+    .maybeSingle()
+  if (!server || !server.open_to_opportunities) {
+    return NextResponse.json({ error: 'This server is not open to contact' }, { status: 404 })
+  }
+  if (!server.email) return NextResponse.json({ error: 'No email on file for this server' }, { status: 409 })
+
+  const restaurantName = manager.restaurant_name as string
+  const managerName = (manager.name as string | null) || 'A manager'
+  const firstName = ((server.name as string | null) || 'Hi').split(' ')[0]
+  const replyTo = (manager.email as string | null) || user.email || undefined
+
+  const h = {
+    first: escapeHtml(firstName),
+    manager: escapeHtml(managerName),
+    restaurant: escapeHtml(restaurantName),
+  }
+
+  const { Resend } = await import('resend')
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const { error } = await resend.emails.send({
     from: 'Slate <team@slatenow.xyz>',
-    to: serverEmail,
-    replyTo: managerEmail,
+    to: server.email as string,
+    replyTo,
     subject: `${restaurantName} wants to connect with you on Slate`,
     html: `
       <div style="background:#000;color:#fff;padding:40px;
         font-family:Georgia,serif;max-width:600px;">
         <h1 style="font-size:28px;margin-bottom:16px;">
-          ${firstName}, a restaurant noticed you.
+          ${h.first}, a restaurant noticed you.
         </h1>
         <p style="color:#aaa;font-size:16px;line-height:1.7;">
-          ${managerName} from ${restaurantName} saw your
+          ${h.manager} from ${h.restaurant} saw your
           Slate profile and wants to connect.
         </p>
         <div style="margin:32px 0;padding:24px;
@@ -36,8 +69,8 @@ export async function POST(request: Request) {
           </p>
           <p style="color:#aaa;font-size:15px;line-height:1.7;">
             Simply reply to this email to start the conversation.
-            Your reply goes directly to ${managerName} at
-            ${restaurantName}.
+            Your reply goes directly to ${h.manager} at
+            ${h.restaurant}.
           </p>
         </div>
         <p style="color:#333;font-size:13px;margin-top:40px;">
@@ -45,8 +78,12 @@ export async function POST(request: Request) {
           slatenow.xyz
         </p>
       </div>
-    `
+    `,
   })
+  if (error) {
+    console.error('[contact-server] send failed:', error)
+    return NextResponse.json({ error: 'Could not send message' }, { status: 502 })
+  }
 
   return NextResponse.json({ success: true })
 }

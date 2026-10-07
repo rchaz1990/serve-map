@@ -6,6 +6,7 @@ import Script from 'next/script'
 import QRCode from 'react-qr-code'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
+import { authJsonHeaders } from '@/lib/auth-fetch'
 import { supabase } from '@/lib/supabase'
 import { geocodeAddress } from '@/lib/geocode'
 
@@ -1147,15 +1148,20 @@ export default function DashboardPage() {
       console.log('[Dashboard] Server data:', serverData, error ?? '')
 
       if (!serverData) {
-        // Fallback: email match for accounts created before wallet_address was wired up
-        const { data: byEmail } = await supabase
+        // Fallback for accounts created before wallet_address was wired up.
+        // The database links the profile by the signed-in user's verified email
+        // (emails are no longer publicly readable), then we load it by id.
+        const { data: linked } = await supabase.rpc('link_my_server')
+        const linkedId = Array.isArray(linked) && linked[0] ? (linked[0].id as string) : null
+        if (!linkedId) { setProfileLoading(false); return }
+        const { data: byLink } = await supabase
           .from('servers')
           .select('id, name, role, average_rating, total_ratings, follower_count, is_founding_member, serve_balance, serve_balance_lifetime, photo_url, specialties, open_to_opportunities, follow_approval, profile_visibility')
-          .ilike('email', session.user.email ?? '')
+          .eq('id', linkedId)
           .maybeSingle()
-        if (!byEmail) { setProfileLoading(false); return }
-        console.log('[Dashboard] Found by email fallback')
-        await hydrateFromServerRow(byEmail, session.user.id)
+        if (!byLink) { setProfileLoading(false); return }
+        console.log('[Dashboard] Found by email link')
+        await hydrateFromServerRow(byLink, session.user.id)
         return
       }
 
@@ -1167,8 +1173,8 @@ export default function DashboardPage() {
       row: { id: string; name: string | null; role?: string | null; average_rating: number | null; total_ratings: number | null; follower_count?: number | null; is_founding_member?: boolean | null; serve_balance?: number | null; serve_balance_lifetime?: number | null; photo_url?: string | null; specialties?: string[] | null; open_to_opportunities?: boolean | null; follow_approval?: string | null; profile_visibility?: string | null },
       authUserId: string
     ) {
-      // Keep wallet_address in sync for future logins
-      await supabase.from('servers').update({ wallet_address: authUserId }).eq('id', row.id).eq('wallet_address', null as unknown as string)
+      // wallet_address linking now happens in the database (link_my_server).
+      void authUserId
 
       const resolvedName = row.name || localStorage.getItem('slateServerName') || ''
       localStorage.setItem('slateServerId', row.id)
@@ -1280,7 +1286,7 @@ export default function DashboardPage() {
       .from('servers')
       .update({ photo_url: publicUrl })
       .eq('wallet_address', session.user.id)
-      .select()
+      .select('id, photo_url')
 
     console.log('Update result:', updateData, updateError)
 
@@ -1368,16 +1374,16 @@ export default function DashboardPage() {
     setShowRestaurantPicker(false)
 
     // Notify followers (fire and forget)
-    fetch('/api/notify-followers', {
+    authJsonHeaders().then(headers => fetch('/api/notify-followers', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         serverId,
         serverName,
         restaurantName,
         type: 'shift_started',
       }),
-    }).catch(() => {})
+    })).catch(() => {})
 
     const insertShift = async (gpsVerified: boolean, distance: number | null, userLat: number | null, userLng: number | null) => {
       const { data, error } = await supabase.from('shifts').insert({

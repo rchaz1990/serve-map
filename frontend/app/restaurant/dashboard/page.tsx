@@ -6,6 +6,7 @@ import Image from 'next/image'
 import QRCode from 'react-qr-code'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
+import { authJsonHeaders } from '@/lib/auth-fetch'
 import { supabase, getAuthSession, withTimeout } from '@/lib/supabase'
 
 const GUEST_RATE_ORIGIN = 'https://slatenow.xyz'
@@ -117,7 +118,6 @@ type TalentServer = {
   average_rating: number
   total_ratings: number
   follower_count: number
-  email: string | null
   specialties: string[]
   primary_restaurant: string | null
 }
@@ -366,11 +366,11 @@ function TalentCard({
         </a>
         <button
           onClick={onContact}
-          disabled={contacting || contacted || !t.email}
+          disabled={contacting || contacted}
           style={{
             flex: 1,
             background: 'transparent',
-            color: contacted ? '#4ade80' : !t.email ? '#333' : '#FFFFFF',
+            color: contacted ? '#4ade80' : '#FFFFFF',
             padding: '12px 18px',
             fontSize: '10px',
             letterSpacing: '0.25em',
@@ -378,13 +378,13 @@ function TalentCard({
             fontFamily: '"Space Mono", ui-monospace, monospace',
             fontWeight: 700,
             border: '1px solid #FFFFFF',
-            borderColor: contacted ? '#4ade80' : !t.email ? '#1a1a1a' : '#FFFFFF',
-            cursor: contacting || contacted || !t.email ? 'default' : 'pointer',
+            borderColor: contacted ? '#4ade80' : '#FFFFFF',
+            cursor: contacting || contacted ? 'default' : 'pointer',
             opacity: contacting ? 0.5 : 1,
             transition: 'all 0.15s',
           }}
         >
-          {contacted ? 'Message Sent' : contacting ? 'Sending…' : !t.email ? 'No Email' : 'Contact'}
+          {contacted ? 'Message Sent' : contacting ? 'Sending…' : 'Contact'}
         </button>
       </div>
     </div>
@@ -568,7 +568,7 @@ export default function RestaurantManagerDashboard() {
 
     const { data, error: tErr } = await supabase
       .from('servers')
-      .select('id, name, role, photo_url, average_rating, total_ratings, follower_count, email, specialties, server_restaurants(restaurant_name, is_primary)')
+      .select('id, name, role, photo_url, average_rating, total_ratings, follower_count, specialties, server_restaurants(restaurant_name, is_primary)')
       .eq('open_to_opportunities', true)
 
     if (tErr) {
@@ -590,7 +590,6 @@ export default function RestaurantManagerDashboard() {
           average_rating: (row.average_rating as number) ?? 0,
           total_ratings: (row.total_ratings as number) ?? 0,
           follower_count: (row.follower_count as number) ?? 0,
-          email: (row.email as string) ?? null,
           specialties: (row.specialties as string[]) ?? [],
           primary_restaurant: primary,
         }
@@ -708,7 +707,7 @@ export default function RestaurantManagerDashboard() {
         const managerRes = await withTimeout(
           supabase
             .from('restaurant_managers')
-            .select('*')
+            .select('id, created_at, name, restaurant_name, auth_id, role')
             .eq('auth_id', session.user.id)
             .maybeSingle(),
           AUTH_TIMEOUT_MS,
@@ -742,7 +741,7 @@ export default function RestaurantManagerDashboard() {
         localStorage.setItem('slateRestaurantName', managerData.restaurant_name)
 
         setManagerName(managerData.name ?? '')
-        setManagerEmail(managerData.email ?? session.user.email ?? '')
+        setManagerEmail(session.user.email ?? '')
         setRestaurantName(managerData.restaurant_name)
         await loadData(managerData.restaurant_name)
       } catch (err) {
@@ -785,16 +784,16 @@ export default function RestaurantManagerDashboard() {
         if (insertErr) throw new Error(insertErr.message)
 
         // Notify followers — best-effort
-        fetch('/api/notify-followers', {
+        authJsonHeaders().then(headers => fetch('/api/notify-followers', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             serverId: member.server_id,
             serverName: member.name,
             restaurantName,
             type: 'shift_started',
           }),
-        }).catch(err => console.error('[manager dashboard] notify-followers:', err))
+        })).catch(err => console.error('[manager dashboard] notify-followers:', err))
       } else {
         // Deactivate active shift
         const { error: updateErr } = await supabase
@@ -820,22 +819,17 @@ export default function RestaurantManagerDashboard() {
   }
 
   async function handleContact(server: TalentServer) {
-    if (!restaurantName || !managerName || !server.email) {
+    if (!restaurantName) {
       setError('Missing details — refresh the page and try again.')
       return
     }
     setContactingId(server.id)
     try {
+      // The server's email is looked up on the server; the browser only sends the id.
       const res = await fetch('/api/contact-server', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serverEmail: server.email,
-          serverName: server.name,
-          restaurantName,
-          managerName,
-          managerEmail,
-        }),
+        headers: await authJsonHeaders(),
+        body: JSON.stringify({ serverId: server.id }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error || 'Failed to send message.')
