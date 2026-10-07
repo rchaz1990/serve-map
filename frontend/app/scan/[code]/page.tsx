@@ -80,13 +80,14 @@ export default function ScanPage() {
     // Check existing follow status
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user?.id) {
-      const { data: existingFollow } = await supabase
+      const { data: existingFollows } = await supabase
         .from('follows')
         .select('id, status')
         .eq('follower_id', session.user.id)
         .eq('server_id', serverId)
-        .maybeSingle()
-      if (existingFollow) {
+        .limit(1)
+      if (existingFollows?.length) {
+        const existingFollow = existingFollows[0]
         setFollowStatus(existingFollow.status === 'approved' ? 'approved' : 'pending')
       }
     }
@@ -104,6 +105,18 @@ export default function ScanPage() {
     // Fix 7: prevent self-follow
     if (session.user.id === serverId) return
 
+    const { data: existingFollows } = await supabase
+      .from('follows')
+      .select('id, status')
+      .eq('follower_id', session.user.id)
+      .eq('server_id', serverId)
+      .limit(1)
+    if (existingFollows?.length) {
+      const existingFollow = existingFollows[0]
+      setFollowStatus(existingFollow.status === 'approved' ? 'approved' : 'pending')
+      return
+    }
+
     const { error: followError } = await supabase.from('follows').insert({
       follower_id: session.user.id,
       follower_email: session.user.email,
@@ -114,6 +127,13 @@ export default function ScanPage() {
 
     if (!followError) {
       setFollowStatus('pending')
+    } else {
+      const isDuplicate =
+        followError.code === '23505' ||
+        /duplicate|unique/i.test(followError.message)
+      if (isDuplicate) {
+        setFollowStatus('pending')
+      }
     }
   }
 

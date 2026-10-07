@@ -121,13 +121,14 @@ export default function ServerProfilePage() {
         setIsOwnProfile(currentServer?.id === profileId)
 
         // Check existing follow status
-        const { data: followRow } = await supabase
+        const { data: followRows } = await supabase
           .from('follows')
           .select('id, status')
           .eq('follower_id', session.user.id)
           .eq('server_id', profileId)
-          .maybeSingle()
-        if (followRow) {
+          .limit(1)
+        if (followRows?.length) {
+          const followRow = followRows[0]
           setFollowStatus(followRow.status === 'approved' ? 'approved' : 'pending')
         }
       }
@@ -153,6 +154,19 @@ export default function ServerProfilePage() {
       setFollowStatus('none')
     } else {
       // New follow request — inserts as 'pending', no count increment until approved
+      const { data: existingFollows } = await supabase
+        .from('follows')
+        .select('id, status')
+        .eq('follower_id', followerId)
+        .eq('server_id', profileId)
+        .limit(1)
+      if (existingFollows?.length) {
+        const existing = existingFollows[0]
+        setFollowStatus(existing.status === 'approved' ? 'approved' : 'pending')
+        setFollowLoading(false)
+        return
+      }
+
       const { error: followError } = await supabase.from('follows').insert({
         follower_id: followerId,
         follower_email: followerEmail,
@@ -161,6 +175,13 @@ export default function ServerProfilePage() {
       })
       if (!followError) {
         setFollowStatus('pending')
+      } else {
+        const isDuplicate =
+          followError.code === '23505' ||
+          /duplicate|unique/i.test(followError.message)
+        if (isDuplicate) {
+          setFollowStatus('pending')
+        }
       }
     }
     setFollowLoading(false)
