@@ -92,28 +92,15 @@ export async function GET(request: Request) {
       let managerData = byAuthId
 
       if (!managerData && user.email) {
-        const { data: byEmail, error: managerEmailErr } = await supabase
-          .from('restaurant_managers')
-          .select('id, restaurant_name, auth_id')
-          .ilike('email', user.email)
-          .maybeSingle()
-
-        if (managerEmailErr) {
-          console.error('[auth/callback] restaurant_managers email lookup:', managerEmailErr.message)
+        // Waitlist rows may lack auth_id. The database links the row by the
+        // signed-in user's verified email (manager emails are not publicly readable).
+        const { data: linked, error: linkErr } = await supabase.rpc('link_my_manager')
+        if (linkErr) {
+          console.error('[auth/callback] link_my_manager:', linkErr.message)
         }
-
-        if (byEmail) {
-          managerData = byEmail
-          // Link Google/OAuth user to an existing manager row that had null auth_id
-          if (!byEmail.auth_id) {
-            const { error: linkErr } = await supabase
-              .from('restaurant_managers')
-              .update({ auth_id: user.id })
-              .eq('id', byEmail.id)
-            if (linkErr) {
-              console.error('[auth/callback] link auth_id:', linkErr.message)
-            }
-          }
+        const row = Array.isArray(linked) ? linked[0] : null
+        if (row) {
+          managerData = { id: row.id, restaurant_name: row.restaurant_name, auth_id: user.id }
         }
       }
 

@@ -48,7 +48,7 @@ NEXT_PUBLIC_GOOGLE_PLACES_KEY=[Places API key]
 FEE_PAYER_PRIVATE_KEY=[Solana fee payer key array]
 RESEND_API_KEY=[Resend key]
 SUPABASE_SERVICE_ROLE_KEY=[service role key — in Vercel]
-CRON_SECRET_KEY=slate-shifts-2026
+CRON_SECRET_KEY=[cron secret — in Vercel; rotate if it was ever shared]
 ```
 
 **Fee payer wallet:** `3WsYRLCAkaB7raRfSrQMhYhESQEfYq4UWfSMq1eWLRHz`
@@ -242,13 +242,12 @@ Enabled on all tables. Server-side API routes use `SUPABASE_SERVICE_ROLE_KEY` to
 
 | Stream | Details |
 |---|---|
-| Restaurant subscriptions | $99/mo Verified Partner, $299/mo Premium |
+| Restaurant subscriptions | Free for 60 days, then $29/mo (Oct 2026). Old $99/$299 tiers parked in `frontend/docs/parked-restaurant-pricing.md` |
 | Slate Pay cashout fee | 2% when servers cash $SERVE out to bank |
 | Data licensing | Anonymized NYC hospitality intelligence (Year 2-3 plan) |
 
 **Servers are free forever. No exceptions. Ever.**
 
-Founding restaurant partners get 3 months free.
 
 ---
 
@@ -265,24 +264,34 @@ Founding restaurant partners get 3 months free.
 
 ### Restaurant Manager
 6. **Talent Discovery shows no servers** — filter on `open_to_opportunities = true` may not be working.
-7. **Manager Google OAuth leads to blank page** — `/auth/callback` doesn't check `restaurant_managers` table. Needs fix.
-8. **Manager login stuck on "signing in"** — timeout/error handling bug in login flow.
+7. ~~Manager Google OAuth leads to blank page~~ **FIXED** (PRs #8–#10, Oct 2026). Live browser re-test still pending.
+8. ~~Manager login stuck on "signing in"~~ **FIXED** (PR #7, Oct 2026). Live browser re-test still pending.
 
 ### Bugs Found in Code Review (May 2026)
 9. **`server_id` missing from shifts insert** — ~~shift rows saved without server_id, so "Servers Here Tonight" on venue pages always shows empty.~~ **FIXED** (`fix/shifts-server-id-handoff-9`): server dashboard insert requires `servers.id` + `activated_by: 'server'; venue/tonight queries filter null `server_id` + 12h window. Optional SQL to deactivate residual null-`server_id` actives is in `migrations/optional_deactivate_null_server_id_shifts.sql` (do not run without Spvce approval).
-10. **Rating tags never saved** — `selectedTags` state collected in UI but never included in the ratings INSERT.
+10. ~~Rating tags never saved~~ **FIXED** — ratings now go through `/api/submit-rating`, which saves tags and the $SERVE ledger row.
 11. **Anonymous vibe reporters bypass rate limiting** — `reported_by` is undefined for logged-out users; all share the same null key.
 12. **Vibe reward mismatch** — API gives 2 $SERVE for non-GPS verified but UI says "earn 1 $SERVE".
-13. **Follower count race condition** — increment uses React state value instead of atomic DB increment; concurrent follows may only register one.
-14. **Server can follow themselves** — no guard on `follower_id !== server_id`.
+13. ~~Follower count race condition~~ **FIXED by the Oct 2026 hardening patch** — the database recounts `follower_count` from approved follows on every change.
+14. ~~Server can follow themselves~~ **FIXED by the Oct 2026 hardening patch** (database rejects it).
 15. **Comment likes have no per-user dedup** — any user can tap Like unlimited times.
-16. **Follow approval function missing from schema cache** — `approve_follow_request` SQL function showed "not found" error in production.
+16. ~~Follow approval function missing~~ exists in production; `block_follower` was missing and is added by the Oct 2026 hardening patch.
 
 ### GPS / Vibe Reports
 17. **Android GPS hangs on "verifying"** — fixed with `enableHighAccuracy: false` and 4-second timeout but may still affect some devices.
 
 ### QR Code
 18. **QR URL (canonical guest entry)** — `https://slatenow.xyz/scan/[serverId]` (QR + manager Staff copy link). Scan landing → Rate button → `/rate?server=[serverId]`. Direct `/rate?server=` also works. `/review` and `/r` are not routes (404).
+
+---
+
+### Security model (Oct 2026 hardening patch)
+- Browsers use the public key. They can read public profile data only; emails, phone numbers and GPS columns are not readable from the browser.
+- Each user can change only their own rows (own profile settings, own shifts, own jobs, own follows). Managers can start/end shifts only for staff linked to their venue.
+- Ratings, $SERVE balances, vibe reports, QR scans, page views and notifications are written only by server routes using the service key.
+- Email routes (`notify-followers`, `contact-server`, `welcome-email`) require a signed-in user and look up recipients in the database.
+- New follows are approved automatically unless the server turned on follow approval. `follower_count` is maintained by the database.
+- SQL lives in `frontend/supabase-sql/hardening/`. Order: `10_additive.sql` → deploy app → `20_tighten.sql`. Rollbacks: `29_` then `19_`.
 
 ---
 
@@ -309,8 +318,8 @@ Founding restaurant partners get 3 months free.
 
 | Job | URL | Schedule | Purpose |
 |---|---|---|---|
-| Shift cleanup | `https://slatenow.xyz/api/cleanup-shifts?key=slate-shifts-2026` | Every hour | Closes shifts older than 12 hours |
-| Daily reminder | `https://slatenow.xyz/api/daily-reminder` | 3pm EST daily | Emails servers to activate shift |
+| Shift cleanup | `https://slatenow.xyz/api/cleanup-shifts?key=[CRON_SECRET_KEY]` | Every hour | Closes shifts older than 12 hours |
+| Daily reminder | `https://slatenow.xyz/api/daily-reminder` | 3pm EST daily | **Route does not exist in the code (Oct 2026).** Disable this job or rebuild the route |
 
 ---
 
@@ -383,4 +392,4 @@ No Solana dApp found with individual hospitality worker profiles, portable on-ch
 
 ---
 
-*Generated October 2026. All information reflects the state of the project as of May 2026 with restart context added. No secret key values are included in this document.*
+*Generated October 2026; corrected 2026-10-07 against the live repo, Vercel and Supabase. Traction numbers above are from May 2026. No secret key values are included in this document.*

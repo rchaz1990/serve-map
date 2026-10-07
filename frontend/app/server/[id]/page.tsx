@@ -65,7 +65,7 @@ export default function ServerProfilePage() {
       console.log('[ServerProfile] Loading profile for ID:', profileId)
       const { data, error } = await supabase
         .from('servers')
-        .select('*')
+        .select('id, name, role, bio, photo_url, average_rating, total_ratings, follower_count, is_founding_member, serve_balance_lifetime, profile_visibility, follow_approval')
         .eq('id', profileId)
         .maybeSingle()
       console.log('[ServerProfile] Server data:', data, 'Error:', error)
@@ -83,7 +83,7 @@ export default function ServerProfilePage() {
 
         const { data: rats } = await supabase
           .from('ratings')
-          .select('*')
+          .select('id, score, comment, restaurant_name, created_at')
           .eq('server_id', profileId)
           .order('created_at', { ascending: false })
           .limit(10)
@@ -141,26 +141,26 @@ export default function ServerProfilePage() {
   async function handleFollow() {
     if (!followerId) { window.location.href = '/login'; return }
     setFollowLoading(true)
-    if (followStatus === 'approved') {
-      // Unfollow: delete row + atomically decrement
-      await supabase.from('follows').delete().eq('follower_id', followerId).eq('server_id', profileId)
-      await supabase.rpc('decrement_follower_count', { server_uuid: profileId })
-      setFollowStatus('none')
-      setFollowerCount(prev => Math.max(0, prev - 1))
-    } else if (followStatus === 'pending') {
-      // Cancel pending request — no count change
-      await supabase.from('follows').delete().eq('follower_id', followerId).eq('server_id', profileId)
-      setFollowStatus('none')
+    if (followStatus === 'approved' || followStatus === 'pending') {
+      // Unfollow or cancel a request. The database recounts follower_count.
+      const { error } = await supabase.from('follows').delete().eq('follower_id', followerId).eq('server_id', profileId)
+      if (!error) {
+        if (followStatus === 'approved') setFollowerCount(prev => Math.max(0, prev - 1))
+        setFollowStatus('none')
+      }
     } else {
-      // New follow request — inserts as 'pending', no count increment until approved
-      const { error: followError } = await supabase.from('follows').insert({
+      // New follow. The database sets the status from the server's setting:
+      // approved for automatic servers, pending for servers that approve followers.
+      const { data: inserted, error: followError } = await supabase.from('follows').insert({
         follower_id: followerId,
         follower_email: followerEmail,
         server_id: profileId,
         follower_type: localStorage.getItem('slateUserType') ?? 'guest',
-      })
+      }).select('status').single()
       if (!followError) {
-        setFollowStatus('pending')
+        const status = inserted?.status === 'approved' ? 'approved' : 'pending'
+        setFollowStatus(status)
+        if (status === 'approved') setFollowerCount(prev => prev + 1)
       }
     }
     setFollowLoading(false)

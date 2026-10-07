@@ -275,7 +275,7 @@ function CommentsSection({ venueName }: { venueName: string }) {
   const loadComments = useCallback(async () => {
     const { data } = await supabase
       .from('venue_comments')
-      .select('*')
+      .select('id, created_at, restaurant_name, comment, commenter_name, likes')
       .eq('restaurant_name', venueName)
       .order('created_at', { ascending: false })
       .limit(50)
@@ -322,8 +322,11 @@ function CommentsSection({ venueName }: { venueName: string }) {
   }
 
   async function handleLike(commentId: string, currentLikes: number) {
-    await supabase.from('venue_comments').update({ likes: currentLikes + 1 }).eq('id', commentId)
-    setComments(prev => prev.map(c => c.id === commentId ? { ...c, likes: c.likes + 1 } : c))
+    // Atomic +1 in the database; comments can no longer be edited from the browser.
+    const { data: likes, error } = await supabase.rpc('like_venue_comment', { p_comment_id: commentId })
+    if (error) { console.error('[CommentsSection] like failed:', error.message); return }
+    const next = typeof likes === 'number' ? likes : currentLikes + 1
+    setComments(prev => prev.map(c => c.id === commentId ? { ...c, likes: next } : c))
   }
 
   return (
@@ -429,7 +432,7 @@ export default function VenuePage() {
     const [reportsRes, shiftsRes] = await Promise.all([
       supabase
         .from('vibe_reports')
-        .select('*')
+        .select('id, restaurant_name, vibe, bar_seats, wait_time, gps_verified, created_at')
         .ilike('restaurant_name', venueName)
         .gte('created_at', since24h)
         .order('created_at', { ascending: false }),

@@ -189,12 +189,11 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
       .maybeSingle()
     let serverData: ServerRow | null = byId
     if (!serverData && userEmail) {
-      const { data: byEmail } = await supabase
-        .from('servers')
-        .select('id, name')
-        .ilike('email', userEmail)
-        .maybeSingle()
-      if (byEmail) serverData = byEmail
+      // Email is no longer publicly readable; the database links the account
+      // by the signed-in user's verified email instead.
+      const { data: linked } = await supabase.rpc('link_my_server')
+      const row = Array.isArray(linked) ? linked[0] : null
+      if (row) serverData = { id: row.id, name: row.name } as ServerRow
     }
 
     if (serverData) {

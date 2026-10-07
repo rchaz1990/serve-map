@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
+import { authJsonHeaders } from '@/lib/auth-fetch'
 import { supabase } from '@/lib/supabase'
 
 const STEPS = ['Your info', 'Work history', 'Photo & bio']
@@ -240,11 +241,11 @@ export default function ServerSignupPage() {
       }).catch(() => {})
 
       // Send welcome email — fire and forget
-      fetch('/api/welcome-email', {
+      authJsonHeaders().then(headers => fetch('/api/welcome-email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name: fullName, type: 'server' }),
-      }).catch(() => {})
+        headers,
+        body: JSON.stringify({ name: fullName }),
+      })).catch(() => {})
 
       // Mark as server in localStorage so Navbar resolves immediately
       localStorage.setItem('slateUserType', 'server')

@@ -90,12 +90,9 @@ export default function AccountPage() {
           .select('id, score, comment, created_at, server_id, servers(name)')
           .eq('guest_id', authUser.id)
           .order('created_at', { ascending: false }),
-        // vibe_reports uses reported_by (email), not guest_id
-        supabase
-          .from('vibe_reports')
-          .select('id, restaurant_name, vibe, created_at')
-          .eq('reported_by', authUser.email ?? '')
-          .order('created_at', { ascending: false }),
+        // Own vibe reports. Reporter emails are not publicly readable, so the
+        // database matches them to the signed-in user's email.
+        supabase.rpc('my_vibe_reports'),
         supabase
           .from('guest_rewards')
           .select('slate_points')

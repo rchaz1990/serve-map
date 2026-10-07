@@ -1,10 +1,28 @@
 import { Resend } from 'resend'
 import { NextResponse } from 'next/server'
+import { escapeHtml, getRequestUser, supabaseAdmin } from '@/lib/server-auth'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+// Sends the welcome email to the signed-in user's own address only.
 export async function POST(request: Request) {
-  const { email, name, type } = await request.json()
+  const user = await getRequestUser(request)
+  if (!user?.email) return NextResponse.json({ error: 'Sign in required' }, { status: 401 })
+
+  const body = (await request.json().catch(() => ({}))) as { name?: unknown }
+  const email = user.email
+  const rawName = typeof body.name === 'string' && body.name.trim()
+    ? body.name.trim()
+    : String(user.user_metadata?.full_name ?? '') || email
+  const name = escapeHtml(rawName.slice(0, 80))
+
+  // "server" copy only for accounts that actually own a server profile.
+  const { data: ownServer } = await supabaseAdmin()
+    .from('servers')
+    .select('id')
+    .eq('wallet_address', user.id)
+    .maybeSingle()
+  const type = ownServer ? 'server' : 'guest'
 
   const serverEmail = {
     subject: 'Welcome to Slate — Your profile is live 🍸',

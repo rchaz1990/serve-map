@@ -139,21 +139,21 @@ function RateForm() {
       return
     }
 
-    await supabase.from('follows').insert({
+    // The database sets the follow status from the server's setting and keeps
+    // follower_count in step; the browser no longer writes follower_count.
+    const { error: followError } = await supabase.from('follows').insert({
       follower_id: session.user.id,
       follower_email: session.user.email,
       server_id: serverId,
       follower_type: 'guest',
     })
 
-    await supabase
-      .from('servers')
-      .update({
-        follower_count: (serverData?.follower_count || 0) + 1,
-      })
-      .eq('id', serverId)
-
-    setIsFollowing(true)
+    // 23505 = already following (one follow per guest per server).
+    if (!followError || followError.code === '23505') {
+      setIsFollowing(true)
+    } else {
+      console.error('[rate] follow failed:', followError.message)
+    }
   }
 
   const serverName = serverData?.name || 'your server'
