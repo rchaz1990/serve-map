@@ -186,14 +186,15 @@ begin
     end if;
   end loop;
 end $$;
+revoke all on public.serve_ledger from anon, authenticated;
 revoke update, delete on public.serve_ledger from service_role;
 
 -- Function grants as they stand after Step 1.
-revoke all on function public.approve_follow_request(uuid, uuid) from public;
+revoke all on function public.approve_follow_request(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.approve_follow_request(uuid, uuid) to service_role;
-revoke all on function public.increment_serve_balance(text, integer, text) from public;
+revoke all on function public.increment_serve_balance(text, integer, text) from public, anon, authenticated;
 grant execute on function public.increment_serve_balance(text, integer, text) to service_role;
-revoke all on function public.increment_follower_count(uuid) from public;
+revoke all on function public.increment_follower_count(uuid) from public, anon, authenticated;
 grant execute on function public.increment_follower_count(uuid) to service_role;
-revoke all on function public.submit_rating_reward(uuid, integer, text, text[], text, boolean, integer) from public;
+revoke all on function public.submit_rating_reward(uuid, integer, text, text[], text, boolean, integer) from public, anon, authenticated;
 grant execute on function public.submit_rating_reward(uuid, integer, text, text[], text, boolean, integer) to service_role;

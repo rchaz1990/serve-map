@@ -25,7 +25,7 @@ applied to production; each step needs founder approval.
 ## Local tests
 
 `local-tests/run_tests.py` rebuilds a throwaway Postgres from the production structure
-(no production rows), seeds synthetic users, and checks 106 cases: the holes open today,
+(no production rows), seeds synthetic users, and checks 115 cases (with Supabase's automatic function grants reproduced): the holes open today,
 old-code compatibility after step 1, every browser query and write the new code makes,
 attacks that must fail, and both rollbacks.
 Needs a local Postgres on `/tmp:54329` and `pip install "psycopg[binary]"`.

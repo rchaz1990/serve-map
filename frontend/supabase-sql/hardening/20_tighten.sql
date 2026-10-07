@@ -136,4 +136,10 @@ create policy restaurants_read on public.restaurants for select to anon, authent
 
 -- page_views, qr_scans, serve_ledger: no browser access (server routes only).
 
+-- Signed-in-only functions. Supabase grants new functions to anon automatically;
+-- these three return nothing without a signed-in user, but should not be callable by anon.
+revoke execute on function public.link_my_server() from anon;
+revoke execute on function public.link_my_manager() from anon;
+revoke execute on function public.my_vibe_reports() from anon;
+
 commit;

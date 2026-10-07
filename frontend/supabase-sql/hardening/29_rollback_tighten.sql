@@ -53,4 +53,10 @@ create policy "Anyone can update venue comments" on public.venue_comments as PER
 create policy "Anyone can insert venue comments" on public.venue_comments as PERMISSIVE for INSERT to public with check (true);
 create policy "Allow all on restaurant_managers" on public.restaurant_managers as PERMISSIVE for ALL to public using (true) with check (true);
 
+-- Undo the three function revokes at the end of 20_tighten.sql (back to the
+-- post-part-1 state, where Supabase had granted them to anon automatically).
+grant execute on function public.link_my_server() to anon;
+grant execute on function public.link_my_manager() to anon;
+grant execute on function public.my_vibe_reports() to anon;
+
 commit;

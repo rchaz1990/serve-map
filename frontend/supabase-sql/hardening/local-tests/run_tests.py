@@ -37,6 +37,51 @@ SRV_C = "11111111-1111-1111-1111-11111111111c"
 
 results = []
 
+# Function grants read from production after part 1 ran (2026-10-07, ~15:45 ET).
+PROD_FN_ACLS_AFTER_PART1 = {
+    "approve_follow_request": "{postgres=X/postgres,service_role=X/postgres}",
+    "block_follower": "{postgres=X/postgres,service_role=X/postgres}",
+    "follows_set_status": "{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+    "follows_sync_count": "{postgres=X/postgres,service_role=X/postgres}",
+    "increment_follower_count": "{postgres=X/postgres,service_role=X/postgres}",
+    "increment_serve_balance": "{postgres=X/postgres,service_role=X/postgres}",
+    "is_my_server": "{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+    "like_venue_comment": "{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+    "link_my_manager": "{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+    "link_my_server": "{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+    "manager_can_staff": "{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+    "my_vibe_reports": "{postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+    "serve_ledger_append_only": "{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+    "submit_rating_reward": "{postgres=X/postgres,service_role=X/postgres}",
+}
+PROD_SERVE_LEDGER_GRANTS = {
+    "postgres": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+    "service_role": "INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE",
+}
+SIGNED_IN_ONLY = ["link_my_server", "link_my_manager", "my_vibe_reports"]
+
+
+def fn_acls():
+    rows = admin("select p.proname, p.proacl::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace "
+                 "where n.nspname = 'public' and p.prokind = 'f'")
+    return {name: norm_acl(acl) for name, acl in rows}
+
+
+def norm_acl(acl):
+    """Order-insensitive form of a Postgres ACL string like {a=X/o,b=X/o}."""
+    return "{" + ",".join(sorted((acl or "{}").strip("{}").split(","))) + "}"
+
+
+def serve_ledger_grants():
+    rows = admin("select grantee, string_agg(privilege_type, ',' order by privilege_type) from "
+                 "information_schema.role_table_grants where table_schema = 'public' and table_name = 'serve_ledger' "
+                 "group by grantee")
+    return dict(rows)
+
+
+def record(phase, name, passed, got):
+    results.append((phase, name, passed, got))
+
 
 def psql_file(path):
     subprocess.run(
@@ -150,6 +195,17 @@ def phase1():
     check(p, "old code: rate page follower_count write still works", "G",
           "update servers set follower_count = follower_count where id = %s", "ok",
           params=(SRV_A,), test=lambda r, n: n == 1)
+    # Model fidelity: local grants must equal what production showed after part 1
+    local = fn_acls()
+    diffs = {k: (local.get(k), v) for k, v in PROD_FN_ACLS_AFTER_PART1.items() if local.get(k) != norm_acl(v)}
+    extra = sorted(set(local) - set(PROD_FN_ACLS_AFTER_PART1))
+    record(p, "model: all 14 function grants match production", not diffs and not extra,
+           f"diffs={diffs} extra={extra}" if diffs or extra else "identical")
+    sl = serve_ledger_grants()
+    record(p, "model: serve_ledger grants match production", sl == PROD_SERVE_LEDGER_GRANTS,
+           "identical" if sl == PROD_SERVE_LEDGER_GRANTS else str(sl))
+    check(p, "model: anon can call link_my_server (as in production)", "anon",
+          "select count(*) from link_my_server()", "ok", test=lambda r, n: r[0][0] == 0)
     # New behaviour already active
     check(p, "new follow on automatic server is approved", "service",
           "insert into follows (follower_id, server_id) values ('new-guest', %s) returning status", "ok",
@@ -216,6 +272,16 @@ def phase2():
     check(p, "anon: QR scans table closed", "anon", "select id from qr_scans", "denied")
     check(p, "anon: $SERVE function locked", "anon",
           "select increment_serve_balance('%%', 1000, 'server')", "denied")
+    for fn in SIGNED_IN_ONLY:
+        check(p, f"anon: {fn} not callable", "anon", f"select * from {fn}()", "denied")
+    acl = fn_acls()
+    want = norm_acl("{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}")
+    record(p, "grants: 3 signed-in-only functions = owner + authenticated + service",
+           all(acl[f] == want for f in SIGNED_IN_ONLY), str({f: acl[f] for f in SIGNED_IN_ONLY}))
+    other = {k: v for k, v in acl.items() if k not in SIGNED_IN_ONLY}
+    expect_other = {k: norm_acl(v) for k, v in PROD_FN_ACLS_AFTER_PART1.items() if k not in SIGNED_IN_ONLY}
+    record(p, "grants: all other functions unchanged by part 2", other == expect_other,
+           "unchanged" if other == expect_other else str(other))
     check(p, "anon: approve function locked", "anon",
           "select approve_follow_request(gen_random_uuid(), %s)", "denied", params=(SRV_A,))
 
@@ -374,6 +440,10 @@ def phase3():
           "select count(*) from pg_policies where schemaname = 'public'", "ok", test=lambda r, n: r[0][0] == 28)
     check(p, "rollback 2: old select * works again", "anon",
           "select * from servers", "ok", test=lambda r, n: len(r) == 3)
+    acl = fn_acls()
+    expect = {k: norm_acl(v) for k, v in PROD_FN_ACLS_AFTER_PART1.items()}
+    record(p, "rollback 2: function grants back to post-part-1 production state",
+           acl == expect, "identical" if acl == expect else str(acl))
     psql_file(SQL / "19_rollback_additive.sql")
     check(p, "rollback 1: duplicate follow back", "service",
           "select count(*) from follows where follower_id = %s and server_id = %s", "ok",
