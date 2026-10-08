@@ -141,41 +141,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 })
   }
 
-  // ── Reward — update Slate Points ─────────────────────────────────────────
+  // ── Reward — guest_rewards balance ──────────────────────────────────────
+  // servers.slate_points was dropped, so the old server branch always failed its
+  // lookup and fell through to guest_rewards. Keep that same effective behavior
+  // without touching the dropped column. Server $SERVE belongs in serve_ledger.
   if (serveReward > 0 && reporterEmail) {
-    const { data: serverRow } = await supabase
-      .from('servers')
-      .select('id, slate_points, email')
+    const { data: guestRow } = await supabase
+      .from('guest_rewards')
+      .select('slate_points')
       .ilike('email', reporterEmail)
       .maybeSingle()
 
-    if (serverRow) {
-      const newBalance = (serverRow.slate_points ?? 0) + serveReward
-      const { error: updateError } = await supabase
-        .from('servers')
-        .update({ slate_points: newBalance })
-        .eq('id', serverRow.id)
-      if (updateError) console.error('[verify-vibe] server balance update error:', updateError)
-      else console.log(`Updated server ${reporterEmail} balance to ${newBalance}`)
-    } else {
-      const { data: guestRow } = await supabase
+    if (guestRow) {
+      await supabase
         .from('guest_rewards')
-        .select('slate_points')
+        .update({ slate_points: (guestRow.slate_points ?? 0) + serveReward })
         .ilike('email', reporterEmail)
-        .maybeSingle()
-
-      if (guestRow) {
-        await supabase
-          .from('guest_rewards')
-          .update({ slate_points: (guestRow.slate_points ?? 0) + serveReward })
-          .ilike('email', reporterEmail)
-      } else {
-        await supabase
-          .from('guest_rewards')
-          .insert({ email: reporterEmail, slate_points: serveReward })
-      }
-      console.log(`Updated guest ${reporterEmail} balance by ${serveReward}`)
+    } else {
+      await supabase
+        .from('guest_rewards')
+        .insert({ email: reporterEmail, slate_points: serveReward })
     }
+    console.log(`Updated guest ${reporterEmail} balance by ${serveReward}`)
   }
 
   const message = serveReward > 0
