@@ -174,7 +174,7 @@ export default function ServerProfilePage() {
 
   function shareOnX() {
     const serverName = server?.name || 'this server'
-    const text = `Check out ${serverName} on Slate — NYC's first on-chain server reputation platform 🍸`
+    const text = `Check out ${serverName} on Slate — your service, your reputation, wherever you work 🍸`
     const url = `https://slatenow.xyz/server/${profileId}`
     window.open(
       `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,

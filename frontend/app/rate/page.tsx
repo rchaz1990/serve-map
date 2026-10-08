@@ -298,20 +298,20 @@ function RateForm() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: '13px' }}>
                   <span>{rating} star rating</span>
-                  <span style={{ color: 'white' }}>+{lastReward.starReward} $SERVE</span>
+                  <span style={{ color: 'white' }}>+{lastReward.starReward} pts</span>
                 </div>
 
                 {lastReward.commentBonus > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: '13px' }}>
                     <span>Written review bonus</span>
-                    <span style={{ color: 'white' }}>+{lastReward.commentBonus} $SERVE</span>
+                    <span style={{ color: 'white' }}>+{lastReward.commentBonus} pts</span>
                   </div>
                 )}
 
                 {lastReward.followBonus > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: '13px' }}>
                     <span>Follow bonus</span>
-                    <span style={{ color: 'white' }}>+{lastReward.followBonus} $SERVE</span>
+                    <span style={{ color: 'white' }}>+{lastReward.followBonus} pts</span>
                   </div>
                 )}
 
@@ -328,7 +328,7 @@ function RateForm() {
                   }}
                 >
                   <span>Total</span>
-                  <span>{lastReward.total} $SERVE</span>
+                  <span>{lastReward.total} Slate Points</span>
                 </div>
               </div>
             </div>
@@ -482,7 +482,7 @@ function RateForm() {
                 Earns {serverFirstName} Slate Points
               </p>
               <p className="mt-1 text-xs leading-relaxed slate-secondary">
-                Builds their on-chain reputation.
+                Builds their reputation — wherever they work.
               </p>
             </div>
           </div>
