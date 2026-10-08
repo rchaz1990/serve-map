@@ -59,12 +59,16 @@ export async function POST(request: Request) {
   const emailContent = type === 'server' ? serverEmail : guestEmail
 
   try {
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: 'Slate <team@slatenow.xyz>',
       to: email,
       subject: emailContent.subject,
       html: emailContent.html,
     })
+    if (error) {
+      console.error('[welcome-email] Resend rejected email:', error.name, error.message)
+      return NextResponse.json({ error: 'Failed to send email' }, { status: 502 })
+    }
   } catch (err) {
     console.error('[welcome-email] Failed to send:', err)
     return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
