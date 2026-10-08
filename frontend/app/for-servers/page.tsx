@@ -22,7 +22,7 @@ export default function ForServersPage() {
               Your rewards.
             </h1>
             <p className="mb-6 max-w-xl text-base leading-relaxed" style={{ color: '#606060' }}>
-              The first platform built entirely for the people who make hospitality great.
+              Your reputation shouldn&apos;t reset when you change jobs. Slate is built entirely for the people who make hospitality great.
             </p>
             <p className="text-sm font-semibold text-white">
               Free forever. No credit card. No catch.
@@ -46,7 +46,7 @@ export default function ForServersPage() {
                 But when you change jobs it disappears overnight. Your reviews stay on the restaurant&apos;s Yelp page. Your regulars lose you. You start over at zero.
               </p>
               <p className="font-semibold text-white">
-                That ends with Slate.
+                Slate is built to change that.
               </p>
             </div>
           </div>
@@ -64,19 +64,19 @@ export default function ForServersPage() {
               {[
                 {
                   title: 'Portable reputation',
-                  body: 'Your ratings live on the Solana blockchain. Permanent. Immutable. Yours forever. No employer can take them away.',
+                  body: 'Build a service record that follows your career. Your ratings and reputation score stay on your Slate profile when you change jobs.',
                 },
                 {
                   title: 'Real followers',
-                  body: 'Guests follow you — not the restaurant. When you move your followers get notified automatically. The relationship is yours.',
+                  body: 'Guests follow you — not the restaurant. Start a shift and your followers get an email, wherever you\'re working. The relationship is yours.',
                 },
                 {
-                  title: 'Merit-based $SERVE',
-                  body: 'Every verified rating earns $SERVE — more for higher stars, with bonuses for written reviews and new follows. The on-chain proof that you showed up and delivered.',
+                  title: 'Merit-based Slate Points',
+                  body: 'Every guest rating earns Slate Points — more for higher stars, with bonuses for written reviews and new follows. A record that you showed up and delivered.',
                 },
                 {
                   title: 'Your QR code',
-                  body: 'Activate your shift QR with one tap. Guests scan it at the table after great service. No app download required for them.',
+                  body: 'Start your shift and your QR appears in your dashboard. Guests scan it after great service to rate and follow you. No app download required.',
                 },
               ].map(card => (
                 <div
@@ -97,22 +97,22 @@ export default function ForServersPage() {
         <section className="px-6 py-16 lg:px-24 lg:py-24">
           <div className="mx-auto max-w-4xl">
             <h2 className="mb-8 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              How $SERVE works
+              How Slate Points work
             </h2>
             <div className="max-w-2xl space-y-5 text-base leading-8" style={{ color: '#C0C0C0' }}>
               <p>
-                Every rating you receive earns $SERVE based on the quality of your service.
+                Every rating you receive earns Slate Points based on the quality of your service.
               </p>
             </div>
 
             {/* Star rewards table */}
             <div className="mt-8 max-w-xl rounded-2xl border border-white/10 bg-white/[0.03]">
               {[
-                { label: '5 stars + written review + follow', amount: '50 $SERVE', highlight: true },
-                { label: '4 stars',                          amount: '20 $SERVE base' },
-                { label: '3 stars',                          amount: '10 $SERVE base' },
-                { label: '2 stars',                          amount: '5 $SERVE base' },
-                { label: '1 star',                           amount: '2 $SERVE base' },
+                { label: '5 stars + written review + follow', amount: '50 pts', highlight: true },
+                { label: '4 stars',                          amount: '20 pts base' },
+                { label: '3 stars',                          amount: '10 pts base' },
+                { label: '2 stars',                          amount: '5 pts base' },
+                { label: '1 star',                           amount: '2 pts base' },
               ].map((row, i, arr) => (
                 <div
                   key={row.label}
@@ -134,23 +134,23 @@ export default function ForServersPage() {
               <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#606060' }}>Bonuses</p>
               <div className="flex items-center justify-between py-1.5 text-sm" style={{ color: '#C0C0C0' }}>
                 <span>Written review</span>
-                <span className="text-white">+10 $SERVE</span>
+                <span className="text-white">+10 pts</span>
               </div>
               <div className="flex items-center justify-between py-1.5 text-sm" style={{ color: '#C0C0C0' }}>
                 <span>New follow</span>
-                <span className="text-white">+5 $SERVE</span>
+                <span className="text-white">+5 pts</span>
               </div>
             </div>
 
             <div className="mt-8 max-w-2xl space-y-5 text-base leading-8" style={{ color: '#C0C0C0' }}>
               <p>
-                Every $SERVE counts toward your reputation score — your permanent on-chain credential. It only goes up. It never resets.
+                Your lifetime Slate Points are your reputation score. It only goes up, and it doesn&apos;t reset when you change jobs.
               </p>
               <p>
-                The top 20% of active servers receive a cash payout every two weeks through Slate Pay, funded by restaurant subscriptions. The more stars, written reviews, and follows you earn, the higher you rank.
+                The value you create should come back to you. We&apos;re building toward $SERVE, a reward layer for the workers who make hospitality great. It hasn&apos;t launched, Slate Points have no cash value, and we&apos;ll publish the rules before anything changes.
               </p>
               <p className="font-semibold text-white">
-                No speculation. No crypto knowledge required. Just real rewards for real hospitality.
+                No crypto knowledge required. Just recognition for real hospitality.
               </p>
             </div>
           </div>
@@ -165,13 +165,13 @@ export default function ForServersPage() {
               You&apos;re in complete control.
             </h2>
             <p className="mb-8 max-w-xl text-base leading-relaxed" style={{ color: '#606060' }}>
-              Follow requests require your approval. Block anyone at any time. Your ratings can never be removed — but your privacy is always protected.
+              Choose whether follows need your approval. Block anyone at any time. Your contact details and location are never shown on your public profile.
             </p>
             <div className="flex flex-col gap-4 sm:flex-row sm:gap-8">
               {[
-                'You approve or deny every follow request',
+                'Turn on follow approval to review every request',
                 'Block any guest at any time — no questions asked',
-                'Your location is never stored or shared',
+                'Your location is never shown publicly',
               ].map(point => (
                 <div key={point} className="flex items-start gap-3">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="mt-0.5 h-4 w-4 shrink-0 text-white">
@@ -190,10 +190,10 @@ export default function ForServersPage() {
         <section className="px-6 py-24 text-center lg:px-24 lg:py-36">
           <div className="mx-auto max-w-xl">
             <h2 className="mb-5 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Ready to own your reputation?
+              Build a service record that follows your career.
             </h2>
             <p className="mx-auto mb-10 text-base leading-relaxed" style={{ color: '#606060' }}>
-              Free forever. Takes 2 minutes. Your reputation starts the moment you claim your profile.
+              Your service. Your reputation. Wherever you work. Free forever — takes 2 minutes.
             </p>
             <a
               href="/servers/signup"

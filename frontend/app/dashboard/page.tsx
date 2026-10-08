@@ -413,10 +413,10 @@ function ServeRewardsSection({
             fontFamily: '"Space Mono", ui-monospace, monospace',
           }}
         >
-          $SERVE earned lifetime
+          Slate Points earned · lifetime
         </div>
         <div style={{ marginTop: '12px', fontSize: '12px', color: '#444', lineHeight: 1.6 }}>
-          Your permanent on-chain reputation score. Only goes up. Never resets.
+          Your reputation score. Built from every guest rating. Only goes up, and stays with you when you change jobs.
         </div>
       </div>
 
@@ -1484,7 +1484,7 @@ export default function DashboardPage() {
                 <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
                   Welcome back, {serverProfile.name.split(' ')[0]}
                 </h1>
-                <span title="Verified on-chain profile">
+                <span title="Your Slate profile">
                   <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 shrink-0">
                     <circle cx="12" cy="12" r="12" fill="white" />
                     <path d="M7 12.5l3.5 3.5 6.5-7" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -1511,7 +1511,7 @@ export default function DashboardPage() {
             { label: 'Rating',    value: serverProfile?.avg_rating ? serverProfile.avg_rating.toFixed(1) : '—' },
             { label: 'Reviews',   value: serverProfile?.total_ratings ?? 0 },
             { label: 'Followers', value: serverProfile?.follower_count ?? 0 },
-            { label: '$SERVE',    value: serverProfile?.serve_balance_lifetime ?? 0 },
+            { label: 'Slate Points', value: serverProfile?.serve_balance_lifetime ?? 0 },
           ].map(({ label, value }) => (
             <div key={label} className="slate-stat">
               <span className="slate-stat-value">{value}</span>

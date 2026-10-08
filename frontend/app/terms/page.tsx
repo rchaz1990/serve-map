@@ -31,8 +31,8 @@ const SECTIONS = [
         text: 'Submitting a rating you know to be false, coordinating with others to manipulate a server\'s rating, or submitting ratings without a genuine dining experience is strictly prohibited. Fraudulent reviews harm real workers whose livelihoods depend on the integrity of Slate\'s reputation system.',
       },
       {
-        subtitle: 'Permanence',
-        text: 'Ratings are written to the Solana blockchain and are permanent. They cannot be edited or deleted after submission. Please rate thoughtfully and honestly.',
+        subtitle: 'Removal',
+        text: 'Ratings are stored by Slate. Slate may remove any rating that breaks these Terms. Ratings cannot be edited after you submit them, so please rate thoughtfully and honestly.',
       },
     ],
   },
@@ -41,24 +41,24 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'You agree not to: submit fraudulent ratings or vibe reports; harass, threaten, or abuse any server, bartender, guest, or venue; impersonate another person or create false accounts; attempt to manipulate the $SERVE reward distribution system; reverse engineer, scrape, or exploit the Slate platform; or use Slate for any unlawful purpose.',
+        text: 'You agree not to: submit fraudulent ratings or vibe reports; harass, threaten, or abuse any server, bartender, guest, or venue; impersonate another person or create false accounts; attempt to manipulate Slate Points or any reward system; reverse engineer, scrape, or exploit the Slate platform; or use Slate for any unlawful purpose.',
       },
     ],
   },
   {
-    title: '$SERVE Token',
+    title: 'Slate Points and $SERVE',
     body: [
       {
-        subtitle: 'No guaranteed value',
-        text: '$SERVE tokens earned through the Slate platform have no guaranteed monetary value. Token value fluctuates based on market conditions beyond Slate\'s control. Earning $SERVE rewards does not constitute a promise of any specific financial return.',
+        subtitle: 'Slate Points',
+        text: 'Slate Points are a record of recognition on Slate. They are not a cryptocurrency, have no cash value, and cannot be sold, transferred, or exchanged. Slate may change how points are earned or end the points program.',
+      },
+      {
+        subtitle: '$SERVE',
+        text: '$SERVE is a reward token Slate plans to develop. It has not been issued. Slate does not promise that $SERVE will launch, or that Slate Points will convert into $SERVE or any other asset. If $SERVE launches, it will be governed by its own terms.',
       },
       {
         subtitle: 'Not investment advice',
-        text: 'Nothing in the Slate platform or communications constitutes financial, investment, or legal advice. $SERVE is a utility token designed to reward participation in the Slate ecosystem. You are solely responsible for any decisions you make regarding $SERVE.',
-      },
-      {
-        subtitle: 'Regulatory compliance',
-        text: 'You are responsible for understanding and complying with any tax obligations or regulations applicable to cryptocurrency tokens in your jurisdiction.',
+        text: 'Nothing in the Slate platform or communications constitutes financial, investment, or legal advice.',
       },
     ],
   },
@@ -67,16 +67,16 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'Slate reserves the right to suspend or permanently terminate any account that violates these Terms of Service, submits fraudulent ratings, engages in abusive behavior, or otherwise harms the integrity of the platform or the workers on it. We will use reasonable judgment in making these determinations. Terminated accounts forfeit any pending $SERVE rewards.',
+        text: 'Slate reserves the right to suspend or permanently terminate any account that violates these Terms of Service, submits fraudulent ratings, engages in abusive behavior, or otherwise harms the integrity of the platform or the workers on it. We will use reasonable judgment in making these determinations. Terminated accounts forfeit their Slate Points.',
       },
     ],
   },
   {
-    title: 'Blockchain Data',
+    title: 'Blockchain Features',
     body: [
       {
         subtitle: '',
-        text: 'Certain Slate data — including ratings, follow relationships, and token balances — is stored on the Solana blockchain and is public by nature. You acknowledge and accept that data written to the blockchain cannot be deleted by Slate or any other party.',
+        text: 'Slate does not currently store ratings, follows, or Slate Points on a blockchain. If we introduce blockchain features, we will update these Terms before they apply to you.',
       },
     ],
   },
@@ -94,7 +94,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'To the fullest extent permitted by law, Slate shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the platform, including but not limited to loss of $SERVE tokens, reputational harm, or loss of income.',
+        text: 'To the fullest extent permitted by law, Slate shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the platform, including but not limited to loss of Slate Points, reputational harm, or loss of income.',
       },
     ],
   },
@@ -133,7 +133,7 @@ export default function TermsPage() {
           <h1 className="mb-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
             Terms of Service
           </h1>
-          <p className="text-sm" style={{ color: '#606060' }}>Effective April 2026</p>
+          <p className="text-sm" style={{ color: '#606060' }}>Updated October 2026</p>
         </div>
 
         <div className="space-y-12">
