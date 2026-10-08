@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
       userId,  // Supabase auth UID — stored in wallet_address for fast lookup
       photoUrl,
       specialties,
+      isTest,  // true only when the browser has the test-device flag (lib/funnel.ts)
     } = body
 
     const email = rawEmail?.toLowerCase().trim()
@@ -40,7 +41,9 @@ export async function POST(request: NextRequest) {
         role,
         wallet_address: userId ?? null,
         is_founding_member: true,
-        slate_points: 50,  // Founding member bonus
+        // servers.slate_points was dropped; $SERVE lives in serve_ledger. The
+        // founding bonus is intentionally not written here (pending founder decision).
+        is_test: isTest === true,
         photo_url: photoUrl ?? null,
         specialties: Array.isArray(specialties) ? specialties : [],
       })

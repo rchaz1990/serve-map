@@ -6,6 +6,7 @@ import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import { authJsonHeaders } from '@/lib/auth-fetch'
 import { supabase } from '@/lib/supabase'
+import { isTestDevice } from '@/lib/funnel'
 
 const STEPS = ['Your info', 'Work history', 'Photo & bio']
 
@@ -43,6 +44,18 @@ export default function ServerSignupPage() {
   const [city2, setCity2] = useState('')
   const venue2InputRef = useRef<HTMLInputElement>(null)
   const [confirmedPlace2, setConfirmedPlace2] = useState<{ name: string; address: string } | null>(null)
+
+  // Test device flag (lib/funnel.ts): open /servers/signup?test=1 once to turn it
+  // on, ?test=0 to turn it off. Only then can a typed venue be used without a
+  // Google Places pick, and the profile is saved with is_test = true.
+  const [testDevice, setTestDevice] = useState(false)
+  useEffect(() => { setTestDevice(isTestDevice()) }, [])
+
+  function handleTestVenueInput(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!testDevice) return
+    setVenue(e.target.value.trim())
+    setCity(e.target.value.trim() ? 'New York' : '')
+  }
 
   // Initialise Google Places Autocomplete whenever step 1 is visible and the
   // script has loaded (or was already loaded on a previous render).
@@ -222,6 +235,7 @@ export default function ServerSignupPage() {
           userId: authData.user?.id,  // Supabase auth UID → saved to wallet_address
           photoUrl,
           specialties: selectedSpecialties,
+          isTest: testDevice,
         }),
       })
 
@@ -417,8 +431,14 @@ export default function ServerSignupPage() {
                       ref={venueInputRef}
                       type="text"
                       placeholder="Search for your restaurant..."
+                      onChange={testDevice ? handleTestVenueInput : undefined}
                       className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40"
                     />
+                  )}
+                  {testDevice && !confirmedPlace && (
+                    <p className="mt-1.5 text-xs" style={{ color: '#606060' }}>
+                      Test device: a typed venue is allowed (city defaults to New York).
+                    </p>
                   )}
                 </div>
 
