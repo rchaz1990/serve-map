@@ -1,0 +1,119 @@
+// Local Supabase-shaped gateway for testing against a REAL database:
+//   /rest/v1/*  → PostgREST (real Postgres, real grants + RLS from supabase-sql/)
+//   /auth/v1/*  → simulated auth that issues real HS256 JWTs PostgREST verifies,
+//                 and records each account in auth.users like Supabase does.
+// Email confirmation is OFF here, matching production (accounts are usable at once).
+// usage: node gateway.js <port> <postgrestPort> <jwtSecret> <keysOutFile>
+const http = require('http')
+const crypto = require('crypto')
+const fs = require('fs')
+const { execFileSync } = require('child_process')
+const [PORT, PGRST, SECRET, KEYS_OUT] = process.argv.slice(2)
+const DB = process.env.STACK_DB || 'slate_stack'
+
+const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url')
+function sign(claims) {
+  const h = b64({ alg: 'HS256', typ: 'JWT' }), p = b64(claims)
+  return `${h}.${p}.${crypto.createHmac('sha256', SECRET).update(`${h}.${p}`).digest('base64url')}`
+}
+function verify(tok) {
+  const [h, p, s] = (tok || '').split('.')
+  if (!s) return null
+  const good = crypto.createHmac('sha256', SECRET).update(`${h}.${p}`).digest('base64url')
+  if (s.length !== good.length || !crypto.timingSafeEqual(Buffer.from(s), Buffer.from(good))) return null
+  const c = JSON.parse(Buffer.from(p, 'base64url').toString())
+  return c.exp && c.exp < Date.now() / 1000 ? null : c
+}
+const far = Math.floor(Date.now() / 1000) + 10 * 365 * 86400
+const ANON = sign({ role: 'anon', iss: 'local', exp: far })
+const SERVICE = sign({ role: 'service_role', iss: 'local', exp: far })
+fs.writeFileSync(KEYS_OUT, JSON.stringify({ anon: ANON, service: SERVICE }))
+
+const users = {} // email -> {id,email,password,user_metadata,app_metadata}
+function psql(sql, vars) {
+  const args = ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-qAt']
+  for (const [k, v] of Object.entries(vars)) args.push('-v', `${k}=${v}`)
+  return execFileSync('psql', [...args, '-c', sql], { encoding: 'utf8' })
+}
+function userObj(u) {
+  const now = new Date().toISOString()
+  return { id: u.id, aud: 'authenticated', role: 'authenticated', email: u.email, email_confirmed_at: now, confirmed_at: now,
+    user_metadata: u.user_metadata, app_metadata: u.app_metadata, identities: [], created_at: now, updated_at: now }
+}
+function session(u) {
+  const exp = Math.floor(Date.now() / 1000) + 3600
+  const at = sign({ sub: u.id, email: u.email, role: 'authenticated', aud: 'authenticated', exp,
+    app_metadata: u.app_metadata, user_metadata: u.user_metadata })
+  return { access_token: at, refresh_token: crypto.randomUUID(), token_type: 'bearer', expires_in: 3600, expires_at: exp, user: userObj(u) }
+}
+function createUser(email, password, meta, provider = 'email') {
+  const u = { id: crypto.randomUUID(), email, password, user_metadata: meta || {}, app_metadata: { provider, providers: [provider] } }
+  users[email.toLowerCase()] = u
+  // psql variables are quoted by psql itself (:'x'), so values cannot inject SQL.
+  execFileSync('psql', ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-q',
+    '-v', `id=${u.id}`, '-v', `email=${email}`], { input: "insert into auth.users (id, email) values (:'id', :'email');\n" })
+  return u
+}
+
+http.createServer((req, res) => {
+  const chunks = []
+  req.on('data', c => chunks.push(c))
+  req.on('end', () => {
+    const body = Buffer.concat(chunks)
+    const url = new URL(req.url, 'http://x')
+    const cors = {
+      'Access-Control-Allow-Origin': req.headers.origin || '*',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,PUT,HEAD,OPTIONS',
+      'Access-Control-Allow-Headers': req.headers['access-control-request-headers'] || '*',
+      'Access-Control-Expose-Headers': 'Content-Range, X-Total-Count',
+    }
+    const send = (status, obj) => {
+      res.writeHead(status, { 'Content-Type': 'application/json', ...cors })
+      res.end(obj === undefined ? '' : JSON.stringify(obj))
+    }
+    if (req.method === 'OPTIONS') return send(200)
+    let json = null
+    try { json = body.length ? JSON.parse(body) : null } catch {}
+
+    // test hook: create an account directly (e.g. a Google-verified one)
+    if (url.pathname === '/__create_user') {
+      const u = createUser(json.email, json.password || 'x', json.data, json.provider || 'email')
+      return send(200, session(u))
+    }
+
+    if (url.pathname === '/auth/v1/signup' && req.method === 'POST') {
+      if (users[(json.email || '').toLowerCase()]) return send(422, { code: 422, error_code: 'user_already_exists', msg: 'User already registered' })
+      return send(200, session(createUser(json.email, json.password, json.data)))
+    }
+    if (url.pathname === '/auth/v1/token' && url.searchParams.get('grant_type') === 'password') {
+      const u = users[(json?.email || '').toLowerCase()]
+      if (!u || u.password !== json.password) return send(400, { error: 'invalid_grant', error_description: 'Invalid login credentials' })
+      return send(200, session(u))
+    }
+    if (url.pathname === '/auth/v1/user' && req.method === 'GET') {
+      const c = verify((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
+      const u = c && c.sub && Object.values(users).find(x => x.id === c.sub)
+      return u ? send(200, userObj(u)) : send(401, { code: 401, msg: 'invalid JWT' })
+    }
+    if (url.pathname === '/auth/v1/logout') return send(204)
+
+    if (url.pathname.startsWith('/rest/v1/')) {
+      const headers = { ...req.headers, host: `localhost:${PGRST}` }
+      delete headers.origin
+      // Supabase sends the anon key as a Bearer token when no user is signed in.
+      if (!headers.authorization && headers.apikey) headers.authorization = `Bearer ${headers.apikey}`
+      const up = http.request({ host: '127.0.0.1', port: PGRST, method: req.method, path: url.pathname.slice('/rest/v1'.length) + url.search, headers }, r => {
+        const h = { ...r.headers, ...cors }
+        res.writeHead(r.statusCode, h)
+        r.pipe(res)
+      })
+      up.on('error', e => send(502, { message: e.message }))
+      up.end(body)
+      return
+    }
+    return send(404, { message: 'gateway: not found' })
+  })
+}).listen(Number(PORT), () => console.log('gateway ready', PORT))
+
+void psql
