@@ -139,23 +139,37 @@ export async function POST(request: Request) {
     if (error) console.error('[notify-followers] DB insert error:', error)
   }
 
-  // Fix 6: parallel email sending to avoid serverless timeout
+  // Plain-text alternative: some inboxes treat HTML-only mail as more likely spam.
+  const text = type === 'shift_started'
+    ? `${serverName} just started a shift at ${restaurantName}.\n\nView profile: https://slatenow.xyz/server/${serverId}\n\nYou're following ${firstName} on Slate. Manage follows: https://slatenow.xyz/account`
+    : `${serverName} is now working at ${restaurantName}.\n\nSee their profile: https://slatenow.xyz/server/${serverId}\n\nYou're following ${firstName} on Slate. Manage follows: https://slatenow.xyz/account`
+
+  // Send in parallel to avoid a serverless timeout. Resend reports most failures
+  // as a returned { error } rather than a thrown exception, so check both.
+  const recipients = followers.filter(f => f.follower_email)
   const emailResults = await Promise.all(
-    followers
-      .filter(f => f.follower_email)
-      .map(follower =>
-        resend.emails.send({
+    recipients.map(async follower => {
+      try {
+        const { error } = await resend.emails.send({
           from: 'Slate <team@slatenow.xyz>',
           to: follower.follower_email!,
           subject,
           html,
-        }).catch(err => {
-          console.error('[notify-followers] Email failed for:', follower.follower_email, err)
-          return null
+          text,
         })
-      )
+        if (error) {
+          console.error('[notify-followers] Resend rejected email:', serverId, type, error.name, error.message)
+          return false
+        }
+        return true
+      } catch (err) {
+        console.error('[notify-followers] Email send threw:', serverId, type, err)
+        return false
+      }
+    })
   )
   const notified = emailResults.filter(Boolean).length
+  const failed = emailResults.length - notified
 
-  return NextResponse.json({ success: true, notified })
+  return NextResponse.json({ success: failed === 0, notified, failed })
 }
