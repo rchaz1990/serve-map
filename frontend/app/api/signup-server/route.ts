@@ -127,7 +127,15 @@ export async function POST(request: NextRequest) {
       })
       .select('id, name')
       .single()
-    if (serverError) throw serverError
+    if (serverError) {
+      // With the one-profile-per-account unique index in place, a concurrent
+      // request that already created the profile surfaces here as 23505.
+      if (serverError.code === '23505') {
+        const winner = await findExistingProfile(user.id, token)
+        if (winner) return NextResponse.json({ success: true, created: false, serverId: winner.id, serverName: winner.name ?? name })
+      }
+      throw serverError
+    }
 
     // Two requests at once (double tap, retry after a slow network) could both
     // get past the check above. Keep the oldest profile for this account and

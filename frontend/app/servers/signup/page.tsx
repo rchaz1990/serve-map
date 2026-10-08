@@ -232,7 +232,8 @@ export default function ServerSignupPage() {
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: fullName } },
+          // signup_role lets sign-in send an unfinished signup back here.
+          options: { data: { full_name: fullName, signup_role: 'server' } },
         })
         if (authError) throw new Error(authError.message)
         if (!authData.user || !authData.session) {

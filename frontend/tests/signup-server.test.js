@@ -14,6 +14,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'
 
 // ── in-memory database ───────────────────────────────────────────────────────
 const db = { servers: [], server_restaurants: [], restaurant_managers: [] }
+// hooks.uniqueOwner: emulate a unique index on servers.wallet_address.
+// hooks.beforeServerInsert(n): async hook per servers insert (n = 1, 2, …) returning optional created_at.
+const hooks = { uniqueOwner: false, beforeServerInsert: null, inserts: 0 }
 const authUsers = {} // token -> { id, email }
 let clock = 0, seq = 0
 const tick = () => new Promise(r => setImmediate(r)) // every DB call yields, so requests interleave
@@ -35,7 +38,12 @@ function query(table) {
     await tick()
     const t = db[table]
     if (st.op === 'insert') {
-      const made = st.rows.map(r => ({ id: uuid(), created_at: ++clock, ...r }))
+      let createdAt = null
+      if (table === 'servers' && hooks.beforeServerInsert) createdAt = await hooks.beforeServerInsert(++hooks.inserts)
+      if (table === 'servers' && hooks.uniqueOwner && st.rows.some(r => r.wallet_address && t.some(x => x.wallet_address === r.wallet_address))) {
+        return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } }
+      }
+      const made = st.rows.map(r => ({ id: uuid(), created_at: createdAt ?? ++clock, ...r }))
       t.push(...made)
       return { data: st.single ? made[0] : made, error: null }
     }
@@ -118,7 +126,7 @@ let pass = 0, fail = 0
 function check(name, ok, detail) {
   if (ok) { pass++; console.log('PASS', name) } else { fail++; console.log('FAIL', name, detail ?? '') }
 }
-const reset = () => { db.servers = []; db.server_restaurants = []; db.restaurant_managers = []; for (const k in authUsers) delete authUsers[k] }
+const reset = () => { hooks.uniqueOwner = false; hooks.beforeServerInsert = null; hooks.inserts = 0; db.servers = []; db.server_restaurants = []; db.restaurant_managers = []; for (const k in authUsers) delete authUsers[k] }
 const base = { name: 'Hazel Test', role: 'Server', restaurant: 'Slate Dry Run Test Venue', city: 'New York', specialties: ['Wine'] }
 const mine = uid => db.servers.filter(s => s.wallet_address === uid)
 
@@ -201,6 +209,41 @@ const mine = uid => db.servers.filter(s => s.wallet_address === uid)
     if (!ok) { check(`concurrent run ${i}`, false, { rows, a, b, c, rest: db.server_restaurants }); break }
     if (i === 19) check('3 concurrent requests × 20 runs → one profile, one restaurant row, one "created"', true)
   }
+
+  // 12. adversarial timing WITHOUT a database unique index: request B starts its
+  //     transaction first (earlier created_at) but commits after A has already
+  //     checked. The app-level guard cannot see this; documents the residual gap.
+  async function adversarialRace(unique) {
+    reset(); hooks.uniqueOwner = unique; authUsers.tX = { id: 'uid-X', email: 'x@x.com' }
+    let releaseB; const gateB = new Promise(r => (releaseB = r))
+    hooks.beforeServerInsert = async n => {
+      if (n === 2) { await gateB; return 0 }  // B: delayed commit, earliest timestamp
+      setTimeout(releaseB, 0); return 100        // A: release B only after A's insert
+    }
+    // Hold A's post-insert check until B has inserted, by delaying A slightly.
+    const [a, b] = await Promise.all([call('tX', base), call('tX', base)])
+    return { a, b, rows: mine('uid-X').length, rests: db.server_restaurants.length }
+  }
+  const noIdx = await adversarialRace(false)
+  console.log(`INFO  without unique index, adversarial timing → ${noIdx.rows} profile(s), ${noIdx.rests} restaurant row(s)  ${noIdx.rows > 1 ? '(KNOWN GAP — needs the DB index)' : ''}`)
+  const withIdx = await adversarialRace(true)
+  check('with unique index, adversarial timing → one profile, both answers agree',
+    withIdx.rows === 1 && withIdx.a.json.serverId === withIdx.b.json.serverId && [withIdx.a, withIdx.b].filter(x => x.json.created).length === 1, withIdx)
+
+  // 13. guest converting to worker never takes a profile owned by a live account,
+  //     even when emails match case-insensitively
+  reset(); authUsers.tG = { id: 'uid-G', email: 'Guest@X.com' }; authUsers.tH = { id: 'uid-H', email: 'guest@x.com' }
+  db.servers.push({ id: 'h-1', created_at: ++clock, name: 'H', email: 'guest@x.com', wallet_address: 'uid-H' })
+  r = await call('tG', base)
+  check('guest conversion creates own profile; live-owned profile untouched',
+    r.json.created === true && db.servers.find(s => s.id === 'h-1').wallet_address === 'uid-H' && mine('uid-G').length === 1, r)
+
+  // 14. a body cannot set server-controlled fields
+  reset(); authUsers.tF = { id: 'uid-F', email: 'f@x.com' }
+  await call('tF', { ...base, is_founding_member: false, serve_balance: 999, average_rating: 5, wallet_address: 'uid-V', id: 'chosen-id' })
+  const f = mine('uid-F')[0]
+  check('body cannot set balance, rating, id or owner',
+    f && f.id !== 'chosen-id' && f.serve_balance === undefined && f.average_rating === undefined && db.servers.length === 1, f)
 
   // 11. errors do not leak details
   reset(); authUsers.tE = { id: 'uid-E', email: 'e@x.com' }
