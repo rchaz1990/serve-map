@@ -1449,10 +1449,13 @@ export default function DashboardPage() {
           </div>
         ) : !serverProfile ? (
           <div className="slate-card mb-10 p-7">
-            <p className="text-sm font-semibold text-white">Setting up your profile…</p>
+            <p className="text-sm font-semibold text-white">Your server profile isn&apos;t finished yet.</p>
             <p className="mt-1 text-xs" style={{ color: '#606060' }}>
-              We&apos;re still saving your info. Try refreshing in a moment. If this persists, sign out and sign back in.
+              Your account is set up, but your profile wasn&apos;t saved. It only takes a minute to finish.
             </p>
+            <a href="/servers/signup" className="mt-4 inline-block rounded-full bg-white px-5 py-2.5 text-xs font-semibold text-black transition-opacity hover:opacity-80">
+              Finish your profile →
+            </a>
           </div>
         ) : (
         <div className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

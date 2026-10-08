@@ -51,6 +51,33 @@ export default function ServerSignupPage() {
   const [testDevice, setTestDevice] = useState(false)
   useEffect(() => { setTestDevice(isTestDevice()) }, [])
 
+  // Finish an interrupted signup: if this browser is already signed in but the
+  // account has no server profile yet (e.g. the page reloaded right after the
+  // account was created), skip account creation and only save the profile.
+  // Accounts that already have a profile go straight to the dashboard.
+  const [resumeUser, setResumeUser] = useState<{ id: string; email: string } | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (cancelled || !session?.user) return
+      const { data: linked } = await supabase.rpc('link_my_server')
+      if (cancelled) return
+      if (Array.isArray(linked) && linked[0]) { router.replace('/dashboard'); return }
+      const u = session.user
+      setResumeUser({ id: u.id, email: u.email ?? '' })
+      setEmail(prev => prev || u.email || '')
+      const fullName = typeof u.user_metadata?.full_name === 'string' ? u.user_metadata.full_name.trim() : ''
+      if (fullName) {
+        const [first, ...rest] = fullName.split(/\s+/)
+        setFirstName(prev => prev || first)
+        setLastName(prev => prev || rest.join(' '))
+      }
+    })()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function handleTestVenueInput(e: React.ChangeEvent<HTMLInputElement>) {
     if (!testDevice) return
     setVenue(e.target.value.trim())
@@ -172,17 +199,17 @@ export default function ServerSignupPage() {
     reader.readAsDataURL(file)
   }
 
-  const canAdvanceStep0 = firstName && lastName && email
+  const canAdvanceStep0 = firstName && lastName && (resumeUser || email)
   const canAdvanceStep1 = role && venue && city
   const canAdvanceStep2 = bio.length >= 20
 
   async function handleClaim() {
-    // Validate passwords match
-    if (password !== confirmPassword) {
+    // Validate passwords match (not needed when finishing an existing account)
+    if (!resumeUser && password !== confirmPassword) {
       setError('Passwords do not match.')
       return
     }
-    if (password.length < 6) {
+    if (!resumeUser && password.length < 6) {
       setError('Password must be at least 6 characters.')
       return
     }
@@ -193,19 +220,34 @@ export default function ServerSignupPage() {
       const fullName = `${firstName} ${lastName}`.trim()
 
       // Step 1 — Create Supabase auth account so server can log back in
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName } },
-      })
-      if (authError) throw new Error(authError.message)
+      // (skipped when finishing a signup whose account already exists)
+      let userId: string
+      let accessToken: string | undefined
+      if (resumeUser) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) throw new Error('Your session expired. Please sign in again to finish your profile.')
+        userId = session.user.id
+        accessToken = session.access_token
+      } else {
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: fullName } },
+        })
+        if (authError) throw new Error(authError.message)
+        if (!authData.user || !authData.session) {
+          throw new Error('Check your email to confirm your account, then sign in and come back to this page to finish your profile.')
+        }
+        userId = authData.user.id
+        accessToken = authData.session.access_token
+      }
 
       // Step 1b — Upload photo to Supabase Storage if provided
       let photoUrl: string | null = null
       const photoFile = photoInputRef.current?.files?.[0]
-      if (photoFile && authData.user?.id) {
+      if (photoFile) {
         const fileExt = photoFile.name.split('.').pop()
-        const fileName = `${authData.user.id}-${Date.now()}.${fileExt}`
+        const fileName = `${userId}-${Date.now()}.${fileExt}`
         const { error: uploadError } = await supabase.storage
           .from('Avatars')
           .upload(fileName, photoFile, { cacheControl: '3600', upsert: true })
@@ -218,12 +260,13 @@ export default function ServerSignupPage() {
       }
 
       // Step 2 — Create server profile via API route (server-side Supabase insert)
+      // The API takes the account and email from the session token, and returns
+      // the existing profile instead of creating a second one.
       const res = await fetch('/api/signup-server', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await authJsonHeaders(accessToken),
         body: JSON.stringify({
           name: fullName,
-          email,
           role,
           // Use confirmedPlace.name as primary source; fall back to venue state then raw input value
           restaurant: confirmedPlace?.name || venue || venueInputRef.current?.value || '',
@@ -232,7 +275,6 @@ export default function ServerSignupPage() {
           restaurant2: confirmedPlace2?.name || venue2 || undefined,
           restaurantAddress2: confirmedPlace2?.address ?? city2 ?? undefined,
           city2: city2 || confirmedPlace2?.address || undefined,
-          userId: authData.user?.id,  // Supabase auth UID → saved to wallet_address
           photoUrl,
           specialties: selectedSpecialties,
           isTest: testDevice,
@@ -247,6 +289,8 @@ export default function ServerSignupPage() {
         throw new Error(errMsg)
       }
 
+      // New profile only — an existing one already got these.
+      if (json.created) {
       // Capture email in Beehiiv — fire and forget
       fetch('/api/signup', {
         method: 'POST',
@@ -260,6 +304,7 @@ export default function ServerSignupPage() {
         headers,
         body: JSON.stringify({ name: fullName }),
       })).catch(() => {})
+      }
 
       // Mark as server in localStorage so Navbar resolves immediately
       localStorage.setItem('slateUserType', 'server')
@@ -355,7 +400,13 @@ export default function ServerSignupPage() {
                 <div>
                   <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>Email</label>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="marcus@email.com"
-                    className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40" />
+                    disabled={!!resumeUser}
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40 disabled:opacity-60" />
+                  {resumeUser && (
+                    <p className="mt-1.5 text-xs" style={{ color: '#A0A0A0' }}>
+                      You&apos;re signed in. Finish the next steps to save your profile.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>
@@ -364,6 +415,7 @@ export default function ServerSignupPage() {
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 212 555 0100"
                     className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40" />
                 </div>
+                {!resumeUser && (<>
                 <div>
                   <label className="mb-1.5 block text-xs font-medium" style={{ color: '#A0A0A0' }}>Create a password</label>
                   <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 6 characters" minLength={6}
@@ -374,6 +426,7 @@ export default function ServerSignupPage() {
                   <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat your password"
                     className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition-colors focus:border-white/40" />
                 </div>
+                </>)}
               </div>
             )}
 
