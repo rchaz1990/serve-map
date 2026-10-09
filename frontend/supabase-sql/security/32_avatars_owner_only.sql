@@ -19,8 +19,10 @@ create policy avatars_owner_update on storage.objects for update to authenticate
 create policy avatars_owner_delete on storage.objects for delete to authenticated
   using (bucket_id = 'Avatars' and name like auth.uid()::text || '-%');
 
--- Match the app's own client-side limits (JPG/PNG/GIF, 5 MB).
+-- New uploads only: 5 MB, common web image types. Signup already limits to JPG/PNG/GIF and 5 MB;
+-- the dashboard accepts any image, so WebP is included to avoid breaking Android/Chrome photos.
+-- Existing files are not re-checked.
 update storage.buckets set file_size_limit = 5242880,
-  allowed_mime_types = array['image/jpeg','image/png','image/gif']
+  allowed_mime_types = array['image/jpeg','image/png','image/gif','image/webp']
 where id = 'Avatars';
 commit;
