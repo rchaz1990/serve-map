@@ -112,12 +112,24 @@ export async function POST(request: Request) {
     p_score: score,
     p_comment: hasComment ? commentText : null,
     p_tags: cleanTags,
+    // The account's email is the per-guest key for the database limits.
     p_guest_email: user.email ?? user.id,
     p_followed: !!follow,
     p_amount: reward.total,
   })
 
   if (error) {
+    // Abuse limits are enforced in the database (migration 34) under a per-guest lock.
+    const limit = /rating_limit:(\w+)/.exec(error.message)?.[1]
+    if (limit === 'cooldown') {
+      return NextResponse.json({ error: 'You already rated this person in the last 24 hours.' }, { status: 429 })
+    }
+    if (limit === 'daily') {
+      return NextResponse.json({ error: 'You have reached today\'s rating limit. Try again tomorrow.' }, { status: 429 })
+    }
+    if (limit === 'self') {
+      return NextResponse.json({ error: 'You can\'t rate your own profile.' }, { status: 403 })
+    }
     console.error('[submit-rating] rpc:', error.message)
     if (/does not exist|schema cache/i.test(error.message)) {
       return NextResponse.json(

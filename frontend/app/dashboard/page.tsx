@@ -288,7 +288,7 @@ function ProfilePreferencesSection({
           <div style={{ minWidth: 0, flex: 1 }}>
             <p className="text-sm font-semibold text-white">Appear in restaurant talent search</p>
             <p className="mt-1 text-xs leading-6" style={{ color: '#A0A0A0' }}>
-              Let restaurants discover your profile when hiring.
+              Off unless you turn it on. When on, Slate-verified restaurants can find your profile and email you about jobs — at most one message from each restaurant.
             </p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
@@ -1449,10 +1449,13 @@ export default function DashboardPage() {
           </div>
         ) : !serverProfile ? (
           <div className="slate-card mb-10 p-7">
-            <p className="text-sm font-semibold text-white">Setting up your profile…</p>
+            <p className="text-sm font-semibold text-white">Your server profile isn&apos;t finished yet.</p>
             <p className="mt-1 text-xs" style={{ color: '#606060' }}>
-              We&apos;re still saving your info. Try refreshing in a moment. If this persists, sign out and sign back in.
+              Your account is set up, but your profile wasn&apos;t saved. It only takes a minute to finish.
             </p>
+            <a href="/servers/signup" className="mt-4 inline-block rounded-full bg-white px-5 py-2.5 text-xs font-semibold text-black transition-opacity hover:opacity-80">
+              Finish your profile →
+            </a>
           </div>
         ) : (
         <div className="mb-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

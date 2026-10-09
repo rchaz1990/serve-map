@@ -53,6 +53,12 @@ function LoginForm() {
         return
       }
 
+      // Started a server signup but the profile was never saved — finish it.
+      if (data.user.user_metadata?.signup_role === 'server') {
+        router.push('/servers/signup')
+        return
+      }
+
       localStorage.setItem('slateUserType', 'guest')
       router.push(next ?? '/live')
     } catch (err: unknown) {
