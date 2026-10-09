@@ -40,3 +40,10 @@ node manager.test.js http://localhost:3104 keys.json   # 32 checks: verification
 ```
 Deploy-window check (code before migration): apply `36_rollback_verified_managers.sql`, then
 `node manager-premigration.test.js http://localhost:3104 keys.json` (6 checks: managers refused, dashboard pending, workers unaffected).
+
+## Recruiting consent (`consent.test.js`)
+Apply 36 and `37_recruiting_consent.sql`, start the app with `RESEND_BASE_URL=http://localhost:54400`
+(the gateway records emails instead of sending), then:
+```bash
+node consent.test.js http://localhost:3104 keys.json   # 22 checks: hidden default, one per pair, daily limit under concurrency, delivery outcomes + reconciliation logging, access (set APP_LOG=<app log> to check log lines)
+```

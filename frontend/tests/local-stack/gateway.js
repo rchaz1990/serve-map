@@ -30,6 +30,8 @@ const SERVICE = sign({ role: 'service_role', iss: 'local', exp: far })
 fs.writeFileSync(KEYS_OUT, JSON.stringify({ anon: ANON, service: SERVICE }))
 
 const users = {} // email -> {id,email,password,user_metadata,app_metadata}
+const sentEmails = [] // emails sent through the Resend stand-in
+let resendMode = 'ok'
 function psql(sql, vars) {
   const args = ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-qAt']
   for (const [k, v] of Object.entries(vars)) args.push('-v', `${k}=${v}`)
@@ -77,6 +79,24 @@ http.createServer((req, res) => {
     try { json = body.length ? JSON.parse(body) : null } catch {}
 
     // test hook: create an account directly (e.g. a Google-verified one)
+    // Stand-in for the Resend API (app started with RESEND_BASE_URL=<this gateway>).
+    // POST /__resend {mode} simulates provider outcomes for the next sends:
+    //   ok | reject (422) | error500 | drop (connection cut, no reply) | noid (200 without id)
+    if (url.pathname === '/__resend') { resendMode = json?.mode || 'ok'; return send(200, { mode: resendMode }) }
+    if (url.pathname === '/emails' && req.method === 'POST') {
+      const record = { to: json?.to, subject: json?.subject, idempotencyKey: req.headers['idempotency-key'] || null, mode: resendMode, at: Date.now() }
+      sentEmails.push(record)
+      if (resendMode === 'reject') return send(422, { statusCode: 422, name: 'validation_error', message: 'simulated rejection' })
+      if (resendMode === 'error500') return send(500, { statusCode: 500, name: 'internal_server_error', message: 'simulated provider error' })
+      if (resendMode === 'drop') { req.socket.destroy(); return }
+      if (resendMode === 'noid') return send(200, {})
+      record.delivered = true
+      return send(200, { id: crypto.randomUUID() })
+    }
+    if (url.pathname === '/__emails') {
+      const to = url.searchParams.get('to')
+      return send(200, sentEmails.filter(m => (!to || [].concat(m.to).includes(to)) && (url.searchParams.get('all') || m.delivered)))
+    }
     if (url.pathname === '/__create_user') {
       // created_at lets tests simulate an older account
       const u = createUser(json.email, json.password || 'x', json.data, json.provider || 'email', json.created_at)

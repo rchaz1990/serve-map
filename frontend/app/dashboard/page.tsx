@@ -288,7 +288,7 @@ function ProfilePreferencesSection({
           <div style={{ minWidth: 0, flex: 1 }}>
             <p className="text-sm font-semibold text-white">Appear in restaurant talent search</p>
             <p className="mt-1 text-xs leading-6" style={{ color: '#A0A0A0' }}>
-              Let restaurants discover your profile when hiring.
+              Off unless you turn it on. When on, Slate-verified restaurants can find your profile and email you about jobs — at most one message from each restaurant.
             </p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
