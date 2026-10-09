@@ -6,6 +6,7 @@ import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
+import { authJsonHeaders } from '@/lib/auth-fetch'
 import { geocodeAddress } from '@/lib/geocode'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -195,6 +196,7 @@ function VenueCard({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const gpsVerifiedRef = useRef(false)
+  const venueCoordsRef = useRef<{ lat: number; lng: number } | null>(null)
   const [visible, setVisible] = useState(false)
   const [checkInOpen, setCheckInOpen] = useState(false)
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
@@ -275,6 +277,7 @@ function VenueCard({
           const venue = await geocodeAddress(venueName + ' NYC')
           const venueLat: number | null = venue?.lat ?? null
           const venueLng: number | null = venue?.lng ?? null
+          venueCoordsRef.current = venueLat !== null && venueLng !== null ? { lat: venueLat, lng: venueLng } : null
           if (venueLat !== null && venueLng !== null) {
             const dist = getDistanceMeters(userLat, userLng, venueLat, venueLng)
             if (dist <= 500) {
@@ -303,23 +306,20 @@ function VenueCard({
     if (!vibe) return
     setSubmitting(true)
     setSubmitError('')
-    const isGpsVerified = gpsVerifiedRef.current
     const { data: { session } } = await supabase.auth.getSession()
-    const reporterEmail = session?.user?.email ?? localStorage.getItem('slateUserEmail') ?? undefined
+    if (!session) { setSubmitting(false); setSubmitError('Please sign in to report vibes.'); return }
     const coords = userCoords
+    const venueCoords = venueCoordsRef.current
+    // The server works out who is reporting from the session and computes the distance itself.
     const res = await fetch('/api/verify-vibe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authJsonHeaders(session.access_token),
       body: JSON.stringify({
-        userId: session?.user?.id ?? null,
-        reporterEmail,
         restaurantName: venueName,
         vibe, barSeats: seats, waitTime: wait,
         userLat: coords?.lat ?? null,
         userLng: coords?.lng ?? null,
-        restaurantLat: null, restaurantLng: null,
-        gpsVerified: isGpsVerified,
-        distanceMeters: null,
+        restaurantLat: venueCoords?.lat ?? null, restaurantLng: venueCoords?.lng ?? null,
       }),
     })
     const json = await res.json()
@@ -577,13 +577,16 @@ function VenueSearch() {
     if (!selected || !vibe) return
     setSubmitting(true)
     const { data: { session } } = await supabase.auth.getSession()
-    const reporterEmail = session?.user?.email ?? localStorage.getItem('slateUserEmail') ?? undefined
+    if (!session) {
+      setSubmitting(false)
+      setSubmitResult({ serveReward: 0, message: 'Please sign in to report vibes.', error: 'Please sign in to report vibes.' })
+      setSubmitted(true); return
+    }
     const coords = userCoords
     const res = await fetch('/api/verify-vibe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authJsonHeaders(session.access_token),
       body: JSON.stringify({
-        userId: session?.user?.id ?? null, reporterEmail,
         restaurantName: selected.name, vibe, barSeats: seats, waitTime: wait,
         userLat: coords?.lat ?? null, userLng: coords?.lng ?? null,
         restaurantLat: selected.lat, restaurantLng: selected.lng,
