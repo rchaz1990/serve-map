@@ -20,3 +20,9 @@ psql -c "create role authenticator login noinherit password 'local-only'; grant 
 node stack.test.js http://localhost:3103 keys.json         # API + database security tests
 STACK_DB=slate_stack EMAIL=x@example.com node ../isolated/flow.js http://localhost:3103 stack interrupt-before-api
 ```
+
+## Vibe reports (`vibe.test.js`)
+Apply `supabase-sql/security/33_submit_vibe_report.sql` to the local database first, then:
+```bash
+node vibe.test.js http://localhost:3104 keys.json   # 20 checks: auth, forged identity/location, limits, races, permissions
+```
