@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { getRequestUser, supabaseAdmin } from '@/lib/server-auth'
 
 // Records a guest's vibe report for a venue and, when it qualifies, a small
-// guest $SERVE reward (display balance only; nothing is paid out).
+// guest $SERVE reward (display balance only; nothing is paid out). At most 3
+// rewarded reports (15 $SERVE) per account per UTC day; later reports earn 0.
 //
 // Identity always comes from the signed-in session, never from the request body.
 // The cooldown, daily limit, report and reward are applied in one locked database
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Could not save your report. Please try again.' }, { status: 500 })
   }
 
-  const result = data as { status: string; serve_reward?: number; integrity_score?: number }
+  const result = data as { status: string; serve_reward?: number; integrity_score?: number; daily_reward_cap_reached?: boolean }
   if (result.status === 'cooldown') {
     return NextResponse.json(
       { success: false, error: 'You already reported a vibe here recently. Come back in 2 hours.' },
@@ -110,9 +111,11 @@ export async function POST(request: Request) {
   const serveReward = result.serve_reward ?? 0
   const message = serveReward > 0
     ? `You earned ${serveReward} $SERVE!`
-    : locationConsistent
-      ? 'Report submitted.'
-      : 'Report submitted. Turn on location at the venue to earn $SERVE.'
+    : result.daily_reward_cap_reached
+      ? 'Report submitted. You have earned today\'s maximum $SERVE for vibe reports.'
+      : locationConsistent
+        ? 'Report submitted.'
+        : 'Report submitted. Turn on location at the venue to earn $SERVE.'
 
   return NextResponse.json({
     success: true,

@@ -100,6 +100,58 @@ function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS'
   await Promise.all(Array.from({ length: 25 }, (_, i) => vibe(para.access_token, { ...base(`Par ${i}`), ...VENUE, ...AT_VENUE })))
   check('25 simultaneous reports to different venues → never more than 20 saved', reports(para.user.email) === 20, reports(para.user.email))
 
+  // ── daily reward cap: 3 rewarded reports (15 $SERVE) per UTC day ──
+  // Earlier rewarded reports are back-dated by more than an hour (same UTC day) so
+  // the "3+ in the last hour" flag doesn't mask the cap.
+  const earlier = () => {
+    const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0)
+    return new Date(Math.max(dayStart.getTime() + 60_000, Date.now() - 90 * 60_000)).toISOString()
+  }
+  const seedRewarded = (e, count) => {
+    for (let i = 0; i < count; i++) {
+      sql(`insert into vibe_reports (restaurant_name, vibe, reported_by, gps_verified, serve_reward, created_at)
+           values ('Seed ${i}', 'LIVE', '${e.toLowerCase()}', true, 5, '${earlier()}')`)
+    }
+  }
+  const rewardedToday = e => Number(sql(`select count(*) from vibe_reports where lower(reported_by) = lower('${e}')
+    and serve_reward > 0 and created_at >= date_trunc('day', now() at time zone 'UTC') at time zone 'UTC'`))
+
+  const capped = await account('capped')
+  seedRewarded(capped.user.email, 3)
+  r = await vibe(capped.access_token, { ...base('Fourth Bar'), ...VENUE, ...AT_VENUE })
+  const fourth = sql(`select serve_reward || '|' || gps_verified || '|' || is_flagged from vibe_reports
+    where lower(reported_by) = lower('${capped.user.email}') and restaurant_name = 'Fourth Bar'`)
+  check('4th eligible report of the day → saved (verified, not flagged) with 0 reward',
+    r.status === 200 && r.json.serveReward === 0 && fourth === '0|true|false' && points(capped.user.email) === 0
+      && /maximum/.test(r.json.message), { r, fourth })
+
+  const third = await account('third')
+  seedRewarded(third.user.email, 2)
+  r = await vibe(third.access_token, { ...base('Third Bar'), ...VENUE, ...AT_VENUE })
+  check('3rd eligible report of the day → still rewarded 5', r.status === 200 && r.json.serveReward === 5 && rewardedToday(third.user.email) === 3, r)
+
+  const racer = await account('racer')
+  seedRewarded(racer.user.email, 2)
+  const cap = await Promise.all(Array.from({ length: 6 }, (_, i) => vibe(racer.access_token, { ...base(`Cap Race ${i}`), ...VENUE, ...AT_VENUE })))
+  const paid = cap.filter(x => x.json.serveReward > 0).length
+  check('6 simultaneous eligible reports with 2 already rewarded → exactly 1 more rewarded, all 6 saved',
+    paid === 1 && rewardedToday(racer.user.email) === 3 && points(racer.user.email) === 5 && reports(racer.user.email) === 8
+      && cap.every(x => x.status === 200), { statuses: cap.map(x => x.status), paid, rewarded: rewardedToday(racer.user.email), pts: points(racer.user.email) })
+
+  const fresh3 = await account('fresh3')
+  const all = await Promise.all(Array.from({ length: 12 }, (_, i) => vibe(fresh3.access_token, { ...base(`Burst ${i}`), ...VENUE, ...AT_VENUE })))
+  check('12 simultaneous eligible reports on a clean day → never more than 15 $SERVE',
+    points(fresh3.user.email) <= 15 && rewardedToday(fresh3.user.email) <= 3 && reports(fresh3.user.email) === 12,
+    { pts: points(fresh3.user.email), rewarded: rewardedToday(fresh3.user.email), saved: reports(fresh3.user.email), st: all.map(x => x.status) })
+
+  const yesterday = await account('yesterday')
+  sql(`insert into vibe_reports (restaurant_name, vibe, reported_by, gps_verified, serve_reward, created_at)
+       select 'Old ' || g, 'LIVE', lower('${yesterday.user.email}'), true, 5,
+              (date_trunc('day', now() at time zone 'UTC') at time zone 'UTC') - interval '2 hours'
+       from generate_series(1, 3) g`)
+  r = await vibe(yesterday.access_token, { ...base('New Day Bar'), ...VENUE, ...AT_VENUE })
+  check("yesterday's rewarded reports don't count toward today's cap", r.status === 200 && r.json.serveReward === 5, r)
+
   // ── database permissions ──
   const acl = sql(`select has_function_privilege('anon', 'public.submit_vibe_report(text,text,text,text,text,numeric,numeric,integer,boolean,boolean)', 'execute') || '|' || has_function_privilege('authenticated', 'public.submit_vibe_report(text,text,text,text,text,numeric,numeric,integer,boolean,boolean)', 'execute')`)
   check('browser roles cannot call submit_vibe_report directly', acl === 'false|false', acl)

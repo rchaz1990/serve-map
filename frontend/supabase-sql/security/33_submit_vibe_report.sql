@@ -9,8 +9,9 @@
 --   * one report per venue per 2 hours            -> status 'cooldown', nothing written
 --   * at most 20 reports per UTC day              -> status 'daily_limit', nothing written
 --   * 3+ reports in the last hour                 -> report saved, flagged, no reward
---   * reward 5 only if location-consistent, account at least 24 h old and not flagged;
---     otherwise 0. (Previously 1 for any report.)
+--   * reward 5 only if location-consistent, account at least 24 h old, not flagged,
+--     and fewer than 3 rewarded reports already today (UTC) — max 15 $SERVE per day;
+--     otherwise 0, and the report is still saved. (Previously 1 for any report.)
 -- The per-email advisory lock serialises parallel requests, so they cannot slip
 -- past the limits or lose/duplicate reward updates.
 
@@ -29,6 +30,8 @@ create or replace function public.submit_vibe_report(
 language plpgsql security definer set search_path = public as $$
 declare
   v_email text := lower(btrim(p_email));
+  v_day_start timestamptz := date_trunc('day', now() at time zone 'UTC') at time zone 'UTC';
+  v_rewarded_today integer;
   v_flagged boolean;
   v_reward integer;
   v_integrity integer;
@@ -52,7 +55,7 @@ begin
 
   if (select count(*) from public.vibe_reports
       where lower(reported_by) = v_email
-        and created_at >= date_trunc('day', now())) >= 20 then
+        and created_at >= v_day_start) >= 20 then
     return jsonb_build_object('status', 'daily_limit');
   end if;
 
@@ -60,9 +63,16 @@ begin
                 where lower(reported_by) = v_email
                   and created_at >= now() - interval '1 hour') >= 3;
 
+  -- Counted under the same lock as the insert below, so parallel requests see each other.
+  v_rewarded_today := (select count(*) from public.vibe_reports
+                       where lower(reported_by) = v_email
+                         and created_at >= v_day_start
+                         and serve_reward > 0);
+
   v_reward := case when coalesce(p_location_consistent, false)
                         and not coalesce(p_new_account, true)
                         and not v_flagged
+                        and v_rewarded_today < 3
                    then 5 else 0 end;
   v_integrity := (case when coalesce(p_location_consistent, false) then 40 else 0 end)
                + (case when coalesce(p_new_account, true) then 0 else 10 end)
@@ -88,7 +98,8 @@ begin
   end if;
 
   return jsonb_build_object('status', 'ok', 'report_id', v_id, 'serve_reward', v_reward,
-                            'integrity_score', v_integrity, 'flagged', v_flagged);
+                            'integrity_score', v_integrity, 'flagged', v_flagged,
+                            'daily_reward_cap_reached', v_rewarded_today >= 3);
 end;
 $$;
 
