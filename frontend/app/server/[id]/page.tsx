@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useParams } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
+import { activeShiftSince, venueKey } from '@/lib/shifts'
 
 type Server = {
   id: string
@@ -57,6 +58,7 @@ export default function ServerProfilePage() {
   const [followerCount, setFollowerCount] = useState(0)
   const [copied, setCopied] = useState(false)
   const [currentShift, setCurrentShift] = useState<ActiveShift | null>(null)
+  const [onShiftVenues, setOnShiftVenues] = useState<Set<string>>(new Set())
   const profileCardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -89,21 +91,23 @@ export default function ServerProfilePage() {
           .limit(10)
         setRatings((rats ?? []) as Rating[])
 
-        // Active shift (for "On shift tonight" indicator) — only show
-        // shifts started within the last 12 hours so stale rows that were
-        // never explicitly ended don't display as active.
-        const { data: activeShift } = await supabase
+        // Active shifts (for the "On shift tonight" indicator and the per-venue
+        // "Here now" badge). On-shift = shifts.is_active started within the
+        // active window; never server_restaurants.currently_working (employment).
+        const { data: activeShifts, error: shiftsError } = await supabase
           .from('shifts')
           .select('restaurant_name, started_at')
           .eq('server_id', profileId)
           .eq('is_active', true)
-          .gte('started_at', new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString())
+          .gte('started_at', activeShiftSince())
           .order('started_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        if (activeShift?.restaurant_name) {
-          setCurrentShift({ restaurant_name: activeShift.restaurant_name })
+          .limit(10)
+        if (shiftsError) console.error('[ServerProfile] shifts:', shiftsError)
+        const live = (activeShifts ?? []).filter(s => !!s.restaurant_name)
+        if (live[0]?.restaurant_name) {
+          setCurrentShift({ restaurant_name: live[0].restaurant_name })
         }
+        setOnShiftVenues(new Set(live.map(s => venueKey(s.restaurant_name))))
       }
 
       // ── Auth: own-profile check + follow state ────────────────────────────
@@ -583,7 +587,7 @@ export default function ServerProfilePage() {
                     Primary
                   </span>
                 )}
-                {r.currently_working && (
+                {onShiftVenues.has(venueKey(r.restaurant_name)) && (
                   <span style={{ fontFamily: FONT_MONO, fontSize: '9px', letterSpacing: '2px', color: '#888', border: '1px solid #222', padding: '4px 10px', textTransform: 'uppercase' }}>
                     Here now
                   </span>
