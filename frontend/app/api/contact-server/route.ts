@@ -17,10 +17,15 @@ export async function POST(request: Request) {
   const admin = supabaseAdmin()
   const { data: manager } = await admin
     .from('restaurant_managers')
-    .select('name, email, restaurant_name')
+    .select('name, email, verified_at, verified_restaurant_name')
     .eq('auth_id', user.id)
     .maybeSingle()
   if (!manager) return NextResponse.json({ error: 'Restaurant manager account required' }, { status: 403 })
+  // Only Slate-verified managers can contact workers, and only in the name of the
+  // venue Slate verified (never the self-typed restaurant name).
+  if (!manager.verified_at || !manager.verified_restaurant_name) {
+    return NextResponse.json({ error: 'Your restaurant account is pending verification by Slate.' }, { status: 403 })
+  }
 
   const { data: server } = await admin
     .from('servers')
@@ -32,7 +37,7 @@ export async function POST(request: Request) {
   }
   if (!server.email) return NextResponse.json({ error: 'No email on file for this server' }, { status: 409 })
 
-  const restaurantName = manager.restaurant_name as string
+  const restaurantName = manager.verified_restaurant_name as string
   const managerName = (manager.name as string | null) || 'A manager'
   const firstName = ((server.name as string | null) || 'Hi').split(' ')[0]
   const replyTo = (manager.email as string | null) || user.email || undefined
