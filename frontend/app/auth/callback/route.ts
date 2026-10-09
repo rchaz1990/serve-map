@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { recordLegalAcceptance } from '@/lib/legal-server'
+import { supabaseAdmin } from '@/lib/server-auth'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { OAUTH_NEXT_COOKIE, safeInternalPath } from '@/lib/auth-redirect'
@@ -74,6 +76,14 @@ export async function GET(request: Request) {
     // A safe next hint (except the manager-login sentinel) wins.
     // Otherwise: restaurant_managers → /restaurant/dashboard, servers → /dashboard, else /get-started.
     const { data: { user } } = await supabase.auth.getUser()
+
+    // Guest sign-up with Google: the ticked Terms/Privacy acknowledgment travels in a
+    // short-lived cookie set just before the redirect; record it server-side now.
+    const legalCookie = cookieStore.get('slate_legal_guest')?.value
+    if (legalCookie) {
+      cookiesToApply.push({ name: 'slate_legal_guest', value: '', options: { path: '/auth/callback', maxAge: 0 } })
+      if (user) await recordLegalAcceptance(supabaseAdmin(), user, legalCookie, 'guest')
+    }
 
     let targetPath = '/get-started'
 

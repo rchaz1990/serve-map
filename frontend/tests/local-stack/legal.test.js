@@ -100,6 +100,9 @@ async function worker(tag) {
     const unticked = !(await box.isChecked())
     const links = await page.locator('[data-testid="legal-consent"] a[href="/terms"]').count() === 1 && await page.locator('[data-testid="legal-consent"] a[href="/privacy"]').count() === 1
     const created = sql(`select count(*) from auth.users where email = '${e}'`)
+    const disclosure = (await page.textContent('[data-testid="shift-disclosure"]').catch(() => '')) || ''
+    check('L8b sign-up explains that starting a shift is public and may email followers, and the follow-approval setting',
+      /anyone can\s+see which venue you.re working at/.test(disclosure) && /email your\s+followers/.test(disclosure) && /follow approval/.test(await text(page)), disclosure)
     check('L8 sign-up UI: box unticked by default, Terms + Privacy links, Claim disabled, no account created yet',
       disabledBefore && unticked && links && created === '0', { disabledBefore, unticked, links, created })
     await box.check()
@@ -119,11 +122,19 @@ async function worker(tag) {
     const box = page.locator('[data-testid="legal-consent"] input[type="checkbox"]')
     check('L10 rating UI: acknowledgment shown, unticked, with Terms + Privacy links', await box.isVisible() && !(await box.isChecked())
       && await page.locator('[data-testid="legal-consent"] a[href="/terms"]').count() === 1)
+    check('L10b no Follow action on the rating form before the agreed rating', await page.locator('main button:has-text("Follow")').count() === 0)
     await page.click('[aria-label="5 stars"]'); await page.click('button:has-text("Submit")'); await page.waitForTimeout(1000)
     const savedEarly = sql(`select count(*) from ratings where guest_email = '${guest.email}'`)
     check('L11 submit without ticking → message, nothing saved', /confirm you agree/i.test(await text(page)) && savedEarly === '0', savedEarly)
     await box.check(); await page.click('button:has-text("Submit")'); await page.waitForTimeout(2000)
     check('L12 ticked → rating saved', sql(`select count(*) from ratings where guest_email = '${guest.email}'`) === '1')
+    await page.click('button:has-text("Follow")'); await page.waitForTimeout(1000)
+    const panel = (await page.textContent('[data-testid="follow-consent"]').catch(() => '')) || ''
+    const followsBefore = sql(`select count(*) from follows where follower_id = '${guest.id}'`)
+    check('L12b after rating, Follow opens an explanation (shift emails incl. venue, email visible to worker, unfollow) before anything is saved',
+      /email you when .* starts a shift, including where they.re working/.test(panel) && /see your email address/.test(panel) && /unfollow/i.test(panel) && followsBefore === '0', { panel, followsBefore })
+    await page.click('button:has-text("Follow and email me")'); await page.waitForTimeout(1500)
+    check('L12c confirming creates the follow', sql(`select count(*) from follows where follower_id = '${guest.id}' and server_id = '${s3.serverId}'`) === '1')
     const s4 = await worker('s4')
     // New session so the client sees the recorded acknowledgment
     const page2 = await fresh()
@@ -131,6 +142,50 @@ async function worker(tag) {
     await page2.click('button:has-text("Sign in")'); await page2.waitForTimeout(2000)
     await go(page2, `/rate?server=${s4.serverId}`); await page2.waitForTimeout(1500)
     check('L13 returning guest (acknowledgment on file) → no checkbox', await page2.locator('[data-testid="legal-consent"]').count() === 0)
+  }
+
+  // Scan page: rate only — no follow before the agreed rating
+  {
+    const s5 = await worker('s5')
+    const page = await fresh()
+    await go(page, `/scan/${s5.serverId}`); await page.waitForTimeout(1500)
+    check('L20 scan page offers Rate but no Follow', await page.locator('button:has-text("Rate")').count() === 1 && await page.locator('button:has-text("Follow")').count() === 0)
+  }
+
+  // Guest sign-up: unticked agreement, required, recorded server-side
+  {
+    const page = await fresh(); const e = email('guestsignup')
+    await go(page, '/login?mode=signup')
+    await page.fill('input[placeholder="Your name"]', 'Gia Guest'); await page.fill('input[placeholder="Email address"]', e); await page.fill('input[placeholder="Password"]', 'pass123456')
+    const create = page.locator('button:has-text("Create account")')
+    const box = page.locator('[data-testid="legal-consent"] input[type="checkbox"]')
+    check('L21 guest sign-up: agreement unticked, Create account disabled, no account yet',
+      !(await box.isChecked()) && await create.isDisabled() && sql(`select count(*) from auth.users where email = '${e}'`) === '0')
+    await box.check(); await create.click(); await page.waitForTimeout(2500)
+    const tok = await (await fetch(GW + '/auth/v1/token?grant_type=password', { method: 'POST', headers: { apikey: ANON, 'content-type': 'application/json' }, body: JSON.stringify({ email: e, password: 'pass123456' }) })).json()
+    const m = await appMeta(tok.access_token)
+    check('L22 after ticking: account created and acknowledgment recorded server-side (guest, version + time)', m.legal_guest_version === LEGAL_VERSION && !!m.legal_guest_at, m)
+    const fresh2 = await account('noack')
+    const bad = await api('/api/legal/accept', fresh2.token, {})
+    check('L23b /api/legal/accept without the ticked version → 400, nothing recorded', bad.status === 400 && !(await appMeta(fresh2.token)).legal_guest_version, bad)
+  }
+
+  // Profile follow by a guest with no acknowledgment on file
+  {
+    const s6 = await worker('s6')
+    const g2 = await account('profilefollow')
+    const page = await fresh()
+    await go(page, '/login'); await page.fill('input[placeholder="Email address"]', g2.email); await page.fill('input[placeholder="Password"]', 'pass123456')
+    await page.click('button:has-text("Sign in")'); await page.waitForTimeout(2000)
+    await go(page, `/server/${s6.serverId}`); await page.waitForTimeout(1500)
+    await page.click('button:has-text("Follow")'); await page.waitForTimeout(1000)
+    const confirm = page.locator('button:has-text("Follow and email me")')
+    const legalBox = page.locator('[data-testid="follow-consent"] [data-testid="legal-consent"] input[type="checkbox"]')
+    check('L24 profile Follow: explanation + unticked agreement; confirm disabled; nothing saved yet',
+      await legalBox.isVisible() && await confirm.isDisabled() && sql(`select count(*) from follows where follower_id = '${g2.id}'`) === '0')
+    await legalBox.check(); await confirm.click(); await page.waitForTimeout(1500)
+    check('L25 after ticking: acknowledgment recorded, then follow created',
+      (await appMeta(g2.token)).legal_guest_version === LEGAL_VERSION && sql(`select count(*) from follows where follower_id = '${g2.id}'`) === '1')
   }
 
   // ── Public copy ──
@@ -146,7 +201,11 @@ async function worker(tag) {
     check('L16 Home: no "Building on Solana", no 1:1 conversion, $SERVE "may never launch"',
       !/Building on Solana/.test(home) && !/1:1/.test(home) && /may never launch/.test(home))
     check('L17 /pay: no balance, USD conversion or bank payout', /Not available/.test(pay) && !/≈ \$/.test(pay) && !/business days/.test(pay))
-    check('L18 /whitepaper: vision notice at the top', /Vision document — not a description of Slate today/.test(wp))
+    const wpRes = await page.goto(APP + '/whitepaper', { waitUntil: 'networkidle' })
+    check('L18 /whitepaper returns 404 and none of its content', wpRes.status() === 404 && !/Cashout Fee|major exchanges/.test(wp), wpRes.status())
+    const pages = { home, forServers, terms, gs: await visible('/get-started'), wl: await visible('/server-waitlist') }
+    const forever = Object.entries(pages).filter(([, t]) => /free forever|permanently free/i.test(t)).map(([k]) => k)
+    check('L19b no "free forever"/"permanently free" on home, for-servers, get-started, waitlist or Terms', forever.length === 0 && /currently free for servers and bartenders/.test(terms), forever)
     check('L19 for-servers: no "Permanent. Immutable."', !/Immutable/.test(forServers) && !/Permanent\./.test(forServers))
   }
   await browser.close()

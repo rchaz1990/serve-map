@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
+import FollowConsent from '@/app/components/FollowConsent'
 import { MotionSection } from '@/app/components/motion'
 
 type Server = {
@@ -138,6 +139,8 @@ export default function ServerProfilePage() {
     loadAll()
   }, [profileId])
 
+  const [confirmingFollow, setConfirmingFollow] = useState(false)
+
   async function handleFollow() {
     if (!followerId) { window.location.href = '/login'; return }
     setFollowLoading(true)
@@ -161,6 +164,7 @@ export default function ServerProfilePage() {
         const status = inserted?.status === 'approved' ? 'approved' : 'pending'
         setFollowStatus(status)
         if (status === 'approved') setFollowerCount(prev => prev + 1)
+        setConfirmingFollow(false)
       }
     }
     setFollowLoading(false)
@@ -508,9 +512,17 @@ export default function ServerProfilePage() {
         </div>
 
         {/* ── Follow button (full width, hidden on own profile) ──────────── */}
-        {!isOwnProfile && (
+        {!isOwnProfile && confirmingFollow && followStatus === 'none' && (
+          <div style={{ marginBottom: '56px' }}>
+            <FollowConsent firstName={firstName} onConfirm={handleFollow} onCancel={() => setConfirmingFollow(false)} />
+          </div>
+        )}
+        {!isOwnProfile && !(confirmingFollow && followStatus === 'none') && (
           <button
-            onClick={handleFollow}
+            onClick={() => {
+              if (followStatus === 'none' && followerId) setConfirmingFollow(true)
+              else handleFollow()
+            }}
             disabled={followLoading}
             style={{
               width: '100%',

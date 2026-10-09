@@ -121,7 +121,7 @@ export default function GetStartedPage() {
 
         {/* Footer note */}
         <p className="mt-14 text-xs" style={{ color: '#404040' }}>
-          Free forever for every server and bartender.
+          Free for servers and bartenders.
         </p>
 
       </main>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import LegalConsent from '@/app/components/LegalConsent'
+import FollowConsent from '@/app/components/FollowConsent'
 import { LEGAL_VERSION } from '@/lib/legal'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
@@ -79,6 +80,8 @@ function RateForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isFollowing, setIsFollowing] = useState(false)
+  const [confirmingFollow, setConfirmingFollow] = useState(false)
+  const [followError, setFollowError] = useState('')
   const [lastReward, setLastReward] = useState<{ starReward: number; commentBonus: number; followBonus: number; total: number } | null>(null)
 
   useEffect(() => {
@@ -153,8 +156,10 @@ function RateForm() {
     // 23505 = already following (one follow per guest per server).
     if (!followError || followError.code === '23505') {
       setIsFollowing(true)
+      setConfirmingFollow(false)
     } else {
       console.error('[rate] follow failed:', followError.message)
+      setFollowError('Could not follow right now. Please try again.')
     }
   }
 
@@ -355,9 +360,15 @@ function RateForm() {
 
           {/* Follow CTA — stays visible after rating so guest can still follow */}
           <div className="mt-8 w-full max-w-sm">
-            {!isFollowing ? (
+            {!isFollowing && confirmingFollow ? (
+              <FollowConsent
+                firstName={serverData?.name?.split(' ')[0] ?? 'your server'}
+                onConfirm={handleFollow}
+                onCancel={() => setConfirmingFollow(false)}
+              />
+            ) : !isFollowing ? (
               <button
-                onClick={handleFollow}
+                onClick={() => setConfirmingFollow(true)}
                 style={{
                   width: '100%',
                   background: 'transparent',
@@ -377,6 +388,7 @@ function RateForm() {
                 Following ✓
               </p>
             )}
+            {followError && <p className="mt-2 text-xs text-red-400">{followError}</p>}
           </div>
 
           <a href="/" className="slate-btn slate-btn-primary mt-8">
@@ -471,22 +483,6 @@ function RateForm() {
 
         <div className="slate-rule mb-12" />
 
-        {/* ── Follow ──────────────────────────────────────────────────── */}
-        <MotionSection className="mb-12">
-          <p className="slate-eyebrow mb-5">Follow</p>
-          {!isFollowing ? (
-            <button
-              onClick={handleFollow}
-              className="slate-btn slate-btn-ghost w-full"
-            >
-              Follow {serverData?.name?.split(' ')[0] ?? serverFirstName}
-            </button>
-          ) : (
-            <p className="text-center text-sm slate-muted">Following</p>
-          )}
-        </MotionSection>
-
-        <div className="slate-rule mb-12" />
 
         {/* ── $SERVE notice ───────────────────────────────────────────── */}
         <MotionSection className="mb-12">

@@ -2,6 +2,9 @@
 import { useState, Suspense } from 'react'
 import { authJsonHeaders } from '@/lib/auth-fetch'
 import { supabase } from '@/lib/supabase'
+import LegalConsent from '@/app/components/LegalConsent'
+import { LEGAL_VERSION } from '@/lib/legal'
+import { recordGuestLegal } from '@/lib/legal-client'
 import { getAuthCallbackUrl, getAppOrigin, safeInternalPath, setOAuthNextHint } from '@/lib/auth-redirect'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -15,6 +18,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [forgotSent, setForgotSent] = useState(false)
+  const [legalAccepted, setLegalAccepted] = useState(false)
 
   const handleSignIn = async () => {
     setLoading(true)
@@ -70,10 +74,17 @@ function LoginForm() {
   }
 
   const handleSignUp = async () => {
+    if (!legalAccepted) { setError('Please confirm you agree to the Terms of Service and Privacy Policy.'); return }
     setLoading(true)
     setError('')
     const { data: signUpData, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
     if (error) { setError(error.message); setLoading(false); return }
+    // Record the ticked acknowledgment on the server (version + time). If this fails,
+    // rating and following still require it, so nothing is used without agreement.
+    if (signUpData.session) {
+      const legalErr = await recordGuestLegal(signUpData.session.access_token)
+      if (legalErr) console.error('[login] could not record acknowledgment:', legalErr)
+    }
     localStorage.setItem('slateUserType', 'guest')
     // Send welcome email — fire and forget. The route sends only to the signed-in
     // user's own address, so it needs the new session (absent if email
@@ -103,6 +114,11 @@ function LoginForm() {
   }
 
   const handleGoogle = async () => {
+    if (mode === 'signup') {
+      if (!legalAccepted) { setError('Please confirm you agree to the Terms of Service and Privacy Policy.'); return }
+      // The callback records this after Google returns (short-lived, callback path only).
+      document.cookie = `slate_legal_guest=${LEGAL_VERSION}; path=/auth/callback; max-age=600; samesite=lax`
+    }
     const next = safeInternalPath(searchParams.get('redirect'))
     if (next) setOAuthNextHint(next)
     const { error } = await supabase.auth.signInWithOAuth({
@@ -148,9 +164,17 @@ function LoginForm() {
         <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
           style={{ width: '100%', padding: '14px', background: '#111', color: 'white', border: '1px solid #222', borderRadius: '4px', fontSize: '15px', marginBottom: '24px', outline: 'none', boxSizing: 'border-box' }} />
 
+        {mode === 'signup' && (
+          <div style={{ marginBottom: '20px' }}>
+            <LegalConsent id="signup-legal" checked={legalAccepted} onChange={setLegalAccepted}>
+              I&apos;m 18 or older, and I agree to Slate&apos;s
+            </LegalConsent>
+          </div>
+        )}
+
         {error && <p style={{ color: '#ff4444', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }}>{error}</p>}
 
-        <button onClick={mode === 'signin' ? handleSignIn : handleSignUp} disabled={loading}
+        <button onClick={mode === 'signin' ? handleSignIn : handleSignUp} disabled={loading || (mode === 'signup' && !legalAccepted)}
           style={{ width: '100%', padding: '14px', background: 'white', color: 'black', border: 'none', borderRadius: '4px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', marginBottom: '20px' }}>
           {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
         </button>

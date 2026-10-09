@@ -50,5 +50,5 @@ node consent.test.js http://localhost:3104 keys.json   # 22 checks: hidden defau
 
 ## Terms/Privacy acknowledgment and public copy (`legal.test.js`)
 ```bash
-node legal.test.js http://localhost:3104 keys.json   # 19 checks: server-enforced acknowledgment (worker sign-up, guest rating), UI, corrected copy
+node legal.test.js http://localhost:3104 keys.json   # 30 checks: acknowledgment (worker sign-up, guest sign-up, rating, follow), follow-after-rating, shift disclosure, corrected copy, /whitepaper 404
 ```

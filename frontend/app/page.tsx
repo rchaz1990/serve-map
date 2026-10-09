@@ -206,7 +206,7 @@ export default function Home() {
             >
               Claim your free profile →
             </a>
-            <p className="mt-4 text-xs" style={{ color: '#404040' }}>Free forever. Takes 2 minutes.</p>
+            <p className="mt-4 text-xs" style={{ color: '#404040' }}>Free for servers and bartenders. Takes 2 minutes.</p>
             <p className="mt-3 text-xs" style={{ color: '#404040' }}>
               Choose whether follows need your approval. Block anyone at any time. You are always in control.
             </p>

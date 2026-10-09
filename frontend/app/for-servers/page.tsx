@@ -25,7 +25,7 @@ export default function ForServersPage() {
               Your reputation shouldn&apos;t reset when you change jobs. Slate is built entirely for the people who make hospitality great.
             </p>
             <p className="text-sm font-semibold text-white">
-              Free forever. No credit card. No catch.
+              Free for servers and bartenders. No credit card.
             </p>
           </div>
         </section>
@@ -193,7 +193,7 @@ export default function ForServersPage() {
               Build a service record that follows your career.
             </h2>
             <p className="mx-auto mb-10 text-base leading-relaxed" style={{ color: '#606060' }}>
-              Your service. Your reputation. Wherever you work. Free forever — takes 2 minutes.
+              Your service. Your reputation. Wherever you work. Free for servers and bartenders — takes 2 minutes.
             </p>
             <a
               href="/servers/signup"
@@ -201,7 +201,7 @@ export default function ForServersPage() {
             >
               Claim your free profile →
             </a>
-            <p className="mt-4 text-xs" style={{ color: '#404040' }}>Free forever. No crypto knowledge needed.</p>
+            <p className="mt-4 text-xs" style={{ color: '#404040' }}>Free for servers and bartenders. No crypto knowledge needed.</p>
           </div>
         </section>
 

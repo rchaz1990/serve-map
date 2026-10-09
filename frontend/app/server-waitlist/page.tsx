@@ -55,7 +55,7 @@ export default function ServerWaitlistPage() {
         />
 
         <p className="mt-6 text-center text-xs" style={{ color: '#606060' }}>
-          Free forever for servers and bartenders.
+          Free for servers and bartenders.
         </p>
 
       </main>

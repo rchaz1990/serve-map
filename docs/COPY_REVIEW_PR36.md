@@ -33,14 +33,34 @@ Branch `atlas/messaging-truth`, brought up to date with production `main` (`e315
 - Vibe report messages: "$SERVE" → "Slate Points". Account page "+5 $SERVE" → "1–5 pts". Profile stat "$SERVE" → "Points". Dashboard "Only goes up" removed. Booking page "$SERVE token rewards" → reputation wording. Server waitlist "bonus $SERVE rewards" removed.
 - Welcome emails: "forever", "Earn $SERVE rewards", "built on Solana" removed.
 
+## Update 2 (2026-10-09 evening) — B2, B3, B6
+**B2 — unapproved commitments**
+- "Free forever" removed everywhere (home, for-servers ×3, get-started, server waitlist) → "Free for servers and bartenders".
+- Terms "permanently free… will not change" → "currently free for servers and bartenders… if we ever introduce charges, we will tell you in advance and ask you to agree first".
+- `/whitepaper` now returns **404**. The original April 2026 text is preserved, unpublished, at `docs/archive/whitepaper-v1.0-2026-04.tsx.txt` (not built).
+
+**B3 — follow and guest sign-up consent**
+- Rating page: the Follow action before the rating is removed. Follow appears only after the agreed rating succeeds.
+- Scan page: Follow removed (Rate only). Server profile page: Follow kept, but behind the same confirmation.
+- Every Follow now opens a confirmation first: "Slate will email you when {name} starts a shift, including where they're working · {name} will see your email address in their followers list · You can unfollow at any time". If the account has no acknowledgment on file, it also requires the unticked Terms/Privacy box, recorded server-side **before** the follow is created. Button: "Follow and email me".
+- Guest sign-up (`/login`, sign-up mode): unticked "I'm 18 or older, and I agree to…" box; Create account and Continue with Google are refused until ticked. Recorded server-side (version + time) through `POST /api/legal/accept` (email sign-up) or the auth callback (Google sign-up).
+
+**B6 — worker sign-up disclosure**: "Starting a shift is public. When you start a shift, anyone can see which venue you're working at and that you're on shift now, and Slate may email your followers… Choose who follows you: anyone can follow you unless you turn on follow approval in your dashboard settings."
+
+### Limits of "server-enforced" for guest sign-up (founder decision)
+Account creation happens directly at Supabase Auth, so the app server cannot refuse it. Enforcement is: the UI refuses without the tick; the acknowledgment is recorded server-side; and every data use is refused server-side without it (rating API now; follows once migration 38 runs). A Google **sign-in** by a brand-new user creates an account without the box (same server-side gates apply). Blocking account creation itself needs a Supabase "before user created" auth hook.
+
+### New finding for decision
+Workers receive each follower's **full email address** from the followers API (the list shows only the part before "@"). The follow confirmation now says the worker will see it. Option: return only the display part to workers (small separate change).
+
 ## Decisions needing founder approval (not changed here)
-1. **"Free forever" / "permanently free… will not change"** (Terms, home, for-servers, get-started, waitlist). A binding forever promise. Keep, soften, or remove?
+1. ~~"Free forever"~~ — removed per founder (not an approved commitment).
 2. **18+ eligibility** is stated in Terms/Privacy and now affirmed by the checkbox, but there is no age verification. Is self-affirmation enough?
 3. **Data retention**: no retention period exists for coordinates, ratings or accounts. What should Privacy say, and should old coordinates be deleted?
 4. **Account deletion** is by email request only; deletion of ratings a guest left is not addressed. Policy needed.
 5. **Public random account ids** on ratings (and `servers.wallet_address`): disclose (done) or remove from public view (engineering change).
 6. **Legal review**: these pages were written without a lawyer (governing law, disputes, liability caps). Founder decides whether to get one before strangers.
-7. **`/whitepaper`**: keep public with the notice, take down, or rewrite?
+7. ~~`/whitepaper`~~ — now 404; original archived for later review.
 8. **`/pay`**: keep the "Not available" page or remove the route.
 9. **Effective date / version**: pages say "Updated October 2026"; `LEGAL_VERSION` is `2026-10`. Set the real publication date at merge.
 10. Existing accounts have no recorded acknowledgment. Workers are asked only at sign-up, so the 14 existing workers are not asked by this change. Ask them (e.g., on next dashboard visit)?
@@ -51,5 +71,5 @@ Branch `atlas/messaging-truth`, brought up to date with production `main` (`e315
 - The whitepaper body text.
 
 ## Tests (local only, no production)
-`tests/local-stack/legal.test.js` 19/19; regressions: ratings 15/15, vibe 25/25, managers 32/32,
+`tests/local-stack/legal.test.js` 30/30; regressions: ratings 15/15, vibe 25/25, managers 32/32,
 recruiting consent 22/22, worker signup (offline) 24/24, security 115/115.

@@ -20,11 +20,11 @@ const SECTIONS = [
     ],
   },
   {
-    title: 'Free for Servers and Bartenders',
+    title: 'Pricing for Servers and Bartenders',
     body: [
       {
         subtitle: '',
-        text: 'Slate is permanently free for every server and bartender. No subscription fees. No transaction fees. No premium tiers. No exceptions. This is a core commitment of the Slate platform and will not change.',
+        text: 'Slate is currently free for servers and bartenders: no subscription fees and no transaction fees. If we ever introduce charges for servers or bartenders, we will tell you in advance and ask you to agree before they apply to you.',
       },
     ],
   },
