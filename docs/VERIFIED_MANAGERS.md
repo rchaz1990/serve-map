@@ -34,6 +34,26 @@ have one). Verification records the venue's address too, so "Joe's" at 1 A St an
 at 99 Z Ave never match. A worker job with no address is never controllable (fails closed).
 The self-typed `restaurant_name` no longer grants anything.
 
+## Manager permissions
+| Action | Who may do it | Bound to the verified venue? | Enforced in |
+|---|---|---|---|
+| Start / end a worker's shift | Verified manager | **Yes** — worker job must match verified name + address | Database (shift policies → `manager_controls`) |
+| Notify a worker's followers ("on shift") | The worker, or a verified manager | **Yes** — same rule | `/api/notify-followers` → `manager_controls` |
+| Contact a worker (recruiting) | Verified manager | **No, by design** — the Talent tab is for recruiting from other venues | `/api/contact-server`: verified manager + worker's `open_to_opportunities` |
+| View staff, analytics, talent list | Any manager account | Reads public profile data only | Column grants (no emails, phones or locations) |
+
+Recruiting is a separate permission from shift control. The worker's email is looked up
+server-side and never shown to the manager; the message comes from Slate with the
+manager as reply-to, and names the **verified** venue, not the self-typed one.
+
+**Open decision — is worker opt-in sufficient?** Today `open_to_opportunities` defaults to
+`true` and all 14 production workers have it on, so it is an opt-*out*, not consent.
+There is also no limit on how many workers a verified manager can email. Options:
+(a) default new profiles to hidden (schema default only; no data change),
+(b) also set existing workers to hidden and tell them (production data change),
+(c) per-manager daily contact limit / one message per worker per manager.
+None of these is in this PR; each needs a decision.
+
 ## What changes for people
 | | Before verification | After verification |
 |---|---|---|
@@ -92,7 +112,7 @@ unverified), which is the intended state.
 - Verification status is publicly readable (by design).
 
 ## Tests (local stack, no production)
-`tests/local-stack/manager.test.js` — 27 checks: self-registration still works; unverified
+`tests/local-stack/manager.test.js` — 32 checks: self-registration still works; unverified
 managers cannot start/end shifts, notify followers or contact workers; users cannot set or
 patch verification fields or call the internal rule; verification note private; constraint
 needs name and address; verified manager controls only workers at the verified name +

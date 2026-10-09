@@ -36,5 +36,5 @@ node rating.test.js http://localhost:3104 keys.json   # 15 checks: identity, lim
 ## Verified managers (`manager.test.js`)
 Apply `supabase-sql/security/36_verified_managers.sql` to the local database first, then:
 ```bash
-node manager.test.js http://localhost:3104 keys.json   # 27 checks: verification binding (name + address), shifts, routes, dashboard
+node manager.test.js http://localhost:3104 keys.json   # 32 checks: verification binding (name + address), shifts, routes, recruiting boundary, dashboard
 ```

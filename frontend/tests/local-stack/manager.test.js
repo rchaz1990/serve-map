@@ -117,8 +117,22 @@ const endShifts = (token, sid) => rest('PATCH', `shifts?server_id=eq.${sid}&is_a
   check('M21 notify-followers: worker for self still allowed', nSelf.status !== 403 && nSelf.status !== 401, nSelf)
   const cUnver = await api('/api/contact-server', mB.token, { serverId: wC.serverId })
   check('M22 contact-server: unverified manager → 403 pending verification', cUnver.status === 403 && /pending verification/i.test(cUnver.json?.error ?? ''), cUnver)
+  // Recruiting is a separate permission from shift control: a verified manager may
+  // contact a worker at ANY venue, but only if that worker is visible to recruiters.
   const cOk = await api('/api/contact-server', mA.token, { serverId: wC.serverId })
-  check('M23 contact-server: verified manager → allowed (past auth)', cOk.status !== 403 && cOk.status !== 401, cOk)
+  check('M23 contact-server: verified manager may recruit a visible worker at ANOTHER venue (intended)', cOk.status !== 403 && cOk.status !== 401 && cOk.status !== 404, cOk)
+  const cOwn = await api('/api/contact-server', mA.token, { serverId: wA.serverId })
+  check('M23b contact-server: verified manager may contact a visible worker at own venue', cOwn.status !== 403 && cOwn.status !== 401 && cOwn.status !== 404, cOwn)
+  sql(`update servers set open_to_opportunities = false where id = '${wC.serverId}'`)
+  const cHidden = await api('/api/contact-server', mA.token, { serverId: wC.serverId })
+  check('M23c contact-server: worker hidden from recruiters → refused (404), even for a verified manager', cHidden.status === 404, cHidden)
+  sql(`update servers set open_to_opportunities = true where id = '${wC.serverId}'`)
+  const cWorker = await api('/api/contact-server', wB.token, { serverId: wC.serverId })
+  check('M23d contact-server: a worker (no manager account) → 403', cWorker.status === 403, cWorker)
+  const cAnon = await fetch(APP + '/api/contact-server', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ serverId: wC.serverId }) })
+  check('M23e contact-server: signed out → 401', cAnon.status === 401, cAnon.status)
+  const cMissing = await api('/api/contact-server', mA.token, { serverId: '00000000-0000-0000-0000-000000000000' })
+  check('M23f contact-server: unknown worker → 404', cMissing.status === 404, cMissing)
 
   // ── Dashboard ──
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-proxy-server'] })

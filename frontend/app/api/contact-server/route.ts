@@ -4,6 +4,12 @@ import { escapeHtml, getRequestUser, supabaseAdmin } from '@/lib/server-auth'
 // A signed-in restaurant manager asks to connect with a server who opted in to
 // talent discovery. The recipient address is looked up here, never taken from
 // the request, and only opted-in servers can be contacted.
+//
+// Permission model (docs/VERIFIED_MANAGERS.md): recruiting is deliberately NOT bound
+// to the manager's venue — the dashboard's Talent tab lists workers from other venues.
+// It requires (1) a Slate-verified manager and (2) the worker's open_to_opportunities
+// setting. Shift control and follower notifications ARE venue-bound (manager_controls).
+// The worker's email is never returned to the manager; replies go manager → worker.
 export async function POST(request: Request) {
   const user = await getRequestUser(request)
   if (!user) return NextResponse.json({ error: 'Sign in required' }, { status: 401 })
