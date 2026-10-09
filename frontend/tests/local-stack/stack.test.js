@@ -2,6 +2,7 @@
 // production's grants/RLS) and the app's real /api/signup-server.
 // Prereqs: see README.md in this folder.  usage: node stack.test.js <appUrl> <keys.json>
 const { execFileSync } = require('child_process')
+const LEGAL_VERSION = require('fs').readFileSync(require('path').join(__dirname, '../../lib/legal.ts'), 'utf8').match(/LEGAL_VERSION = '([^']+)'/)[1]
 const fs = require('fs')
 const path = require('path')
 const [APP, KEYS] = process.argv.slice(2)
@@ -32,7 +33,7 @@ async function rest(method, p, token, body, extra = {}) {
 async function api(token, body) {
   const headers = { 'content-type': 'application/json' }
   if (token) headers.authorization = `Bearer ${token}`
-  const r = await fetch(APP + '/api/signup-server', { method: 'POST', headers, body: JSON.stringify(body) })
+  const r = await fetch(APP + '/api/signup-server', { method: 'POST', headers, body: JSON.stringify({ legalAccepted: LEGAL_VERSION, ...body }) })
   return { status: r.status, json: await r.json() }
 }
 const base = { name: 'Stack Tester', role: 'Server', restaurant: 'Stack Test Venue', city: 'New York' }

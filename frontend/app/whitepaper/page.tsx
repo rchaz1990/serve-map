@@ -36,6 +36,17 @@ export default function WhitepaperPage() {
           <div className="mt-8">
             <PrintButton />
           </div>
+          <div data-testid="vision-notice" className="mt-8 rounded-xl border border-yellow-500/40 p-5" style={{ backgroundColor: '#0d0a00' }}>
+            <p className="text-sm font-semibold" style={{ color: '#facc15' }}>Vision document — not a description of Slate today</p>
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: '#A0A0A0' }}>
+              This paper describes plans and ideas from April 2026. Today, ratings, follows and Slate Points are stored
+              by Slate and are not on a blockchain. $SERVE has not been created and may never launch. Slate Points have
+              no cash value, and Slate does not pay out money or tokens. Nothing here is an offer, a promise of future
+              features, or financial advice. For what Slate does today, see the{' '}
+              <a href="/terms" className="underline text-white">Terms</a> and{' '}
+              <a href="/privacy" className="underline text-white">Privacy Policy</a>.
+            </p>
+          </div>
         </div>
 
         <div className="border-t border-white/10" />

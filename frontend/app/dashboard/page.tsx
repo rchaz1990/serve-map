@@ -416,7 +416,7 @@ function ServeRewardsSection({
           Slate Points earned · lifetime
         </div>
         <div style={{ marginTop: '12px', fontSize: '12px', color: '#444', lineHeight: 1.6 }}>
-          Your reputation score. Built from every guest rating. Only goes up, and stays with you when you change jobs.
+          Your reputation score, built from every guest rating — it stays with you when you change jobs.
         </div>
       </div>
 

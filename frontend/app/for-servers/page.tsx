@@ -147,7 +147,7 @@ export default function ForServersPage() {
                 Your lifetime Slate Points are your reputation score. It only goes up, and it doesn&apos;t reset when you change jobs.
               </p>
               <p>
-                The value you create should come back to you. We&apos;re building toward $SERVE, a reward layer for the workers who make hospitality great. It hasn&apos;t launched, Slate Points have no cash value, and we&apos;ll publish the rules before anything changes.
+                The value you create should come back to you. We&apos;d like to build $SERVE, a reward layer for the workers who make hospitality great. It hasn&apos;t been created, it may never launch, and Slate Points have no cash value. If that changes, we&apos;ll publish the rules first.
               </p>
               <p className="font-semibold text-white">
                 No crypto knowledge required. Just recognition for real hospitality.

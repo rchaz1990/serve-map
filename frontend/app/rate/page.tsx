@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
+import LegalConsent from '@/app/components/LegalConsent'
+import { LEGAL_VERSION } from '@/lib/legal'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
@@ -165,6 +167,16 @@ function RateForm() {
     )
   }
 
+  // Guests acknowledge the Terms and Privacy Policy once per version (recorded on the
+  // server). Already-acknowledged accounts don't see the checkbox again.
+  const [legalAccepted, setLegalAccepted] = useState(false)
+  const [legalOnFile, setLegalOnFile] = useState(false)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setLegalOnFile(data.session?.user?.app_metadata?.legal_guest_version === LEGAL_VERSION)
+    })
+  }, [])
+
   const handleSubmitRating = async () => {
     if (!serverId) {
       setError('Server not found. Please scan the QR code again.')
@@ -172,6 +184,10 @@ function RateForm() {
     }
     if (rating < 1) {
       setError('Pick a rating to continue.')
+      return
+    }
+    if (!legalOnFile && !legalAccepted) {
+      setError('Please confirm you agree to the Terms of Service and Privacy Policy.')
       return
     }
 
@@ -202,6 +218,7 @@ function RateForm() {
           comment: comment.trim() ? comment.trim() : null,
           tags: selectedTags,
           isTest: isTestDevice(),
+          legalAccepted: legalOnFile || legalAccepted ? LEGAL_VERSION : null,
         }),
       })
 
@@ -228,6 +245,8 @@ function RateForm() {
 
       setLastReward(body.reward)
       setSuccess(true)
+      setLegalOnFile(true)
+      supabase.auth.refreshSession().catch(() => {}) // pick up the recorded acknowledgment
     } catch (err) {
       console.error('Rating submission error:', err)
       setError('Failed to submit rating. Please try again.')
@@ -492,6 +511,18 @@ function RateForm() {
         {error && (
           <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
             <p className="text-xs text-red-400">{error}</p>
+          </div>
+        )}
+
+        {/* ── Acknowledgment (first rating per Terms/Privacy version) ─── */}
+        {!legalOnFile && (
+          <div className="mb-6">
+            <LegalConsent checked={legalAccepted} onChange={setLegalAccepted}>
+              I&apos;m 18 or older, {serverFirstName === 'your server' ? 'this server' : serverFirstName} personally served me, and I agree to Slate&apos;s
+            </LegalConsent>
+            <p className="mt-2 pl-7 text-xs leading-relaxed" style={{ color: '#606060' }}>
+              Your rating and comment appear on their public profile without your name. Slate stores them; they are not on a blockchain.
+            </p>
           </div>
         )}
 

@@ -118,6 +118,16 @@ http.createServer((req, res) => {
       return u ? send(200, userObj(u)) : send(401, { code: 401, msg: 'invalid JWT' })
     }
     if (url.pathname === '/auth/v1/logout') return send(204)
+    // Admin user update (service role only): merges app_metadata like Supabase does.
+    const adminMatch = url.pathname.match(/^\/auth\/v1\/admin\/users\/([0-9a-f-]+)$/)
+    if (adminMatch && req.method === 'PUT') {
+      const c = verify((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
+      if (!c || c.role !== 'service_role') return send(403, { code: 403, msg: 'not admin' })
+      const u = Object.values(users).find(x => x.id === adminMatch[1])
+      if (!u) return send(404, { code: 404, msg: 'User not found' })
+      if (json?.app_metadata) u.app_metadata = { ...u.app_metadata, ...json.app_metadata }
+      return send(200, userObj(u))
+    }
 
     if (url.pathname.startsWith('/rest/v1/')) {
       const headers = { ...req.headers, host: `localhost:${PGRST}` }

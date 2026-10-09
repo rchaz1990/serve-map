@@ -2,6 +2,15 @@ import Navbar from '@/app/components/Navbar'
 
 const SECTIONS = [
   {
+    title: 'Agreeing to These Terms',
+    body: [
+      {
+        subtitle: '',
+        text: 'You agree to these Terms and the Privacy Policy by ticking the agreement box when you create a server or bartender profile, or before your first rating. We record which version you agreed to and when.',
+      },
+    ],
+  },
+  {
     title: 'Eligibility',
     body: [
       {
@@ -33,6 +42,15 @@ const SECTIONS = [
       {
         subtitle: 'Removal',
         text: 'Ratings are stored by Slate. Slate may remove any rating that breaks these Terms. Ratings cannot be edited after you submit them, so please rate thoughtfully and honestly.',
+      },
+    ],
+  },
+  {
+    title: 'Location Checks',
+    body: [
+      {
+        subtitle: '',
+        text: 'Vibe reports and shifts may use your device location to check that you are near the venue. These checks rely on your device and are not proof of presence. Do not misrepresent where you are. See the Privacy Policy for what is stored and who can see it.',
       },
     ],
   },
@@ -76,7 +94,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'Slate does not currently store ratings, follows, or Slate Points on a blockchain. If we introduce blockchain features, we will update these Terms before they apply to you.',
+        text: 'Slate does not store ratings, follows, or Slate Points on a blockchain today. We may explore blockchain features in the future to make worker records more portable; there is no guarantee we will. If we do, we will update these Terms, explain what would be stored on-chain, and ask you to agree before anything applies to you.',
       },
     ],
   },
@@ -103,7 +121,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'We may update these Terms of Service from time to time. Material changes will be communicated by email. Continued use of Slate after updated terms are posted constitutes acceptance.',
+        text: 'We may update these Terms of Service from time to time. For material changes we will update the date above and ask you to agree again before you next create a profile or submit a rating, and may also email you.',
       },
     ],
   },

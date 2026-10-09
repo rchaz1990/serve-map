@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { recordLegalAcceptance } from '@/lib/legal-server'
 import { createClient } from '@supabase/supabase-js'
 import { getRequestUser, supabaseAdmin } from '@/lib/server-auth'
 
@@ -70,6 +71,16 @@ export async function POST(request: NextRequest) {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+  }
+
+  // Explicit acknowledgment of the Terms and Privacy Policy, recorded before any
+  // profile data is saved. A missing or stale version is refused.
+  const legal = await recordLegalAcceptance(supabaseAdmin(), user, body.legalAccepted, 'worker')
+  if (legal === 'missing') {
+    return NextResponse.json({ error: 'Please confirm you agree to the Terms of Service and Privacy Policy.', code: 'legal_required' }, { status: 400 })
+  }
+  if (legal === 'error') {
+    return NextResponse.json({ error: 'We could not save your agreement. Please try again.' }, { status: 503 })
   }
 
   const name = text(body.name, MAX_NAME)

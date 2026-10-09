@@ -436,7 +436,7 @@ export default function ServerProfilePage() {
             { value: avgRating, label: 'Rating' },
             { value: totalRatings, label: 'Reviews' },
             { value: followerCount, label: 'Followers' },
-            { value: serveBalance, label: '$SERVE' },
+            { value: serveBalance, label: 'Points' },
           ].map(({ value, label }, i) => (
             <div
               key={label}

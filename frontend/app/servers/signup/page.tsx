@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import { authJsonHeaders } from '@/lib/auth-fetch'
+import LegalConsent from '@/app/components/LegalConsent'
+import { LEGAL_VERSION } from '@/lib/legal'
 import { supabase } from '@/lib/supabase'
 import { isTestDevice } from '@/lib/funnel'
 
@@ -201,7 +203,8 @@ export default function ServerSignupPage() {
 
   const canAdvanceStep0 = firstName && lastName && (resumeUser || email)
   const canAdvanceStep1 = role && venue && city
-  const canAdvanceStep2 = bio.length >= 20
+  const [legalAccepted, setLegalAccepted] = useState(false)
+  const canAdvanceStep2 = bio.length >= 20 && legalAccepted
 
   async function handleClaim() {
     // Validate passwords match (not needed when finishing an existing account)
@@ -279,6 +282,8 @@ export default function ServerSignupPage() {
           photoUrl,
           specialties: selectedSpecialties,
           isTest: testDevice,
+          // The version the worker explicitly ticked; the server records it.
+          legalAccepted: legalAccepted ? LEGAL_VERSION : null,
         }),
       })
 
@@ -324,6 +329,7 @@ export default function ServerSignupPage() {
 
   function handleNext() {
     if (step < 2) setStep(step + 1)
+    else if (!legalAccepted) setError('Please confirm you agree to the Terms of Service and Privacy Policy.')
     else handleClaim()
   }
 
@@ -353,7 +359,7 @@ export default function ServerSignupPage() {
               </div>
               <h1 className="text-3xl font-bold tracking-tight text-white">Claim your profile</h1>
               <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>
-                Your reputation follows you. Build it once, keep it forever.
+                Your reputation, your regulars — wherever you work.
               </p>
             </div>
 
@@ -651,6 +657,20 @@ export default function ServerSignupPage() {
                     ))}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Acknowledgment (final step, before the account is created) */}
+            {step === 2 && (
+              <div className="mt-6 rounded-xl border border-white/10 px-4 py-4">
+                <p className="mb-3 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
+                  Before you claim your profile: your name, photo, workplaces, ratings, comments, followers and Slate
+                  Points are public on Slate. If you share your location when you start a shift, we store it with that
+                  shift. Slate Points have no cash value. Ratings are stored by Slate, not on a blockchain.
+                </p>
+                <LegalConsent checked={legalAccepted} onChange={setLegalAccepted}>
+                  I&apos;m 18 or older, and I&apos;ve read and agree to Slate&apos;s
+                </LegalConsent>
               </div>
             )}
 

@@ -6,15 +6,15 @@ const SECTIONS = [
     body: [
       {
         subtitle: 'Account information',
-        text: 'When you create a Slate account we collect your name and email address. Servers and bartenders also provide the venues they work at and may add a photo, bio, specialties, phone number, and Instagram handle. This information is used to create and identify your profile.',
+        text: 'When you create a Slate account we collect your name and email address. Servers and bartenders also provide the venues they work at and may add a photo, bio, specialties, phone number, and Instagram handle. This information is used to create and identify your profile. When you agree to these policies, we record which version you agreed to and when.',
       },
       {
         subtitle: 'Location data',
-        text: 'When you report a venue\'s vibe, or start a shift as a server or bartender, Slate may ask for your device location to check that you are at the venue. If you share it, we store the coordinates with that report or shift. Coordinates are never shown publicly. Ratings do not currently use your location.',
+        text: 'When you report a venue\'s vibe, or start a shift as a server or bartender, Slate asks your browser for your device location to check that you are near the venue. If you allow it, we store your coordinates and your distance from the venue with that report or shift. Your coordinates are not shown publicly; your distance from the venue and whether the location check passed can be seen by others using Slate. Device location can be inaccurate or changed, so a location check is not proof that someone was there. Ratings do not use your location — they start from scanning the server\'s QR code.',
       },
       {
         subtitle: 'Ratings and reviews',
-        text: 'When you rate a server or bartender, your score, any written comment, and any tags you choose are stored by Slate and shown on that person\'s public profile. Your name and email address are not shown with your rating.',
+        text: 'When you rate a server or bartender, your score, any written comment, and any tags you choose are stored by Slate and shown on that person\'s public profile. Your name and email address are not shown with your rating. Each rating is stored with a random account identifier that others using Slate can see; it does not show your name or email.',
       },
       {
         subtitle: 'Usage data',
@@ -52,7 +52,7 @@ const SECTIONS = [
       },
       {
         subtitle: 'Blockchain',
-        text: 'Slate does not currently store any data on a blockchain. If we introduce blockchain features, we will explain what would be written on-chain before anything is.',
+        text: 'Slate does not store any data on a blockchain today. We may explore blockchain features in the future to make worker records more portable, but there is no guarantee we will. If we do, we will explain exactly what would be written on-chain, and ask you, before anything is.',
       },
     ],
   },
@@ -113,7 +113,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'We may update this Privacy Policy from time to time. When we do we will update the effective date below and, for material changes, notify users by email. Continued use of Slate after changes are posted constitutes acceptance of the updated policy.',
+        text: 'We may update this Privacy Policy from time to time. When we do we will update the date above. For material changes we will ask you to agree again before you next create a profile or submit a rating, and may also email you.',
       },
     ],
   },

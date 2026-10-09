@@ -101,7 +101,7 @@ export default function HowItWorksPage() {
               {
                 n: '04',
                 title: 'Earn Slate Points',
-                body: 'Every rating earns Slate Points today. $SERVE, a reward layer for workers, is planned — not yet launched.',
+                body: 'Every rating earns Slate Points today. $SERVE, a reward layer for workers, is an idea we may build — not launched and not guaranteed.',
               },
               {
                 n: '05',

@@ -229,9 +229,9 @@ export default function Home() {
             </p>
             <div className="grid grid-cols-1 gap-px bg-white/10 sm:grid-cols-3">
               {[
-                { label: 'Today', body: 'Every guest rating earns you Slate Points and builds a reputation score that never resets.' },
-                { label: 'Planned', body: '$SERVE — a reward layer for the workers who create value in hospitality. Not launched yet.' },
-                { label: 'The vision', body: 'A network members help shape — built on Solana where ownership and portability matter.' },
+                { label: 'Today', body: 'Every guest rating earns you Slate Points and builds a service record that stays with you when you change jobs.' },
+                { label: 'Planned', body: '$SERVE — a reward layer for the workers who create value in hospitality. Not launched, and not guaranteed.' },
+                { label: 'The vision', body: 'A network workers help shape. We plan to explore blockchain so your record can travel beyond Slate — not live today, and not guaranteed.' },
               ].map(item => (
                 <div key={item.label} className="px-8 py-8" style={{ backgroundColor: '#050505' }}>
                   <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-white">{item.label}</p>
@@ -298,7 +298,7 @@ export default function Home() {
               </a>
               <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: '#404040' }}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="h-2 w-2"><circle cx="12" cy="12" r="12" /></svg>
-                Building on Solana
+                Blockchain portability: planned, not live
               </span>
             </div>
           </div>
@@ -306,7 +306,7 @@ export default function Home() {
           <div className="border-t border-white/10 pt-6">
             <p className="mb-4 text-xs leading-6" style={{ color: '#404040' }}>
               <span className="font-semibold" style={{ color: '#606060' }}>When does $SERVE launch?</span>
-              {' '}Not yet — $SERVE launches only after Slate hits real traction milestones. Slate Points are not a token and have no cash value. We&apos;ll share full details before anything launches.
+              {' '}It hasn&apos;t been created, and it may never launch. Slate Points are not a token and have no cash value. If that changes, we&apos;ll publish the full rules first.
             </p>
             <p className="text-xs" style={{ color: '#404040' }}>
               © 2026 Slate ·{' '}
