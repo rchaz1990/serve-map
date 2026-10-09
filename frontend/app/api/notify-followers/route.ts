@@ -42,15 +42,16 @@ export async function POST(request: Request) {
   const restaurantName = job.restaurant_name as string
 
   const isSelf = serverRow.wallet_address === user.id
+  // Managers: only a Slate-verified manager bound to this exact venue (name + address).
   let isVenueManager = false
   if (!isSelf) {
-    const { data: manager } = await supabaseAdmin
-      .from('restaurant_managers')
-      .select('restaurant_name')
-      .eq('auth_id', user.id)
-      .maybeSingle()
-    isVenueManager = !!manager &&
-      (manager.restaurant_name ?? '').toLowerCase() === restaurantName.toLowerCase()
+    const { data: controls, error: controlsErr } = await supabaseAdmin.rpc('manager_controls', {
+      p_auth_id: user.id,
+      p_server_id: serverId,
+      p_restaurant: restaurantName,
+    })
+    if (controlsErr) console.error('[notify-followers] manager_controls:', controlsErr.message)
+    isVenueManager = controls === true
   }
   if (!isSelf && !isVenueManager) {
     return NextResponse.json({ error: 'Not allowed' }, { status: 403 })

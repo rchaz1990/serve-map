@@ -32,3 +32,11 @@ Apply `supabase-sql/security/34_rating_limits.sql` to the local database first, 
 ```bash
 node rating.test.js http://localhost:3104 keys.json   # 15 checks: identity, limits, self-rating, races, direct DB access
 ```
+
+## Verified managers (`manager.test.js`)
+Apply `supabase-sql/security/36_verified_managers.sql` to the local database first, then:
+```bash
+node manager.test.js http://localhost:3104 keys.json   # 32 checks: verification binding (name + address), shifts, routes, recruiting boundary, dashboard
+```
+Deploy-window check (code before migration): apply `36_rollback_verified_managers.sql`, then
+`node manager-premigration.test.js http://localhost:3104 keys.json` (6 checks: managers refused, dashboard pending, workers unaffected).

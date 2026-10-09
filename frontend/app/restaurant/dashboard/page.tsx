@@ -15,6 +15,11 @@ function guestScanUrl(serverId: string) {
   return `${GUEST_RATE_ORIGIN}/scan/${serverId}`
 }
 
+// Same normalisation as the database check (manager_controls): trim, collapse spaces, lowercase.
+function normVenue(v: unknown): string {
+  return typeof v === 'string' ? v.trim().replace(/\s+/g, ' ').toLowerCase() : ''
+}
+
 function venuePublicPath(restaurantName: string) {
   return `/restaurant/${encodeURIComponent(restaurantName.trim().toLowerCase().replace(/\s+/g, '-'))}`
 }
@@ -398,6 +403,10 @@ export default function RestaurantManagerDashboard() {
   const [restaurantName, setRestaurantName] = useState<string | null>(null)
   const [managerName, setManagerName] = useState<string>('')
   const [managerEmail, setManagerEmail] = useState<string>('')
+  // Slate verification binds this manager to one venue (name + address). Until then the
+  // dashboard is view-only; the database refuses shift changes regardless of the UI.
+  const [verifiedVenue, setVerifiedVenue] = useState<{ name: string; address: string } | null>(null)
+  const verifiedAddressRef = useRef<string | null>(null)
   const [staff, setStaff] = useState<StaffMember[]>([])
   const staffRef = useRef<StaffMember[]>([])
   staffRef.current = staff
@@ -610,8 +619,8 @@ export default function RestaurantManagerDashboard() {
       const [staffRes, shiftsRes] = await Promise.all([
         supabase
           .from('server_restaurants')
-          .select('server_id, servers(id, name, role, photo_url, average_rating, total_ratings, follower_count)')
-          .eq('restaurant_name', targetName),
+          .select('server_id, restaurant_address, servers(id, name, role, photo_url, average_rating, total_ratings, follower_count)')
+          .ilike('restaurant_name', targetName.replace(/[\\%_]/g, c => '\\' + c)),
         supabase
           .from('shifts')
           .select('server_id, is_active')
@@ -638,7 +647,10 @@ export default function RestaurantManagerDashboard() {
         shiftsOk ? [] : staffRef.current.filter(s => s.is_on_shift).map(s => s.server_id),
       )
 
+      // Verified: only workers at the verified address (a same-named venue elsewhere is excluded).
+      const verifiedAddress = verifiedAddressRef.current
       const merged: StaffMember[] = (staffRes.data ?? [])
+        .filter((row: Record<string, unknown>) => !verifiedAddress || normVenue(row.restaurant_address) === verifiedAddress)
         .map((row: Record<string, unknown>) => {
           const raw = row.servers as Record<string, unknown> | Record<string, unknown>[] | null
           const srv = Array.isArray(raw) ? (raw[0] ?? null) : raw
@@ -704,19 +716,27 @@ export default function RestaurantManagerDashboard() {
           return
         }
 
-        const managerRes = await withTimeout(
+        const lookup = (columns: string) => withTimeout(
           supabase
             .from('restaurant_managers')
-            .select('id, created_at, name, restaurant_name, auth_id, role')
+            .select(columns)
             .eq('auth_id', session.user.id)
             .maybeSingle(),
           AUTH_TIMEOUT_MS,
           'Manager lookup',
         )
+        const BASE_COLUMNS = 'id, created_at, name, restaurant_name, auth_id, role'
+        let managerRes = await lookup(`${BASE_COLUMNS}, verified_at, verified_restaurant_name, verified_restaurant_address`)
+        // Deployed before migration 36 (columns not there yet): treat as unverified.
+        if (managerRes.error?.code === '42703') managerRes = await lookup(BASE_COLUMNS)
 
         if (cancelled) return
 
-        const { data: managerData, error: managerErr } = managerRes
+        const { error: managerErr } = managerRes
+        const managerData = managerRes.data as unknown as {
+          id: string; name: string | null; restaurant_name: string
+          verified_at?: string | null; verified_restaurant_name?: string | null; verified_restaurant_address?: string | null
+        } | null
 
         if (managerErr) {
           console.error('[manager dashboard] restaurant_managers:', managerErr)
@@ -742,8 +762,14 @@ export default function RestaurantManagerDashboard() {
 
         setManagerName(managerData.name ?? '')
         setManagerEmail(session.user.email ?? '')
-        setRestaurantName(managerData.restaurant_name)
-        await loadData(managerData.restaurant_name)
+        const verified = managerData.verified_at && managerData.verified_restaurant_name && managerData.verified_restaurant_address
+          ? { name: managerData.verified_restaurant_name as string, address: managerData.verified_restaurant_address as string }
+          : null
+        verifiedAddressRef.current = verified ? normVenue(verified.address) : null
+        setVerifiedVenue(verified)
+        const venueName = verified ? verified.name : managerData.restaurant_name
+        setRestaurantName(venueName)
+        await loadData(venueName)
       } catch (err) {
         console.error('[manager dashboard] checkAuth:', err)
         if (!cancelled) {
@@ -768,7 +794,7 @@ export default function RestaurantManagerDashboard() {
   }, [restaurantName, loadData])
 
   async function handleToggle(member: StaffMember, next: boolean) {
-    if (!restaurantName) return
+    if (!restaurantName || !verifiedVenue) return
     setBusyServerId(member.server_id)
     try {
       if (next) {
@@ -1040,6 +1066,15 @@ export default function RestaurantManagerDashboard() {
         {/* ── STAFF TAB ───────────────────────────────────────────────────── */}
         {activeTab === 'staff' && (
           <MotionSection className="py-6">
+            {!loading && !verifiedVenue && (
+              <div data-testid="pending-verification" className="mb-6" style={{ border: '1px solid #3a2f00', background: '#0d0a00', padding: '16px 18px' }}>
+                <p className="text-sm font-semibold" style={{ color: '#facc15' }}>Pending verification</p>
+                <p className="mt-1 text-sm leading-6" style={{ color: '#A0A0A0' }}>
+                  Slate will confirm that you manage {restaurantName ?? 'this restaurant'} before you can start or end
+                  shifts, notify followers, or contact servers. You can look around in the meantime.
+                </p>
+              </div>
+            )}
             {loading ? (
               <p className="text-sm py-6" style={{ color: '#606060' }}>Loading your floor…</p>
             ) : staff.length === 0 ? (
@@ -1174,14 +1209,16 @@ export default function RestaurantManagerDashboard() {
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                         <button
                           onClick={() => handleToggle(member, !isActive)}
-                          disabled={busy}
+                          disabled={busy || !verifiedVenue}
+                          title={verifiedVenue ? undefined : 'Available after Slate verifies your restaurant'}
                           style={{
                             width: '76px',
                             height: '40px',
                             borderRadius: '20px',
                             background: isActive ? '#FFFFFF' : 'transparent',
                             border: isActive ? '1px solid #FFFFFF' : '1px solid #1a1a1a',
-                            cursor: busy ? 'wait' : 'pointer',
+                            cursor: busy ? 'wait' : !verifiedVenue ? 'not-allowed' : 'pointer',
+                            opacity: verifiedVenue ? 1 : 0.4,
                             position: 'relative',
                             transition: 'all 0.25s ease',
                             padding: 0,
