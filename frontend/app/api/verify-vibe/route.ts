@@ -1,12 +1,26 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getRequestUser, supabaseAdmin } from '@/lib/server-auth'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
+// Records a guest's vibe report for a venue and, when it qualifies, a small
+// guest $SERVE reward (display balance only; nothing is paid out). At most 3
+// rewarded reports (15 $SERVE) per account per UTC day; later reports earn 0.
+//
+// Identity always comes from the signed-in session, never from the request body.
+// The cooldown, daily limit, report and reward are applied in one locked database
+// call (submit_vibe_report), so parallel requests cannot double-report or double-credit.
+//
+// Location: "location-consistent" means the phone's reported position was within
+// 500 m of the venue position the page looked up. Both positions come from the
+// browser, so this is a consistency signal, NOT proof the person was there —
+// a determined user can fake device location.
 
-function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+const VIBES = ['CHILL', 'LIVE', 'PACKED'] as const
+const SEATS = ['Plenty', 'A few', 'None'] as const
+const WAITS = ['No wait', '~15 min', '30+ min'] as const
+const MAX_DISTANCE_METERS = 500
+const NEW_ACCOUNT_HOURS = 24
+
+function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000
   const dLat = (lat2 - lat1) * Math.PI / 180
   const dLon = (lon2 - lon1) * Math.PI / 180
@@ -17,157 +31,98 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+function coord(value: unknown, max: number): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= max ? value : null
+}
+
+function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T | null {
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? (value as T) : null
+}
+
 export async function POST(request: Request) {
-  const body = await request.json()
-  console.log('verify-vibe API called with:', body)
-
-  const {
-    userId,
-    reporterEmail,
-    restaurantName,
-    vibe, barSeats, waitTime,
-    userLat, userLng,
-    restaurantLat, restaurantLng,
-    qrCode,
-    distanceMeters,
-  } = body
-
-  // ── CHECK 0 — Require authenticated reporter (Fix 4) ─────────────────────
-  if (!reporterEmail || reporterEmail === 'undefined' || reporterEmail === 'anonymous') {
+  const user = await getRequestUser(request)
+  if (!user || !user.email) {
     return NextResponse.json(
-      { success: false, error: 'Please sign in to report vibes and earn $SERVE rewards.' },
-      { status: 401 }
+      { success: false, error: 'Please sign in to report vibes.' },
+      { status: 401 },
     )
   }
 
-  // ── CHECK 1 — Account age (server-authoritative via admin API) ──────────────
-  let isNewAccount = true
-  if (userId) {
-    const { data: authData } = await supabase.auth.admin.getUserById(userId)
-    if (authData?.user?.created_at) {
-      const ageHours = (Date.now() - new Date(authData.user.created_at).getTime()) / (1000 * 60 * 60)
-      isNewAccount = ageHours < 24
-    }
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid request.' }, { status: 400 })
   }
 
-  // ── CHECK 2 — Per-restaurant 2hr cooldown ─────────────────────────────────
-  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-  const { data: recentSameRestaurant } = await supabase
-    .from('vibe_reports')
-    .select('id')
-    .eq('reported_by', reporterEmail)
-    .eq('restaurant_name', restaurantName)
-    .gte('created_at', twoHoursAgo)
-    .maybeSingle()
-
-  if (recentSameRestaurant) {
-    return NextResponse.json(
-      { success: false, error: 'You already reported a vibe here recently. Come back in 2 hours.' },
-      { status: 429 }
-    )
+  const restaurantName = typeof body.restaurantName === 'string' ? body.restaurantName.trim().slice(0, 120) : ''
+  const vibe = oneOf(body.vibe, VIBES)
+  if (!restaurantName || !vibe) {
+    return NextResponse.json({ success: false, error: 'Pick a venue and a vibe.' }, { status: 400 })
   }
+  const barSeats = oneOf(body.barSeats, SEATS)
+  const waitTime = oneOf(body.waitTime, WAITS)
 
-  // ── CHECK 3 — Daily limit across all restaurants ───────────────────────────
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
-  const { count: dailyCount } = await supabase
-    .from('vibe_reports')
-    .select('id', { count: 'exact' })
-    .eq('reported_by', reporterEmail)
-    .gte('created_at', todayStart.toISOString())
-
-  if ((dailyCount ?? 0) >= 20) {
-    return NextResponse.json(
-      { success: false, error: 'Daily limit reached. You can submit 20 vibe reports per day.' },
-      { status: 429 }
-    )
+  // Distance is computed here from the two positions; any client "verified" flag is ignored.
+  const userLat = coord(body.userLat, 90)
+  const userLng = coord(body.userLng, 180)
+  const venueLat = coord(body.restaurantLat, 90)
+  const venueLng = coord(body.restaurantLng, 180)
+  let distance: number | null = null
+  if (userLat !== null && userLng !== null && venueLat !== null && venueLng !== null) {
+    distance = Math.round(distanceMeters(userLat, userLng, venueLat, venueLng))
   }
+  const locationConsistent = distance !== null && distance <= MAX_DISTANCE_METERS
 
-  // ── CHECK 4 — Anomaly detection (volume in last hour) ─────────────────────
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-  const { count: hourlyCount } = await supabase
-    .from('vibe_reports')
-    .select('id', { count: 'exact' })
-    .eq('reported_by', reporterEmail)
-    .gte('created_at', oneHourAgo)
-  const isSuspicious = (hourlyCount ?? 0) >= 3
+  const ageHours = (Date.now() - new Date(user.created_at).getTime()) / (1000 * 60 * 60)
 
-  // ── CHECK 5 — GPS verification (server-side wins when coords available) ────
-  let gpsVerified: boolean = body.gpsVerified ?? false
-  let distance: number | null = distanceMeters ?? null
-
-  if (userLat != null && userLng != null && restaurantLat != null && restaurantLng != null) {
-    const dist = getDistanceMeters(userLat, userLng, restaurantLat, restaurantLng)
-    distance = Math.round(dist)
-    gpsVerified = dist <= 500
-  }
-
-  const qrVerified = !!qrCode
-
-  // ── CHECK 5 — Integrity score ──────────────────────────────────────────────
-  const integrityScore =
-    (gpsVerified ? 40 : 0) +
-    (qrVerified ? 40 : 0) +
-    (!isNewAccount ? 10 : 0) +
-    (!isSuspicious ? 10 : 0)
-
-  // ── CHECK 6 — $SERVE reward ────────────────────────────────────────────────
-  const serveReward = gpsVerified ? 5 : 1
-
-  // ── CHECK 7 — Persist ─────────────────────────────────────────────────────
-  console.log('Attempting to insert vibe report...')
-  const { data: insertData, error } = await supabase
-    .from('vibe_reports')
-    .insert({
-      restaurant_name: restaurantName,
-      vibe,
-      bar_seats: barSeats,
-      wait_time: waitTime,
-      reported_by: reporterEmail,
-      gps_verified: gpsVerified,
-      qr_verified: qrVerified,
-      integrity_score: integrityScore,
-      serve_reward: serveReward,
-      is_flagged: isSuspicious,
-      distance_meters: distance,
-      user_lat: userLat ?? null,
-      user_lng: userLng ?? null,
-    })
-    .select()
-  console.log('Insert result:', insertData, error)
+  const { data, error } = await supabaseAdmin().rpc('submit_vibe_report', {
+    p_email: user.email,
+    p_restaurant_name: restaurantName,
+    p_vibe: vibe,
+    p_bar_seats: barSeats,
+    p_wait_time: waitTime,
+    p_user_lat: userLat,
+    p_user_lng: userLng,
+    p_distance_meters: distance,
+    p_location_consistent: locationConsistent,
+    p_new_account: !(ageHours >= NEW_ACCOUNT_HOURS),
+  })
 
   if (error) {
-    console.error('[verify-vibe] insert error:', error)
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    console.error('[verify-vibe] failed', { code: error.code })
+    return NextResponse.json({ success: false, error: 'Could not save your report. Please try again.' }, { status: 500 })
   }
 
-  // ── Reward — guest_rewards balance ──────────────────────────────────────
-  // servers.slate_points was dropped, so the old server branch always failed its
-  // lookup and fell through to guest_rewards. Keep that same effective behavior
-  // without touching the dropped column. Server $SERVE belongs in serve_ledger.
-  if (serveReward > 0 && reporterEmail) {
-    const { data: guestRow } = await supabase
-      .from('guest_rewards')
-      .select('slate_points')
-      .ilike('email', reporterEmail)
-      .maybeSingle()
-
-    if (guestRow) {
-      await supabase
-        .from('guest_rewards')
-        .update({ slate_points: (guestRow.slate_points ?? 0) + serveReward })
-        .ilike('email', reporterEmail)
-    } else {
-      await supabase
-        .from('guest_rewards')
-        .insert({ email: reporterEmail, slate_points: serveReward })
-    }
-    console.log(`Updated guest ${reporterEmail} balance by ${serveReward}`)
+  const result = data as { status: string; serve_reward?: number; integrity_score?: number; daily_reward_cap_reached?: boolean }
+  if (result.status === 'cooldown') {
+    return NextResponse.json(
+      { success: false, error: 'You already reported a vibe here recently. Come back in 2 hours.' },
+      { status: 429 },
+    )
+  }
+  if (result.status === 'daily_limit') {
+    return NextResponse.json(
+      { success: false, error: 'Daily limit reached. You can submit 20 vibe reports per day.' },
+      { status: 429 },
+    )
   }
 
+  const serveReward = result.serve_reward ?? 0
   const message = serveReward > 0
     ? `You earned ${serveReward} $SERVE!`
-    : 'Report submitted. Enable location to earn $SERVE rewards.'
+    : result.daily_reward_cap_reached
+      ? 'Report submitted. You have earned today\'s maximum $SERVE for vibe reports.'
+      : locationConsistent
+        ? 'Report submitted.'
+        : 'Report submitted. Turn on location at the venue to earn $SERVE.'
 
-  return NextResponse.json({ success: true, serveReward, integrityScore, gpsVerified, distance, message })
+  return NextResponse.json({
+    success: true,
+    serveReward,
+    integrityScore: result.integrity_score ?? 0,
+    gpsVerified: locationConsistent,
+    distance,
+    message,
+  })
 }

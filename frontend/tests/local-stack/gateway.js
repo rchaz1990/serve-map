@@ -38,7 +38,7 @@ function psql(sql, vars) {
 function userObj(u) {
   const now = new Date().toISOString()
   return { id: u.id, aud: 'authenticated', role: 'authenticated', email: u.email, email_confirmed_at: now, confirmed_at: now,
-    user_metadata: u.user_metadata, app_metadata: u.app_metadata, identities: [], created_at: now, updated_at: now }
+    user_metadata: u.user_metadata, app_metadata: u.app_metadata, identities: [], created_at: u.created_at || now, updated_at: now }
 }
 function session(u) {
   const exp = Math.floor(Date.now() / 1000) + 3600
@@ -46,8 +46,8 @@ function session(u) {
     app_metadata: u.app_metadata, user_metadata: u.user_metadata })
   return { access_token: at, refresh_token: crypto.randomUUID(), token_type: 'bearer', expires_in: 3600, expires_at: exp, user: userObj(u) }
 }
-function createUser(email, password, meta, provider = 'email') {
-  const u = { id: crypto.randomUUID(), email, password, user_metadata: meta || {}, app_metadata: { provider, providers: [provider] } }
+function createUser(email, password, meta, provider = 'email', createdAt) {
+  const u = { id: crypto.randomUUID(), email, password, user_metadata: meta || {}, app_metadata: { provider, providers: [provider] }, created_at: createdAt }
   users[email.toLowerCase()] = u
   // psql variables are quoted by psql itself (:'x'), so values cannot inject SQL.
   execFileSync('psql', ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-q',
@@ -78,7 +78,8 @@ http.createServer((req, res) => {
 
     // test hook: create an account directly (e.g. a Google-verified one)
     if (url.pathname === '/__create_user') {
-      const u = createUser(json.email, json.password || 'x', json.data, json.provider || 'email')
+      // created_at lets tests simulate an older account
+      const u = createUser(json.email, json.password || 'x', json.data, json.provider || 'email', json.created_at)
       return send(200, session(u))
     }
 

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
+import { authJsonHeaders } from '@/lib/auth-fetch'
 import { geocodeAddress } from '@/lib/geocode'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -102,6 +103,7 @@ const CSS = `
 function VibeForm({ venueName, onSubmitted }: { venueName: string; onSubmitted: () => void }) {
   const [open, setOpen] = useState(false)
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [venueCoords, setVenueCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [gpsVerified, setGpsVerified] = useState(false)
   const [vibe, setVibe] = useState<string | null>(null)
   const [seats, setSeats] = useState<string | null>(null)
@@ -125,6 +127,7 @@ function VibeForm({ venueName, onSubmitted }: { venueName: string; onSubmitted: 
           const venue = await geocodeAddress(venueName + ' NYC')
           const vLat: number | null = venue?.lat ?? null
           const vLng: number | null = venue?.lng ?? null
+          setVenueCoords(vLat !== null && vLng !== null ? { lat: vLat, lng: vLng } : null)
           if (vLat !== null && vLng !== null && getDistanceMeters(userLat, userLng, vLat, vLng) <= 500) {
             setGpsVerified(true)
           }
@@ -140,17 +143,16 @@ function VibeForm({ venueName, onSubmitted }: { venueName: string; onSubmitted: 
     setSubmitting(true)
     setError('')
     const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { setSubmitting(false); setError('Please sign in to report vibes.'); return }
+    // The server works out who is reporting from the session and computes the distance itself.
     const res = await fetch('/api/verify-vibe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authJsonHeaders(session.access_token),
       body: JSON.stringify({
-        userId: session?.user?.id ?? null,
-        reporterEmail: session?.user?.email ?? localStorage.getItem('slateUserEmail') ?? undefined,
         restaurantName: venueName,
         vibe, barSeats: seats, waitTime: wait,
         userLat: userCoords?.lat ?? null, userLng: userCoords?.lng ?? null,
-        restaurantLat: null, restaurantLng: null,
-        gpsVerified,
+        restaurantLat: venueCoords?.lat ?? null, restaurantLng: venueCoords?.lng ?? null,
       }),
     })
     const json = await res.json()
