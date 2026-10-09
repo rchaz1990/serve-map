@@ -82,24 +82,27 @@ where id = '<manager row id>';
 ```
 Revoke: `update public.restaurant_managers set verified_at = null where id = '<id>';`
 
-## Deployment sequence (database first, then code)
-The new code reads columns that 36 creates, so 36 must run first. The old code keeps
-working after 36, except that manager shift toggles are refused (all managers start
-unverified), which is the intended state.
+## Deployment sequence (code first, then database — no permissive window)
+The new code fails closed when migration 36 has not run yet: `notify-followers` and
+`contact-server` refuse every manager, and the dashboard shows "Pending verification" with
+shift toggles disabled (tested in `manager-premigration.test.js`). Shipping code first
+therefore removes the old follower-notification route before 36 runs, so there is never a
+moment where 36 is live and the old route still trusts self-typed restaurant names.
 
-1. **Run `frontend/supabase-sql/security/36_verified_managers.sql`** in the SQL Editor.
-   It stops by itself if `manager_can_staff` is not the expected production version
-   (body md5 `8ea02c808366da74d12025a910477a8d`). Then verify:
+1. **Merge this PR** (Vercel deploys). Check: a manager's dashboard shows "Pending
+   verification" with toggles disabled; a worker can still start/end their own shift and
+   notify followers. Until step 2, the database still accepts manager shift writes sent
+   directly to the API (today's behaviour); keep the gap short.
+2. **Run `frontend/supabase-sql/security/36_verified_managers.sql`** in the SQL Editor,
+   right after the deploy is live. It stops by itself unless `manager_can_staff` is the
+   expected production version (body md5 `8ea02c808366da74d12025a910477a8d`). Verify:
    - `manager_can_staff` body md5 `9e86d5f328646b5442316ff26625b438`
    - `manager_controls` body md5 `e2760eb3d6d4eb7974c52ae022432360`
    - `manager_controls` not executable by `anon` or `authenticated`
    - `select count(*) from restaurant_managers where verified_at is not null` → 0
    Rollback: `36_rollback_verified_managers.sql` (restores md5 `8ea02c80…`; discards any
-   verifications). If rolled back after step 2, revert the PR too.
-2. **Merge the PR** (Vercel deploys). Check: a manager's dashboard shows "Pending
-   verification" with toggles disabled; a worker can still start/end their own shift.
-   Between steps 1 and 2, the old dashboard's toggle shows a database error for managers;
-   workers are unaffected.
+   verifications). The new code keeps failing closed after a rollback, so no code revert
+   is required for safety.
 3. **Later, separately approved:** verify specific managers using the agreed evidence.
 
 ## Remaining risks

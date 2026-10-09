@@ -716,19 +716,27 @@ export default function RestaurantManagerDashboard() {
           return
         }
 
-        const managerRes = await withTimeout(
+        const lookup = (columns: string) => withTimeout(
           supabase
             .from('restaurant_managers')
-            .select('id, created_at, name, restaurant_name, auth_id, role, verified_at, verified_restaurant_name, verified_restaurant_address')
+            .select(columns)
             .eq('auth_id', session.user.id)
             .maybeSingle(),
           AUTH_TIMEOUT_MS,
           'Manager lookup',
         )
+        const BASE_COLUMNS = 'id, created_at, name, restaurant_name, auth_id, role'
+        let managerRes = await lookup(`${BASE_COLUMNS}, verified_at, verified_restaurant_name, verified_restaurant_address`)
+        // Deployed before migration 36 (columns not there yet): treat as unverified.
+        if (managerRes.error?.code === '42703') managerRes = await lookup(BASE_COLUMNS)
 
         if (cancelled) return
 
-        const { data: managerData, error: managerErr } = managerRes
+        const { error: managerErr } = managerRes
+        const managerData = managerRes.data as unknown as {
+          id: string; name: string | null; restaurant_name: string
+          verified_at?: string | null; verified_restaurant_name?: string | null; verified_restaurant_address?: string | null
+        } | null
 
         if (managerErr) {
           console.error('[manager dashboard] restaurant_managers:', managerErr)

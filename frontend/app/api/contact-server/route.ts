@@ -21,11 +21,16 @@ export async function POST(request: Request) {
   }
 
   const admin = supabaseAdmin()
-  const { data: manager } = await admin
+  const { data: manager, error: managerError } = await admin
     .from('restaurant_managers')
     .select('name, email, verified_at, verified_restaurant_name')
     .eq('auth_id', user.id)
     .maybeSingle()
+  // Fail closed (e.g. deployed before migration 36 added the verification columns).
+  if (managerError) {
+    console.error('[contact-server] manager lookup:', managerError.message)
+    return NextResponse.json({ error: 'Your restaurant account is pending verification by Slate.' }, { status: 403 })
+  }
   if (!manager) return NextResponse.json({ error: 'Restaurant manager account required' }, { status: 403 })
   // Only Slate-verified managers can contact workers, and only in the name of the
   // venue Slate verified (never the self-typed restaurant name).
