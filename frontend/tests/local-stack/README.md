@@ -26,3 +26,9 @@ Apply `supabase-sql/security/33_submit_vibe_report.sql` to the local database fi
 ```bash
 node vibe.test.js http://localhost:3104 keys.json   # 25 checks: auth, forged identity/location, limits, races, permissions
 ```
+
+## Ratings (`rating.test.js`)
+Apply `supabase-sql/security/34_rating_limits.sql` to the local database first, then:
+```bash
+node rating.test.js http://localhost:3104 keys.json   # 15 checks: identity, limits, self-rating, races, direct DB access
+```
