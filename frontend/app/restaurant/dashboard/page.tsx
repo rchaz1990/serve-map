@@ -858,6 +858,9 @@ export default function RestaurantManagerDashboard() {
         body: JSON.stringify({ serverId: server.id }),
       })
       const json = await res.json().catch(() => ({}))
+      if (!res.ok && json.code === 'already_contacted') {
+        setContactedIds(prev => new Set(prev).add(server.id))
+      }
       if (!res.ok) throw new Error(json.error || 'Failed to send message.')
       setContactedIds(prev => {
         const next = new Set(prev)

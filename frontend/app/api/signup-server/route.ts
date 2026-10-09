@@ -124,6 +124,8 @@ export async function POST(request: NextRequest) {
         is_test: body.isTest === true,
         photo_url: ownPhotoUrl(body.photoUrl, user.id),
         specialties,
+        // Hidden from recruiters until the worker turns it on (consent; see migration 37).
+        open_to_opportunities: false,
       })
       .select('id, name')
       .single()
