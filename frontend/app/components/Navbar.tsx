@@ -138,8 +138,12 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (s?.user) {
           setSession(s)
-          await detectUserType(s.user.id, s.user.email ?? null)
-          setAuthLoaded(true)
+          // Not awaited: supabase-js waits for this callback before signUp /
+          // signIn resolve, so database lookups here would hold up (or stall)
+          // the page that is signing the user in.
+          void detectUserType(s.user.id, s.user.email ?? null)
+            .catch(err => console.error('[Navbar] detectUserType:', err))
+            .finally(() => setAuthLoaded(true))
         }
       }
     })
