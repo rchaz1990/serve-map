@@ -26,4 +26,5 @@ select
   (select count(*) from public.qr_scans x where x.server_id in (select id from w))                  as qr_scans_cascade,
   (select count(*) from public.recruiting_contacts x where x.server_id in (select id from w))       as recruiting_contacts_cascade,
   (select count(*) from public.serve_ledger l, p where l.account_id in (select id from w) or lower(l.email) = p.email) as ledger_rows_kept,
+  (select count(*) from public.serve_ledger l where l.account_id in (select id from w) and l.email is not null) as ledger_emails_to_clear,
   (select string_agg(s.photo_url, ' ') from public.servers s where s.id in (select id from w))      as photo_to_remove_in_storage;

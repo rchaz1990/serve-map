@@ -3,7 +3,8 @@
 --
 -- Fill in the placeholders and the expected counts from STEP 1. If any count differs
 -- (data changed since the preview, or a typo), the whole block stops and nothing is
--- deleted. serve_ledger is never touched (append-only by design).
+-- deleted. serve_ledger rows are never deleted or changed, except that a deleted worker's
+-- email is cleared from them through redact_ledger_email (migration 41).
 -- Afterwards: delete the profile photo in Storage, then the user in Authentication.
 do $$
 declare
@@ -65,6 +66,11 @@ begin
     delete from public.suggestions x where x.server_id = v_server;
     get diagnostics n = row_count; if n <> e_suggestions then raise exception 'suggestions: % (expected %)', n, e_suggestions; end if;
     delete from public.servers s where s.id = v_server;
+    -- Ledger rows stay (append-only); only their email is cleared (migration 41).
+    if to_regprocedure('public.redact_ledger_email(uuid)') is null then
+      raise exception 'migration 41 (redact_ledger_email) is not installed; stopping so no worker email is kept by mistake';
+    end if;
+    perform public.redact_ledger_email(v_server);
   elsif e_ratings_on_profile + e_followers + e_notifications_about_profile + e_workplaces + e_shifts + e_suggestions > 0 then
     raise exception 'worker counts given but this account has no worker profile';
   end if;

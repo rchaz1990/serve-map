@@ -8,7 +8,7 @@ not yet used.
 
 ## 1. Receive and verify the request
 
-1. The request comes by email to team@slatenow.xyz.
+1. The request comes by email to team@slatenow.xyz. The 30-day target starts once the request is verified.
 2. Verify that the requester controls the account:
    - Accept a request only if it comes **from the email address on the account**.
    - If it comes from another address, reply to the account's address and ask them to confirm from there. Do not use a link or a code, and do not trigger a Slate email to do this.
@@ -58,10 +58,10 @@ If the account both follows its own profile or rated itself (normally blocked), 
 
 ## 5. Kept, and disclosed in the Privacy Policy
 
-- **`serve_ledger`** is append-only (`serve_ledger_append_only` blocks update and delete).
-  - For a worker profile, its rows keep the points amounts, dates and the profile's email address.
-  - **Not bypassed.** Changing that is a separate founder decision.
-  - Points a worker earned from a guest rating that is later deleted stay in the worker's balance.
+- **`serve_ledger`** is append-only. Rows, amounts and dates are never changed or deleted.
+  - For a deleted worker profile, step 3 clears the email on its rows through `redact_ledger_email` (migration 41). The script stops if 41 isn't installed.
+  - New worker credits are stored without an email (migration 41).
+  - During the test, points a worker earned from a guest rating that is later deleted stay in the worker's balance and in the ledger.
 - **Provider copies.** Backups kept by Supabase, and logs and records kept by Vercel, Supabase, Resend and Beehiiv, follow each provider's own retention practices.
   - We have not confirmed those periods. The project is on Supabase's **Free plan**, so it has no project backups we can download or restore ourselves.
   - The Privacy Policy therefore promises no expiry date.
