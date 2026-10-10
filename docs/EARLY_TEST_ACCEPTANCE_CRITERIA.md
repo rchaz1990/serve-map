@@ -324,3 +324,19 @@ Minimum stop criteria:
 
 Stop the test immediately, preserve evidence, do not attempt an unapproved fix, and notify the founder through the designated contact path.
 
+
+---
+
+# Proposed production sequence (each step needs separate founder approval; nothing here authorizes it)
+
+| Step | What | Why this order |
+|---|---|---|
+| A1 | Run `43_scope_lock.sql` | Database first: blocks paused features for every role; adds `my_ratings()`; drops shift distance. The current app keeps working (paused buttons just error). |
+| A2 | Deploy the PR-A app | Hides paused controls; "My Ratings" uses `my_ratings()`; no QR-scan tracking. |
+| A3 | Run `43b_rating_identifier_private.sql` | Only after A2 (the old app filtered "My Ratings" by `guest_id`). |
+| B1 | Run `44_participant_agreements.sql` | Additive: log, checks, recorder. Blocks nothing. Must precede B2 (the app calls these functions and fails closed without them). |
+| B2 | Run `legal-version.mjs check --release` (or `set` to the actual date), then deploy the PR-B app | Shows the cards, records agreements, enforces in routes. Between B2 and B3 the database still expects legal version 2026-10-10, so workers who re-acknowledge (2026-10-13) cannot start shifts until B3 (fails closed, minutes). |
+| B3 | Run `44b_participant_enforcement.sql` | Database enforcement, visibility rules, legal version 2026-10-13. |
+| Verify | Read-only production checks with test accounts only | E- and S-criteria above. |
+
+Rollback is strictly in reverse: 44b → app → 44 (keeps the log) → 43b → app → 43. Every rollback refuses to run out of order.

@@ -220,11 +220,12 @@ async function optedInFollower(w) {
   }
   // ── 6b. One policy version; effective date from it ──
   {
-    const m39 = fs.readFileSync(path.join(__dirname, '../../supabase-sql/security/39_participant_data_policy.sql'), 'utf8').match(/select '([^']+)'::text/)[1]
+    // The latest migration defining current_legal_version() is authoritative (44b; 39 is history).
+    const m39 = fs.readFileSync(path.join(__dirname, '../../supabase-sql/security/44b_participant_enforcement.sql'), 'utf8').match(/function public\.current_legal_version\(\)\nreturns text\nlanguage sql\nimmutable\nas \$\$ select '([^']+)'::text/)[1]
     const ctx = await browser.newContext(); const page = await ctx.newPage()
     const label = async p => { await page.goto(APP + p, { waitUntil: 'networkidle', timeout: 120000 }); return (await page.textContent('[data-testid="legal-effective"]')) || '' }
     const tl = await label('/terms'), pl = await label('/privacy'), privacy = (await page.textContent('body')) || ''
-    check('P35 one version: app LEGAL_VERSION = migration 39 current_legal_version(); Terms and Privacy show the same effective date from it',
+    check('P35 one version: app LEGAL_VERSION = migration 44b current_legal_version(); Terms and Privacy show the same effective date from it',
       m39 === LEGAL_VERSION && tl === pl && /^Effective /.test(tl), { m39, LEGAL_VERSION, tl, pl })
     check('P36 Privacy: points from a deleted guest rating stay with the worker; backups/provider records described without a promised expiry',
       /stay in the worker.s balance/.test(privacy) && /own retention practices, which we do not control/.test(privacy) && !/until they expire/.test(privacy))
@@ -279,19 +280,21 @@ async function optedInFollower(w) {
     // Before publication the version is a placeholder (e.g. '2026-10') and the release check must refuse;
     // once the publication date is set (YYYY-MM-DD) it must pass.
     const published = /^\d{4}-\d{2}-\d{2}$/.test(LEGAL_VERSION)
-    check(`P50 version tooling: app and migration 39 agree; release check ${published ? 'passes with the publication date' : 'refuses until a publication date is set'}`,
-      c.ok && (published ? rel.ok && new RegExp(`both ${LEGAL_VERSION}`).test(rel.out) : !rel.ok && /NOT READY/.test(rel.out)), { c, rel, LEGAL_VERSION })
-    // "set" on a scratch copy: both files get the same exact date; migration 39 otherwise unchanged.
+    check(`P50 version tooling: app, participant documents and migrations 44/44b agree; release check ${published ? 'passes with the publication date' : 'refuses until a publication date is set'}`,
+      c.ok && (published ? rel.ok && new RegExp(`all ${LEGAL_VERSION}`).test(rel.out) : !rel.ok && /NOT READY/.test(rel.out)), { c, rel, LEGAL_VERSION })
+    // "set" on a scratch copy: every place gets the same exact date; nothing else changes.
     const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lv-'))
-    for (const f of ['scripts/legal-version.mjs', 'lib/legal.ts', 'supabase-sql/security/39_participant_data_policy.sql']) {
+    const FILES = ['scripts/legal-version.mjs', 'lib/legal.ts', 'lib/participant-documents.ts', 'supabase-sql/security/44_participant_agreements.sql', 'supabase-sql/security/44b_participant_enforcement.sql']
+    for (const f of FILES) {
       fs.mkdirSync(path.dirname(path.join(tmp, f)), { recursive: true }); fs.copyFileSync(path.join(__dirname, '../..', f), path.join(tmp, f))
     }
     let setOk = true; try { execFileSync('node', [path.join(tmp, 'scripts/legal-version.mjs'), 'set', '2031-01-15'], { stdio: 'pipe' }); execFileSync('node', [path.join(tmp, 'scripts/legal-version.mjs'), 'check', '--release'], { stdio: 'pipe' }) } catch { setOk = false }
-    const m39orig = fs.readFileSync(path.join(__dirname, '../../supabase-sql/security/39_participant_data_policy.sql'), 'utf8')
-    const m39new = fs.readFileSync(path.join(tmp, 'supabase-sql/security/39_participant_data_policy.sql'), 'utf8')
-    check('P50b "set" writes the same exact date to the app and migration 39 and nothing else',
-      setOk && /LEGAL_VERSION = '2031-01-15'/.test(fs.readFileSync(path.join(tmp, 'lib/legal.ts'), 'utf8'))
-        && m39new === m39orig.replace(`select '${LEGAL_VERSION}'::text`, `select '2031-01-15'::text`))
+    const orig = f => fs.readFileSync(path.join(__dirname, '../..', f), 'utf8'), now = f => fs.readFileSync(path.join(tmp, f), 'utf8')
+    const onlyDate = f => now(f) === orig(f).split(LEGAL_VERSION).join('2031-01-15')
+    check('P50b "set" writes the same exact date everywhere (app, both sheets, 44, 44b) and nothing else; 44b keeps its 2026-10-10 pre-check',
+      setOk && onlyDate('lib/legal.ts') && onlyDate('lib/participant-documents.ts') && now('supabase-sql/security/44_participant_agreements.sql') === orig('supabase-sql/security/44_participant_agreements.sql').replace(`select '${LEGAL_VERSION}'::text $$;`, () => `select '2031-01-15'::text $$;`)
+        && now('supabase-sql/security/44b_participant_enforcement.sql') === orig('supabase-sql/security/44b_participant_enforcement.sql').replace(`select '${LEGAL_VERSION}'::text $$;`, () => `select '2031-01-15'::text $$;`)
+        && /<> '2026-10-10'/.test(now('supabase-sql/security/44b_participant_enforcement.sql')))
   }
   {
     const ctx = await browser.newContext(); const page = await ctx.newPage()

@@ -158,7 +158,7 @@ const rate = (a, w) => api('/api/submit-rating', a.token, { serverId: w.serverId
   const rateTxt = await body(`/rate?server=${tw.serverId}`), profileTxt = await body(`/server/${tw.serverId}`), venueTxt = await body(`/venue/${encodeURIComponent(VENUE)}`)
   const name = sql(`select name from servers where id = '${tw.serverId}'`)
   check('G12 anonymous visitor: rate page, profile page and venue page never show the test profile',
-    !rateTxt.includes(name) && /not found/i.test(rateTxt) && !profileTxt.includes(name) && !venueTxt.includes(name), { name })
+    !rateTxt.includes(name) && /not found|isn.t available right now/i.test(rateTxt) && !profileTxt.includes(name) && !venueTxt.includes(name), { name })
   const realName = sql(`select name from servers where id = '${rw.serverId}'`)
   check('G13 real worker\'s public pages unchanged', (await body(`/server/${rw.serverId}`)).includes(realName.split(' ')[0]))
   await browser.close()

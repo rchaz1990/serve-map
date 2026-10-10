@@ -15,11 +15,11 @@ const SECTIONS = [
       },
       {
         subtitle: 'Ratings and reviews',
-        text: 'When you rate a server or bartender, your score, any written comment, and any tags you choose are stored by Slate and shown on that person\'s public profile until you or they ask us to delete them. Your name and email address are not shown with your rating. Inside Slate, each rating is linked to your account (by your email address, which is not shown) so we can limit abuse and delete it if you ask. Some older ratings also carry a random account identifier that others using Slate can see; it does not show your name or email.',
+        text: 'When you rate a server or bartender, your score, any written comment, and any tags you choose are stored by Slate and shown on that person\'s public profile until you or they ask us to delete them. Your name and email address are not shown with your rating. Inside Slate, each rating is linked to your account (by your email address, which is not shown) so we can limit abuse and delete it if you ask. Slate does not show a public account identifier with your ratings, so others can\'t use one to link your ratings together.',
       },
       {
         subtitle: 'Usage data',
-        text: 'We record pages visited and QR code scans (with an anonymous browser identifier) to understand how Slate is used and to improve it.',
+        text: 'We record which pages are visited (the page address only, not who visited) to understand how Slate is used and to improve it. During our early test, Slate does not record QR code scans.',
       },
     ],
   },
