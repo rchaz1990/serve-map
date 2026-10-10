@@ -113,6 +113,9 @@ const ratingRow = e => sql(`select score || '|' || coalesce(comment, '') || '|' 
     await page.check('[data-testid="legal-consent"] input[type="checkbox"]')
     await page.click('button:has-text("Create account")'); await page.waitForTimeout(1500)
     check('D10 confirmation on: told to check email; nothing posted', /Check .* for a confirmation link/.test(await text(page)) && ratingsBy(g) === '0')
+    const note = await page.textContent('[data-testid="draft-device-note"]').catch(() => '')
+    check('D10b confirmation notice says the unposted rating is saved only in this browser/device',
+      /hasn.t been posted/.test(note) && /only in this browser on this device/.test(note) && !note.includes(COMMENT), note)
     const mail = await lastEmail(g)
     await go(page, `/auth/confirm?token_hash=${mail.token_hash}&type=signup`); await page.waitForTimeout(1500)
     const st = await formState(page)
@@ -121,6 +124,28 @@ const ratingRow = e => sql(`select score || '|' || coalesce(comment, '') || '|' 
       page.url().endsWith(`/rate?server=${w3.serverId}`) && st.restored && st.comment === COMMENT, { url: page.url(), st })
     check('D12 not submitted, and the agreement is asked for again unticked (no session existed at sign-up to record it)',
       ratingsBy(g) === '0' && await box.isVisible() && !(await box.isChecked()))
+  }
+  // 4b. Confirmation link opened on another device: no draft there; back in the original browser, sign-in restores it
+  const w7 = await worker('w7')
+  {
+    const page = await fresh()
+    await draftRating(page, w7)
+    const g = email('elsewhere')
+    await page.fill('input[placeholder="Your name"]', 'Eli Elsewhere'); await page.fill('input[placeholder="Email address"]', g); await page.fill('input[placeholder="Password"]', 'pass123456')
+    await page.check('[data-testid="legal-consent"] input[type="checkbox"]')
+    await page.click('button:has-text("Create account")'); await page.waitForTimeout(1500)
+    const mail = await lastEmail(g)
+    const other = await fresh()
+    await go(other, `/auth/confirm?token_hash=${mail.token_hash}&type=signup`); await other.waitForTimeout(1500)
+    check('D20 link opened on another device: not taken to the rating, no draft shown there, nothing posted',
+      !other.url().includes('/rate') && !(await other.isVisible('[data-testid="draft-restored"]')) && ratingsBy(g) === '0', other.url())
+    await other.context().close()
+    await page.fill('input[placeholder="Email address"]', g); await page.fill('input[placeholder="Password"]', 'pass123456')
+    await page.click('button:has-text("Sign in")'); await page.waitForURL(`**/rate?server=${w7.serverId}`, { timeout: 30000 }).catch(() => {})
+    await page.waitForTimeout(1500)
+    const st = await formState(page)
+    check('D21 back in the original browser, sign-in returns to that rating with the draft restored, still unposted',
+      page.url().endsWith(`/rate?server=${w7.serverId}`) && st.restored && st.comment === COMMENT && ratingsBy(g) === '0', { url: page.url(), st })
   }
   await setConfirm(false)
 

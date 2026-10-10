@@ -64,5 +64,5 @@ reports then fall inside the 1-hour flag window). Test artifact, not a product c
 ## First-time guest rating flow (`rating-draft.test.js`)
 Run on the integrated stack (36 + 37 + 38 applied); pass the app log path as the third argument:
 ```bash
-node rating-draft.test.js http://localhost:3104 keys.json <app.log>   # 19 checks: draft kept through sign-up/sign-in/confirmation/Google, never auto-submitted or auto-consented, no leaks
+node rating-draft.test.js http://localhost:3104 keys.json <app.log>   # 22 checks: draft kept through sign-up/sign-in/confirmation (incl. link opened on another device)/Google, never auto-submitted or auto-consented, no leaks
 ```
