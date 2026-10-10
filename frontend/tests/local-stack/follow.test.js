@@ -38,6 +38,8 @@ async function worker(tag, venue, approval = 'automatic') {
   const a = await account(tag)
   const id = sql(`insert into servers (name, email, wallet_address, follow_approval) values ('Worker ${tag}', '${a.email}', '${a.id}', '${approval}') returning id`).split('\n')[0]
   sql(`insert into server_restaurants (server_id, restaurant_name, restaurant_address) values ('${id}', '${venue}', '1 Notify St, New York, NY')`)
+  // Workers in this suite have agreed to the current Terms as workers (needed for shift emails).
+  await api('/api/legal/accept', a.token, { version: LEGAL_VERSION, context: 'worker' })
   return { ...a, serverId: id, venue }
 }
 const sentTo = async to => (await (await fetch(GW + '/__emails?to=' + encodeURIComponent(to))).json()).length

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { escapeHtml, getRequestUser, supabaseAdmin as getSupabaseAdmin } from '@/lib/server-auth'
+import { workerTermsOnFile } from '@/lib/legal-server'
 
 export async function POST(request: Request) {
   // Only the server themself, or a manager at a venue where they work, can notify
@@ -55,6 +56,16 @@ export async function POST(request: Request) {
   }
   if (!isSelf && !isVenueManager) {
     return NextResponse.json({ error: 'Not allowed' }, { status: 403 })
+  }
+
+  // Followers are emailed about a worker only after that worker has agreed to the current
+  // Terms/Privacy as a worker (existing workers agree from their dashboard). Unclaimed
+  // profiles never pass.
+  if (!(await workerTermsOnFile(supabaseAdmin, serverRow.wallet_address as string | null))) {
+    return NextResponse.json(
+      { error: 'This worker needs to accept the current Terms and Privacy Policy first.', code: 'worker_terms_required' },
+      { status: 403 },
+    )
   }
 
   const serverName = (serverRow.name as string | null) || 'Your server'

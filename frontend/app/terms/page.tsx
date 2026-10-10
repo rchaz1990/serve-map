@@ -1,4 +1,5 @@
 import Navbar from '@/app/components/Navbar'
+import { legalEffectiveLabel } from '@/lib/legal'
 
 const SECTIONS = [
   {
@@ -6,7 +7,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'You agree to these Terms and the Privacy Policy by ticking the agreement box when you create a server or bartender profile, or before your first rating. We record which version you agreed to and when.',
+        text: 'You agree to these Terms and the Privacy Policy by ticking the agreement box when you create a server or bartender profile, before your first rating or follow, or — if your server or bartender profile was created earlier — before you next use your dashboard. We record which version you agreed to and when.',
       },
     ],
   },
@@ -41,7 +42,7 @@ const SECTIONS = [
       },
       {
         subtitle: 'Removal',
-        text: 'Ratings are stored by Slate. Slate may remove any rating that breaks these Terms. Ratings cannot be edited after you submit them, so please rate thoughtfully and honestly.',
+        text: 'Ratings are stored by Slate. Slate may remove any rating that breaks these Terms. Ratings cannot be edited after you submit them, so please rate thoughtfully and honestly. You can ask us to delete a rating you wrote, or your account; see the Privacy Policy.',
       },
     ],
   },
@@ -50,7 +51,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'Vibe reports and shifts may use your device location to check that you are near the venue. These checks rely on your device and are not proof of presence. Do not misrepresent where you are. See the Privacy Policy for what is stored and who can see it.',
+        text: 'Vibe reports and shifts may use your device location to check that you are near the venue. Your coordinates are used only for that check and are not stored. These checks rely on your device and are not proof of presence. Do not misrepresent where you are. See the Privacy Policy for what is stored and who can see it.',
       },
     ],
   },
@@ -68,7 +69,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: 'Slate Points',
-        text: 'Slate Points are a record of recognition on Slate. They are not a cryptocurrency, have no cash value, and cannot be sold, transferred, or exchanged. Slate may change how points are earned or end the points program.',
+        text: 'Slate Points are a record of recognition on Slate. They are not a cryptocurrency, have no cash value, and cannot be sold, transferred, or exchanged. Slate may change how points are earned or end the points program. During our early test, if a rating is deleted, points already awarded for it are not removed.',
       },
       {
         subtitle: '$SERVE',
@@ -121,7 +122,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'We may update these Terms of Service from time to time. For material changes we will update the date above and ask you to agree again before you next create a profile or submit a rating, and may also email you.',
+        text: 'We may update these Terms of Service from time to time. For material changes we will update the date above and ask you to agree again before you next create a profile, submit a rating, follow someone, or use your server or bartender dashboard, and may also email you.',
       },
     ],
   },
@@ -151,7 +152,7 @@ export default function TermsPage() {
           <h1 className="mb-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
             Terms of Service
           </h1>
-          <p className="text-sm" style={{ color: '#606060' }}>Updated October 2026</p>
+          <p className="text-sm" style={{ color: '#606060' }} data-testid="legal-effective">{legalEffectiveLabel()}</p>
         </div>
 
         <div className="space-y-12">

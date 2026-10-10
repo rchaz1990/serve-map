@@ -26,3 +26,25 @@ export async function recordGuestLegal(accessToken?: string): Promise<string | n
     return 'We could not save your agreement. Please try again.'
   }
 }
+
+/** True when the signed-in worker has acknowledged the current version as a worker. */
+export async function workerTermsOnFile(): Promise<boolean> {
+  const { data } = await supabase.auth.getUser()
+  return data.user?.app_metadata?.legal_worker_version === LEGAL_VERSION
+}
+
+/** Records an existing worker's ticked acknowledgment. Returns an error message or null. */
+export async function recordWorkerLegal(): Promise<string | null> {
+  try {
+    const res = await fetch('/api/legal/accept', {
+      method: 'POST',
+      headers: await authJsonHeaders(),
+      body: JSON.stringify({ version: LEGAL_VERSION, context: 'worker' }),
+    })
+    if (res.ok) return null
+    const json = await res.json().catch(() => null) as { error?: string } | null
+    return json?.error ?? 'We could not save your agreement. Please try again.'
+  } catch {
+    return 'We could not save your agreement. Please try again.'
+  }
+}

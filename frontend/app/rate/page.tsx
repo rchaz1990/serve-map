@@ -80,6 +80,7 @@ function RateForm() {
   const [rating, setRating] = useState(0)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [comment, setComment] = useState('')
+  const [ratingsClosed, setRatingsClosed] = useState(false)
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -137,6 +138,11 @@ function RateForm() {
       }
 
       setServerData(server as ServerRow)
+      // Server-enforced in /api/submit-rating; checked here so nobody fills in a rating
+      // that can't be posted.
+      fetch(`/api/rating-status?server=${encodeURIComponent(serverId)}`)
+        .then(r => r.json()).then(j => setRatingsClosed(j?.accepting !== true))
+        .catch(() => setRatingsClosed(false))
 
       // Check if the current guest is already following
       const { data: { session } } = await supabase.auth.getSession()
@@ -183,7 +189,10 @@ function RateForm() {
       setConfirmingFollow(false)
     } else {
       console.error('[rate] follow failed:', followError.message)
-      setFollowError('Could not follow right now. Please try again.')
+      // 42501: refused by the database — this worker hasn't accepted the current Terms.
+      setFollowError(followError.code === '42501'
+        ? 'This server isn\'t accepting new followers on Slate right now.'
+        : 'Could not follow right now. Please try again.')
     }
   }
 
@@ -529,7 +538,7 @@ function RateForm() {
                 Earns {serverFirstName} Slate Points
               </p>
               <p className="mt-1 text-xs leading-relaxed slate-secondary">
-                Builds their reputation — wherever they work.
+                Adds to their Slate profile.
               </p>
             </div>
           </div>
@@ -540,6 +549,14 @@ function RateForm() {
           <div data-testid="draft-restored" className="mb-6 rounded-xl border border-white/15 px-4 py-3">
             <p className="text-xs text-white">We kept the rating you started. Check it, then tap Submit to post it.</p>
             <button onClick={discardDraft} className="mt-1 text-xs underline" style={{ color: '#A0A0A0' }}>Discard it</button>
+          </div>
+        )}
+
+        {ratingsClosed && (
+          <div className="mb-6 rounded-xl border border-white/15 px-4 py-3" data-testid="ratings-closed">
+            <p className="text-xs" style={{ color: '#A0A0A0' }}>
+              {serverFirstName === 'your server' ? 'This server' : serverFirstName} isn&apos;t taking ratings on Slate right now.
+            </p>
           </div>
         )}
 
@@ -557,7 +574,7 @@ function RateForm() {
               I&apos;m 18 or older, {serverFirstName === 'your server' ? 'this server' : serverFirstName} personally served me, and I agree to Slate&apos;s
             </LegalConsent>
             <p className="mt-2 pl-7 text-xs leading-relaxed" style={{ color: '#606060' }}>
-              Your rating and comment appear on their public profile without your name. Slate stores them; they are not on a blockchain.
+              Your rating and comment appear on their public profile without your name. Slate stores them until you ask us to delete them; they are not on a blockchain.
             </p>
           </div>
         )}
@@ -566,7 +583,7 @@ function RateForm() {
         <div className="flex flex-col gap-3">
           <button
             onClick={handleSubmitRating}
-            disabled={rating === 0 || loading}
+            disabled={rating === 0 || loading || ratingsClosed}
             className="slate-btn slate-btn-primary slate-btn-lg w-full disabled:opacity-25"
           >
             {loading ? (
