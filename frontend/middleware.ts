@@ -10,6 +10,8 @@ export function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl
   const code = searchParams.get('code')
 
+  // Includes /reset-password?code=… (older reset links): the callback exchanges it and
+  // only sends the browser back to /reset-password if it really was a recovery link.
   if (code && pathname !== '/auth/callback') {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/callback'

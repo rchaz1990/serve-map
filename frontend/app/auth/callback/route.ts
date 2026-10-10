@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/server-auth'
 import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { OAUTH_NEXT_COOKIE, safeInternalPath } from '@/lib/auth-redirect'
+import { postAuthPath } from '@/lib/auth-flows'
+import { recoveryMarkerCookie } from '@/lib/recovery-marker'
 
 type CookieOp = { name: string; value: string; options: Parameters<NextResponse['cookies']['set']>[2] }
 
@@ -24,7 +26,9 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get('code')
 
   if (!code) {
-    return NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin))
+    // Expired or already-used email links come back with error params instead of a code.
+    const linkError = requestUrl.searchParams.get('error_code') || requestUrl.searchParams.get('error')
+    return NextResponse.redirect(new URL(linkError ? '/login?error=link_invalid' : '/login?error=auth_failed', requestUrl.origin))
   }
 
   const cookiesToApply: CookieOp[] = []
@@ -64,13 +68,26 @@ export async function GET(request: Request) {
       },
     )
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data: exchanged, error } = await supabase.auth.exchangeCodeForSession(code)
     if (error) {
+      // Most often a confirmation link opened on a different device or browser than the
+      // one that signed up: Supabase has already confirmed the email, but this browser
+      // can't finish the sign-in. Tell them to sign in instead of showing a failure.
       return redirectWithCookies(
         requestUrl.origin,
-        '/login?error=auth_failed',
+        '/login?notice=confirmed_elsewhere',
         cookiesToApply,
       )
+    }
+
+    // Default password-reset link opened in the browser that requested it: auth-js only
+    // reports PASSWORD_RECOVERY when this browser's stored code verifier was created by
+    // resetPasswordForEmail, so ?next=/reset-password alone never grants this.
+    // (auth-js returns redirectType at runtime; its published type omits it.)
+    const redirectType = (exchanged as { redirectType?: string | null } | null)?.redirectType
+    if (redirectType === 'PASSWORD_RECOVERY' && exchanged?.user) {
+      cookiesToApply.push(recoveryMarkerCookie(exchanged.user.id, requestUrl))
+      return redirectWithCookies(requestUrl.origin, '/reset-password', cookiesToApply)
     }
 
     // A safe next hint (except the manager-login sentinel) wins.
@@ -85,66 +102,9 @@ export async function GET(request: Request) {
       if (user) await recordLegalAcceptance(supabaseAdmin(), user, legalCookie, 'guest')
     }
 
-    let targetPath = '/get-started'
-
-    if (user) {
-      // Check manager first — by auth_id, then email (waitlist rows may lack auth_id)
-      const { data: byAuthId, error: managerAuthErr } = await supabase
-        .from('restaurant_managers')
-        .select('id, restaurant_name, auth_id')
-        .eq('auth_id', user.id)
-        .maybeSingle()
-
-      if (managerAuthErr) {
-        console.error('[auth/callback] restaurant_managers auth_id lookup:', managerAuthErr.message)
-      }
-
-      let managerData = byAuthId
-
-      if (!managerData && user.email) {
-        // Waitlist rows may lack auth_id. The database links the row by the
-        // signed-in user's verified email (manager emails are not publicly readable).
-        const { data: linked, error: linkErr } = await supabase.rpc('link_my_manager')
-        if (linkErr) {
-          console.error('[auth/callback] link_my_manager:', linkErr.message)
-        }
-        const row = Array.isArray(linked) ? linked[0] : null
-        if (row) {
-          managerData = { id: row.id, restaurant_name: row.restaurant_name, auth_id: user.id }
-        }
-      }
-
-      // Manager Google login intent (/restaurant/login sets nextHint=/restaurant/dashboard):
-      // never fall through to the server dashboard when no managers row exists,
-      // even if the same Google account also has a servers row (dual-role).
-      if (nextHint === '/restaurant/dashboard') {
-        if (managerData) {
-          targetPath = '/restaurant/dashboard'
-        } else {
-          targetPath = '/restaurant/login?error=no_manager'
-        }
-      } else if (nextHint) {
-        // Explicit return path (rate form, scan page). Beats the role dashboard.
-        targetPath = nextHint
-      } else if (managerData) {
-        // No manager intent cookie — still prefer managers over servers
-        targetPath = '/restaurant/dashboard'
-      } else {
-        const { data: serverData, error: serverErr } = await supabase
-          .from('servers')
-          .select('id')
-          .eq('wallet_address', user.id)
-          .maybeSingle()
-
-        if (serverErr) {
-          console.error('[auth/callback] servers lookup:', serverErr.message)
-        }
-
-        if (serverData) {
-          targetPath = '/dashboard'
-        }
-      }
-    }
+    // Managers (including a pending manager sign-up), then workers, then a worker
+    // sign-up still to finish; see lib/auth-flows.ts.
+    const targetPath = user ? await postAuthPath(supabase, user, nextHint) : '/get-started'
 
     return redirectWithCookies(requestUrl.origin, targetPath, cookiesToApply)
   } catch (err) {
