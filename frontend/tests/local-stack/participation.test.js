@@ -252,6 +252,10 @@ async function optedInFollower(w) {
   // ── 8. Coordinate cleanup script (local data only) ──
   {
     const cleanup = fs.readFileSync(path.join(MANUAL, 'location_coordinate_cleanup.sql'), 'utf8')
+    // Older-style rows that still carry coordinates (inserted directly, as before this change).
+    sql(`insert into vibe_reports (restaurant_name, vibe, reported_by, gps_verified, user_lat, user_lng) values ('${VENUE}', 'LIVE', 'old-${run}@example.com', true, 40.7, -74.0)`)
+    const wOld = await worker('oldshift', VENUE)
+    sql(`insert into shifts (server_id, restaurant_name, is_active, user_lat, user_lng) values ('${wOld.serverId}', '${VENUE}', false, 40.7, -74.0)`)
     const v = sql(`select count(*) from vibe_reports where user_lat is not null or user_lng is not null`)
     const s = sql(`select count(*) from shifts where user_lat is not null or user_lng is not null`)
     const verified = sql(`select count(*) from vibe_reports where gps_verified`)
@@ -259,7 +263,7 @@ async function optedInFollower(w) {
     check('P30 cleanup with unexpected counts changes nothing', !bad.ok && sql(`select count(*) from vibe_reports where user_lat is not null or user_lng is not null`) === v, bad.out)
     const good = sqlFile(cleanup.replace('e_vibe int := 152', `e_vibe int := ${v}`).replace('e_shift int := 29', `e_shift int := ${s}`))
     check('P31 cleanup clears all stored coordinates and keeps location-check results',
-      good.ok && Number(v) > 0 && sql(`select count(*) from vibe_reports where user_lat is not null or user_lng is not null`) === '0'
+      good.ok && Number(v) > 0 && Number(s) > 0 && sql(`select count(*) from vibe_reports where user_lat is not null or user_lng is not null`) === '0'
         && sql(`select count(*) from shifts where user_lat is not null or user_lng is not null`) === '0' && sql(`select count(*) from vibe_reports where gps_verified`) === verified, { out: good.out, v, s })
   }
 
