@@ -7,7 +7,8 @@ end $$;
 -- gen_random_uuid() is built into Postgres 13+; production keeps extensions outside public.
 
 create schema auth;
-create table auth.users (id uuid primary key, email text);
+-- created_at / email_confirmed_at mirror Supabase (auto-confirmed accounts: confirmed at creation).
+create table auth.users (id uuid primary key, email text, created_at timestamptz default now(), email_confirmed_at timestamptz default now());
 create function auth.jwt() returns jsonb language sql stable as $$
   select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
 $$;

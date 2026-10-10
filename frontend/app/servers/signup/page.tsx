@@ -7,6 +7,7 @@ import Navbar from '@/app/components/Navbar'
 import { authJsonHeaders } from '@/lib/auth-fetch'
 import { supabase } from '@/lib/supabase'
 import { isTestDevice } from '@/lib/funnel'
+import { getAuthCallbackUrl } from '@/lib/auth-redirect'
 
 const STEPS = ['Your info', 'Work history', 'Photo & bio']
 
@@ -233,7 +234,7 @@ export default function ServerSignupPage() {
           email,
           password,
           // signup_role lets sign-in send an unfinished signup back here.
-          options: { data: { full_name: fullName, signup_role: 'server' } },
+          options: { data: { full_name: fullName, signup_role: 'server' }, emailRedirectTo: getAuthCallbackUrl() },
         })
         if (authError) throw new Error(authError.message)
         if (!authData.user || !authData.session) {
