@@ -47,7 +47,7 @@ export default function FollowConsent({
       <p className="text-sm font-semibold text-white">Follow {firstName}?</p>
       <ul className="mt-2 list-disc pl-5 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
         <li>Slate will email you when {firstName} starts a shift, including where they&apos;re working.</li>
-        <li>{firstName} will see your email address in their followers list.</li>
+        <li>{firstName} will see your first name and last initial in their followers list — not your email address.</li>
         <li>You can unfollow at any time, which stops the emails.</li>
       </ul>
       {needsLegal && (

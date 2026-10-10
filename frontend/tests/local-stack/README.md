@@ -56,7 +56,7 @@ node legal.test.js http://localhost:3104 keys.json   # 30 checks: acknowledgment
 ## Follow emails (`follow.test.js`)
 Apply `38_follow_email_consent.sql` (after 36/37), start the app with `RESEND_BASE_URL=http://localhost:54400`, then:
 ```bash
-node follow.test.js http://localhost:3104 keys.json   # 13 checks: no third-party enrolment, explicit opt-in only
+node follow.test.js http://localhost:3104 keys.json   # 19 checks: no third-party enrolment, explicit opt-in only, no follower emails to workers, Google consent gates
 ```
 Note: `vibe.test.js` check "4th eligible report" fails during the first UTC hour of a day (its seeded
 reports then fall inside the 1-hour flag window). Test artifact, not a product change.

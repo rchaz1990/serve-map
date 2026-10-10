@@ -70,8 +70,9 @@ function createUser(email, password, meta, provider = 'email', createdAt, confir
   users[email.toLowerCase()] = u
   // psql variables are quoted by psql itself (:'x'), so values cannot inject SQL.
   execFileSync('psql', ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-q',
-    '-v', `id=${u.id}`, '-v', `email=${email}`, '-v', `created=${created}`, '-v', `confirmed=${u.confirmed_at || ''}`],
-    { input: "insert into auth.users (id, email, created_at, email_confirmed_at) values (:'id', :'email', :'created', nullif(:'confirmed','')::timestamptz);\n" })
+    '-v', `id=${u.id}`, '-v', `email=${email}`, '-v', `created=${created}`, '-v', `confirmed=${u.confirmed_at || ''}`,
+    '-v', `umeta=${JSON.stringify(u.user_metadata || {})}`],
+    { input: "insert into auth.users (id, email, created_at, email_confirmed_at, raw_user_meta_data) values (:'id', :'email', :'created', nullif(:'confirmed','')::timestamptz, (:'umeta')::jsonb);\n" })
   return u
 }
 function confirmUser(u) {
