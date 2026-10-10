@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 import { getAnonSessionId, isTestDevice } from '@/lib/funnel'
 import { authJsonHeaders } from '@/lib/auth-fetch'
 import Navbar from '@/app/components/Navbar'
+import FollowConsent from '@/app/components/FollowConsent'
+import { followWorker } from '@/lib/follow-worker'
 
 export default function ScanPage() {
   const params = useParams()
@@ -17,6 +19,11 @@ export default function ScanPage() {
   const [error, setError] = useState('')
   const [followStatus, setFollowStatus] = useState<'none' | 'pending' | 'approved'>('none')
   const [followerCount, setFollowerCount] = useState(0)
+  // Returning guest: already rated this worker (and maybe still in the 24-hour cooldown).
+  const [rated, setRated] = useState(false)
+  const [inCooldown, setInCooldown] = useState(false)
+  const [confirmingFollow, setConfirmingFollow] = useState(false)
+  const [followMessage, setFollowMessage] = useState('')
   const scanRecordedFor = useRef<string | null>(null)
 
   // Record the QR scan once per page load (no login required). Fire-and-forget.
@@ -91,13 +98,33 @@ export default function ScanPage() {
       if (existingFollow) {
         setFollowStatus(existingFollow.status === 'approved' ? 'approved' : 'pending')
       }
+      // Has this guest already rated this worker? (Server check on the guest's own ratings.)
+      const rel = await fetch(`/api/rating-relationship?server=${encodeURIComponent(serverId)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      }).then(r => (r.ok ? r.json() : null)).catch(() => null) as { rated?: boolean; inCooldown?: boolean } | null
+      setRated(rel?.rated === true)
+      setInCooldown(rel?.inCooldown === true)
     }
 
     setLoading(false)
   }
 
-  // Following happens after rating (on the rating page), once the guest has agreed to
-  // the Terms and seen what following does. The scan page only offers "Rate".
+  // Following happens after rating: on the rating page right after a rating, or here for a
+  // guest who has already rated this worker. It always goes through FollowConsent.
+  async function confirmFollow() {
+    setFollowMessage('')
+    const result = await followWorker(serverId)
+    if (result === 'approved' || result === 'pending') {
+      if (result === 'approved' && followStatus === 'none') setFollowerCount(c => c + 1)
+      setFollowStatus(result)
+      setConfirmingFollow(false)
+    } else if (result === 'closed') {
+      setConfirmingFollow(false)
+      setFollowMessage(`${server?.name?.split(' ')[0] ?? 'This server'} isn't accepting new followers on Slate right now.`)
+    } else {
+      setFollowMessage('Could not follow right now. Please try again.')
+    }
+  }
 
   if (loading) return (
     <div style={{ background: '#000', minHeight: '100vh' }}>
@@ -198,17 +225,47 @@ export default function ScanPage() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <button
-            onClick={() => router.push(`/rate?server=${serverId}`)}
-            style={{
-              width: '100%', background: 'white', color: 'black',
-              border: 'none', padding: '16px',
-              fontSize: '14px', letterSpacing: '2px',
-              textTransform: 'uppercase', cursor: 'pointer'
-            }}
-          >
-            Rate {server?.name?.split(' ')[0]}
-          </button>
+          {inCooldown ? (
+            <p data-testid="rated-recently" style={{ color: '#A0A0A0', fontSize: '13px', textAlign: 'center', lineHeight: 1.6 }}>
+              You rated {server?.name?.split(' ')[0]} in the last 24 hours. You can rate again after that.
+            </p>
+          ) : (
+            <button
+              onClick={() => router.push(`/rate?server=${serverId}`)}
+              style={{
+                width: '100%', background: 'white', color: 'black',
+                border: 'none', padding: '16px',
+                fontSize: '14px', letterSpacing: '2px',
+                textTransform: 'uppercase', cursor: 'pointer'
+              }}
+            >
+              Rate {server?.name?.split(' ')[0]}
+            </button>
+          )}
+
+          {rated && followStatus === 'none' && (confirmingFollow ? (
+            <FollowConsent
+              firstName={server?.name?.split(' ')[0] ?? 'your server'}
+              onConfirm={confirmFollow}
+              onCancel={() => setConfirmingFollow(false)}
+            />
+          ) : (
+            <button
+              data-testid="returning-follow"
+              onClick={() => { setFollowMessage(''); setConfirmingFollow(true) }}
+              style={{
+                width: '100%', background: 'transparent', color: 'white',
+                border: '1px solid #A0A0A0', padding: '16px',
+                fontSize: '14px', letterSpacing: '2px',
+                textTransform: 'uppercase', cursor: 'pointer'
+              }}
+            >
+              Follow {server?.name?.split(' ')[0]}
+            </button>
+          ))}
+          {followMessage && (
+            <p role="alert" style={{ color: '#f87171', fontSize: '13px', textAlign: 'center' }}>{followMessage}</p>
+          )}
 
           {followStatus !== 'none' && (
             <p style={{ color: '#666', fontSize: '13px', textAlign: 'center' }}>
