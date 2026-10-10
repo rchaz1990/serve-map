@@ -53,7 +53,9 @@ const sentTo = async to => (await (await fetch(GW + '/__emails?to=' + encodeURIC
 async function optedInFollower(w) {
   const g = await account('follower')
   await api('/api/legal/accept', g.token, { version: LEGAL_VERSION })
-  await rest('POST', 'follows', g.token, { follower_id: g.id, server_id: w.serverId, follower_type: 'guest', notify_email: true })
+  // An opted-in follow that already existed before the worker-agreement rule (inserted directly).
+  sql(`set session_replication_role = replica; insert into follows (follower_id, follower_email, server_id, follower_type, status, notify_email, email_opt_in_at) values ('${g.id}', '${g.email}', '${w.serverId}', 'guest', 'approved', true, now())`)
+  sql(`update servers set follower_count = (select count(*) from follows where server_id = '${w.serverId}' and status = 'approved') where id = '${w.serverId}'`)
   return g
 }
 
@@ -168,7 +170,8 @@ async function optedInFollower(w) {
     check('P15 existing worker sees the agreement step (not the dashboard), box unticked, button disabled',
       gate && !(await box.isChecked()) && await btn.isDisabled(), { gate })
     check('P16 the step explains shifts are public and location is used on the phone only, not stored',
-      /anyone can\s+see which venue/.test(disclosure) && /isn.t sent to Slate or stored/.test(disclosure), disclosure)
+      /anyone can\s+see which venue/.test(disclosure) && /isn.t sent to Slate or stored/.test(disclosure)
+        && /can.t receive new followers or ratings/.test((await page.textContent('[data-testid="worker-terms-gate"]')) || '') && /follower count/.test((await page.textContent('[data-testid="worker-terms-gate"]')) || ''), disclosure)
     await box.check(); await btn.click(); await page.waitForTimeout(2500)
     check('P17 after ticking and agreeing: recorded and the dashboard opens', workerVersion(wUI.id) === LEGAL_VERSION && !(await page.isVisible('[data-testid="worker-terms-gate"]')), workerVersion(wUI.id))
     await page.context().close()
@@ -198,7 +201,7 @@ async function optedInFollower(w) {
     check('P19 Privacy: temporary location use vs stored result; distance internal; older records disclosed',
       /This use is temporary/.test(privacy) && /We do not store your coordinates/.test(privacy) && /which only Slate can see/.test(privacy) && /recorded before this change/.test(privacy))
     check('P20 Privacy: deletion within 30 days after verification; what is removed and what is kept',
-      /within 30 days/.test(privacy) && /What we keep after deletion/.test(privacy) && /cannot be edited or deleted/.test(privacy) && /backups kept by our database provider/.test(privacy))
+      /within 30 days/.test(privacy) && /What we keep after deletion/.test(privacy) && /cannot be edited or deleted/.test(privacy) && /copies or logs of deleted data may remain/.test(privacy))
     check('P21 Privacy: 90-day inactive-data review is manual; nothing deleted automatically',
       /inactive for 90 days/.test(privacy) && /Nothing is deleted automatically/.test(privacy))
     check('P22 Terms: coordinates not stored; existing workers agree before using the dashboard; rating deletion on request',
@@ -215,6 +218,66 @@ async function optedInFollower(w) {
       m39 === LEGAL_VERSION && tl === pl && /^Effective /.test(tl), { m39, LEGAL_VERSION, tl, pl })
     check('P36 Privacy: points from a deleted guest rating stay with the worker; backups/provider records described without a promised expiry',
       /stay in the worker.s balance/.test(privacy) && /own retention practices, which we do not control/.test(privacy) && !/until they expire/.test(privacy))
+    await ctx.close()
+  }
+  // ── 6d. Follows, approvals, ledger email, version tooling, Vera's wording ──
+  {
+    const wF = await worker('nofollow', VENUE, { approval: 'approval' })
+    const g = await account('wouldfollow')
+    await api('/api/legal/accept', g.token, { version: LEGAL_VERSION })
+    const f1 = await rest('POST', 'follows', g.token, { follower_id: g.id, server_id: wF.serverId, follower_type: 'guest', notify_email: true })
+    check('P42 a new follow of a worker who has not accepted is refused by the database', f1.status >= 400 && /42501|row-level security/.test(f1.text) && sql(`select count(*) from follows where server_id = '${wF.serverId}'`) === '0', f1)
+    sql(`set session_replication_role = replica; insert into follows (follower_id, follower_email, server_id, follower_type, status) values ('${g.id}', '${g.email}', '${wF.serverId}', 'guest', 'pending')`)
+    const fid = sql(`select id from follows where server_id = '${wF.serverId}'`)
+    const ap = await api('/api/followers/approve', wF.token, { followId: fid })
+    check('P43 a worker who has not accepted cannot approve a pending follow (server route refuses)', ap.status === 403 && sql(`select status from follows where id = '${fid}'`) === 'pending', ap)
+    await api('/api/legal/accept', wF.token, { version: LEGAL_VERSION, context: 'worker' })
+    const ap2 = await api('/api/followers/approve', wF.token, { followId: fid })
+    const g2 = await account('newfollower'); await api('/api/legal/accept', g2.token, { version: LEGAL_VERSION })
+    const f2 = await rest('POST', 'follows', g2.token, { follower_id: g2.id, server_id: wF.serverId, follower_type: 'guest', notify_email: true })
+    check('P44 after accepting: approval works and new follows are accepted', ap2.status === 200 && sql(`select status from follows where id = '${fid}'`) === 'approved' && f2.status === 201, { ap2, f2 })
+  }
+  {
+    const P = ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-qAt']
+    if (sql(`select count(*) from pg_proc where proname = 'redact_ledger_email'`) === '0') {
+      const m41 = sqlFile(fs.readFileSync(path.join(__dirname, '../../supabase-sql/security/41_ledger_email_minimisation.sql'), 'utf8'))
+      check('P45 migration 41 applies (pre-check matches production\'s append-only trigger)', m41.ok, m41.out)
+    }
+    const W = await worker('ledger', VENUE, { agree: true })
+    const G = await account('ledgerguest')
+    const r = await api('/api/submit-rating', G.token, { serverId: W.serverId, score: 5, legalAccepted: LEGAL_VERSION })
+    const row = sql(`select coalesce(email, 'NULL') || '|' || amount from serve_ledger where account_id = '${W.serverId}'`)
+    check('P46 new worker credit is stored without an email (amount kept)', r.status === 200 && /^NULL\|\d+$/.test(row), { r, row })
+    sql(`insert into serve_ledger (source, source_id, account_type, account_id, email, amount, balance_after) select 'adjustment', '${run}-old', 'server', '${W.serverId}', null, 3, 3`)
+    sql(`set session_replication_role = replica; insert into serve_ledger (source, source_id, account_type, account_id, email, amount, balance_after) values ('backfill', '${run}-legacy', 'server', '${W.serverId}', '${W.email}', 7, 7)`)
+    const upd = sqlFile(`update serve_ledger set amount = 999 where source_id = '${run}-legacy';`)
+    const em = sqlFile(`update serve_ledger set email = null where source_id = '${run}-legacy';`)
+    const del = sqlFile(`delete from serve_ledger where source_id = '${run}-legacy';`)
+    check('P47 append-only still holds: changing an amount, clearing email directly, or deleting are refused',
+      !upd.ok && !em.ok && !del.ok && /append-only/.test(upd.out + em.out + del.out) && sql(`select email from serve_ledger where source_id = '${run}-legacy'`) === W.email)
+    const sneaky = sqlFile(`begin; select set_config('slate.ledger_redact_email','on',true); update serve_ledger set amount = 1, email = null where source_id = '${run}-legacy'; commit;`)
+    check('P48 even with the redaction flag, any change besides clearing email is refused', !sneaky.ok && sql(`select amount from serve_ledger where source_id = '${run}-legacy'`) === '7', sneaky.out)
+    const before = sql(`select count(*) || '|' || sum(amount) from serve_ledger`)
+    const red = sql(`select public.redact_ledger_email('${W.serverId}')`)
+    check('P49 redact_ledger_email clears only that profile\'s email; rows and amounts unchanged; not callable by app users',
+      red === '1' && sql(`select count(email) from serve_ledger where account_id = '${W.serverId}'`) === '0' && sql(`select count(*) || '|' || sum(amount) from serve_ledger`) === before
+        && sql(`select has_function_privilege('authenticated','public.redact_ledger_email(uuid)','execute')::text`) === 'false', { red, before })
+  }
+  {
+    const out = (args) => { try { return { ok: true, out: execFileSync('node', [path.join(__dirname, '../../scripts/legal-version.mjs'), ...args], { encoding: 'utf8', stdio: 'pipe' }) } } catch (e) { return { ok: false, out: String(e.stderr || e.stdout) } } }
+    const c = out(['check']), rel = out(['check', '--release'])
+    check('P50 version tooling: app and migration 39 agree; release check refuses until a publication date is set', c.ok && !rel.ok && /NOT READY/.test(rel.out), { c, rel })
+  }
+  {
+    const ctx = await browser.newContext(); const page = await ctx.newPage()
+    const body = async p => { await page.goto(APP + p, { waitUntil: 'networkidle', timeout: 120000 }); return (await page.textContent('body')) || '' }
+    const wR = await worker('wording', VENUE, { agree: true })
+    const rate = await body(`/rate?server=${wR.serverId}`), privacy = await body('/privacy'), terms = await body('/terms')
+    check('P51 rate page says "Adds to their Slate profile." (not "Builds their reputation — wherever they work")', /Adds to their Slate profile\./.test(rate) && !/wherever they work/.test(rate))
+    check('P52 Privacy: followers not public (count only; worker sees first name + last initial); deletion via team@slatenow.xyz, 30 days after verification; ledger email removed on worker deletion; points from deleted ratings stay',
+      /only the follower count is shown/.test(privacy) && /first name and last initial/.test(privacy) && /team@slatenow\.xyz/.test(privacy) && /within 30 days after that verification/.test(privacy)
+        && /we remove the email address from that record/.test(privacy) && /are not taken back/.test(privacy) && /own retention practices/.test(privacy))
+    check('P53 Terms: points already awarded for a later-deleted rating are not removed during the test', /points already awarded for it are not removed/.test(terms))
     await ctx.close()
   }
   await browser.close()
@@ -310,7 +373,7 @@ async function optedInFollower(w) {
     const ok = deletion(W2, pick(c))
     const gone = sql(`select (select count(*) from servers where id = '${W2.serverId}') + (select count(*) from shifts where server_id = '${W2.serverId}') + (select count(*) from qr_scans where server_id = '${W2.serverId}') + (select count(*) from follows where server_id = '${W2.serverId}') + (select count(*) from ratings where server_id = '${W2.serverId}')`)
     check('P28 worker deletion removes the profile and everything attached; the append-only ledger row remains',
-      ok.ok && gone === '0' && sql(`select count(*) from serve_ledger where account_id = '${W2.serverId}'`) === '1', { out: ok.out, gone })
+      ok.ok && gone === '0' && sql(`select count(*) || '|' || count(email) || '|' || sum(amount) from serve_ledger where account_id = '${W2.serverId}'`) === '1|0|10', { out: ok.out, gone })
     const M = await account('mgr2')
     sql(`insert into restaurant_managers (email, name, restaurant_name, auth_id) values ('${M.email}', 'M', 'X', '${M.id}')`)
     const mgr = deletion(M, {})
