@@ -151,6 +151,8 @@ function RateForm() {
       follower_email: session.user.email,
       server_id: serverId,
       follower_type: 'guest',
+      // Confirmed in FollowConsent ("Follow and email me"): opt in to shift emails.
+      notify_email: true,
     })
 
     // 23505 = already following (one follow per guest per server).

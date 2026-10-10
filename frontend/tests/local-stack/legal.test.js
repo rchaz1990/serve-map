@@ -132,7 +132,7 @@ async function worker(tag) {
     const panel = (await page.textContent('[data-testid="follow-consent"]').catch(() => '')) || ''
     const followsBefore = sql(`select count(*) from follows where follower_id = '${guest.id}'`)
     check('L12b after rating, Follow opens an explanation (shift emails incl. venue, email visible to worker, unfollow) before anything is saved',
-      /email you when .* starts a shift, including where they.re working/.test(panel) && /see your email address/.test(panel) && /unfollow/i.test(panel) && followsBefore === '0', { panel, followsBefore })
+      /email you when .* starts a shift, including where they.re working/.test(panel) && /(not your email address|see your email address)/.test(panel) && /unfollow/i.test(panel) && followsBefore === '0', { panel, followsBefore })
     await page.click('button:has-text("Follow and email me")'); await page.waitForTimeout(1500)
     check('L12c confirming creates the follow', sql(`select count(*) from follows where follower_id = '${guest.id}' and server_id = '${s3.serverId}'`) === '1')
     const s4 = await worker('s4')

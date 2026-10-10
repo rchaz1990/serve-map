@@ -10,19 +10,17 @@ type Tab = 'pending' | 'approved' | 'blocked'
 
 interface FollowRow {
   id: string
-  follower_id: string
-  follower_email: string | null
+  follower_label: string | null
   created_at: string
 }
 
-function initials(email: string | null): string {
-  if (!email) return '?'
-  return email.charAt(0).toUpperCase()
+function initials(label: string | null): string {
+  if (!label) return '?'
+  return label.charAt(0).toUpperCase()
 }
 
-function displayName(email: string | null): string {
-  if (!email) return 'Unknown'
-  return email.split('@')[0]
+function displayName(label: string | null): string {
+  return label || 'Guest'
 }
 
 function timeAgo(iso: string): string {
@@ -216,13 +214,13 @@ export default function FollowersPage() {
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20 text-sm font-bold text-white"
                     style={{ backgroundColor: '#111' }}
                   >
-                    {initials(row.follower_email)}
+                    {initials(row.follower_label)}
                   </div>
 
                   {/* Identity */}
                   <div className="flex-1 min-w-0">
                     <p className="truncate text-sm font-semibold text-white">
-                      {displayName(row.follower_email)}
+                      {displayName(row.follower_label)}
                     </p>
                     <p className="text-[10px] uppercase tracking-wider" style={{ color: '#404040' }}>
                       {safeTab === 'pending' ? 'Requested' : safeTab === 'approved' ? 'Following since' : 'Blocked'}{' '}
