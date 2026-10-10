@@ -24,6 +24,8 @@ const MAPS_STUB = `window.google = { maps: { places: { Autocomplete: function (i
   this.getPlace = function () { return place };
 } } } };`
 
+// Tick the Terms/Privacy agreement when the page has one (added by PR #36); no-op otherwise.
+const agree = async page => { const box = page.locator('[data-testid="legal-consent"] input[type="checkbox"]'); if (await box.count()) await box.first().check() }
 let pass = 0, fail = 0
 function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : JSON.stringify(detail ?? '').slice(0, 300)) }
 
@@ -51,7 +53,7 @@ function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS'
     await page.fill('input[placeholder="Your name"]', 'Guest Tester')
     await page.fill('input[placeholder="Email address"]', e)
     await page.fill('input[placeholder="Password"]', 'pass123456')
-    await page.click('button:has-text("Create account")')
+    await agree(page); await page.click('button:has-text("Create account")')
     await page.waitForTimeout(1500)
     check('A1 guest sign-up (confirmation on) → "check your email", stays on sign-in', /Check .* for a confirmation link/.test(await text(page)) && page.url().includes('/login'), page.url())
     check('A2 account exists but is unconfirmed', sql(`select email_confirmed_at is null from auth.users where email = '${e}'`) === 't')
@@ -81,7 +83,7 @@ function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS'
     await page.click('button:has-text("Continue")'); await page.click('button:has-text("Server")')
     await page.fill('input[placeholder="Search for your restaurant..."]', 'Auth Test Bar'); await page.dispatchEvent('input[placeholder="Search for your restaurant..."]', 'change')
     await page.click('button:has-text("Continue")'); await page.fill('textarea', 'Twenty plus characters of bio text here.')
-    await page.click('button:has-text("Claim my profile")'); await page.waitForTimeout(1500)
+    await agree(page); await page.click('button:has-text("Claim my profile")'); await page.waitForTimeout(1500)
     check('B1 worker sign-up (confirmation on) → asked to confirm email, no profile yet',
       /confirm your account/i.test(await text(page)) && sql(`select count(*) from servers s join auth.users u on u.id::text = s.wallet_address where u.email = '${e}'`) === '0')
     const other = await fresh()                                   // phone / different browser
@@ -92,7 +94,7 @@ function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS'
     await other.click('button:has-text("Continue")'); await other.click('button:has-text("Server")')
     await other.fill('input[placeholder="Search for your restaurant..."]', 'Auth Test Bar'); await other.dispatchEvent('input[placeholder="Search for your restaurant..."]', 'change')
     await other.click('button:has-text("Continue")'); await other.fill('textarea', 'Twenty plus characters of bio text here.')
-    await other.click('button:has-text("Claim my profile")'); await other.waitForURL('**/dashboard', { timeout: 30000 }).catch(() => {})
+    await agree(other); await other.click('button:has-text("Claim my profile")'); await other.waitForURL('**/dashboard', { timeout: 30000 }).catch(() => {})
     check('B4 profile created once, owned by the account', sql(`select count(*) from servers s join auth.users u on u.id::text = s.wallet_address where u.email = '${e}'`) === '1', other.url())
   }
 
@@ -238,7 +240,7 @@ function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS'
     const page = await fresh(); const e = email('guestoff')
     await go(page, '/login?mode=signup')
     await page.fill('input[placeholder="Your name"]', 'Off Guest'); await page.fill('input[placeholder="Email address"]', e); await page.fill('input[placeholder="Password"]', 'pass123456')
-    await page.click('button:has-text("Create account")'); await page.waitForURL('**/live', { timeout: 30000 }).catch(() => {})
+    await agree(page); await page.click('button:has-text("Create account")'); await page.waitForURL('**/live', { timeout: 30000 }).catch(() => {})
     check('G1 guest sign-up (confirmation off) → signed in straight away (unchanged)', page.url().includes('/live'), page.url())
   }
   {
