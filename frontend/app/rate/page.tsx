@@ -4,6 +4,8 @@ import { useState, useEffect, Suspense } from 'react'
 import LegalConsent from '@/app/components/LegalConsent'
 import FollowConsent from '@/app/components/FollowConsent'
 import { LEGAL_VERSION } from '@/lib/legal'
+import { legalOnFile as fetchLegalOnFile } from '@/lib/legal-client'
+import { saveRatingDraft, loadRatingDraft, clearRatingDraft } from '@/lib/rating-draft'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
@@ -50,8 +52,10 @@ const ratingLabels: Record<number, string> = {
 }
 
 /** Login URL that keeps the full /rate?server= path. Used by submit and follow. */
+// Signing in from the rating flow opens the sign-up form (most first-time guests have no
+// account); "Sign in" is one tap away there. The draft never goes in the URL.
 function rateLoginHref(serverId: string): string {
-  return `/login?redirect=${encodeURIComponent(`/rate?server=${serverId}`)}`
+  return `/login?mode=signup&from=rate&redirect=${encodeURIComponent(`/rate?server=${serverId}`)}`
 }
 
 // ── Inner form (needs Suspense because of useSearchParams) ────────────────────
@@ -83,9 +87,29 @@ function RateForm() {
   const [confirmingFollow, setConfirmingFollow] = useState(false)
   const [followError, setFollowError] = useState('')
   const [lastReward, setLastReward] = useState<{ starReward: number; commentBonus: number; followBonus: number; total: number } | null>(null)
+  const [draftRestored, setDraftRestored] = useState(false)
+
+  // Restore an unfinished rating for this worker (saved before signing in). Fills the
+  // form only — the guest still reviews it and taps Submit themselves.
+  useEffect(() => {
+    if (!serverId) return
+    const draft = loadRatingDraft(serverId)
+    if (!draft) return
+    setRating(draft.rating)
+    setSelectedTags(draft.tags)
+    setComment(draft.comment)
+    setDraftRestored(true)
+  }, [serverId])
+
+  function discardDraft() {
+    if (serverId) clearRatingDraft(serverId)
+    setRating(0)
+    setSelectedTags([])
+    setComment('')
+    setDraftRestored(false)
+  }
 
   useEffect(() => {
-    console.log('Rate page loaded with server:', serverId)
     if (!serverId) return
 
     const loadServer = async () => {
@@ -99,8 +123,6 @@ function RateForm() {
         .select('id, name, role, average_rating, total_ratings, serve_balance, serve_balance_lifetime, follower_count')
         .eq('id', serverId)
         .maybeSingle()
-
-      console.log('Server lookup result:', server, lookupError)
 
       if (lookupError) {
         console.error('Supabase error:', lookupError)
@@ -179,8 +201,10 @@ function RateForm() {
   const [legalAccepted, setLegalAccepted] = useState(false)
   const [legalOnFile, setLegalOnFile] = useState(false)
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setLegalOnFile(data.session?.user?.app_metadata?.legal_guest_version === LEGAL_VERSION)
+    // Fresh from the server: an agreement recorded at sign-up moments ago counts.
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session) { setLegalOnFile(false); return }
+      setLegalOnFile(await fetchLegalOnFile().catch(() => false))
     })
   }, [])
 
@@ -191,10 +215,6 @@ function RateForm() {
     }
     if (rating < 1) {
       setError('Pick a rating to continue.')
-      return
-    }
-    if (!legalOnFile && !legalAccepted) {
-      setError('Please confirm you agree to the Terms of Service and Privacy Policy.')
       return
     }
 
@@ -208,7 +228,14 @@ function RateForm() {
         token = data.session?.access_token ?? null
       }
       if (!token) {
+        // Keep what they wrote on this device, then sign up / sign in. Nothing is sent.
+        saveRatingDraft(serverId, { rating, tags: selectedTags, comment })
         router.push(rateLoginHref(serverId))
+        return
+      }
+
+      if (!legalOnFile && !legalAccepted) {
+        setError('Please confirm you agree to the Terms of Service and Privacy Policy.')
         return
       }
 
@@ -236,6 +263,7 @@ function RateForm() {
         const retryToken = data.session?.access_token
         if (retryToken) res = await postRating(retryToken)
         if (res.status === 401) {
+          saveRatingDraft(serverId, { rating, tags: selectedTags, comment })
           router.push(rateLoginHref(serverId))
           return
         }
@@ -250,6 +278,8 @@ function RateForm() {
         return
       }
 
+      clearRatingDraft(serverId)
+      setDraftRestored(false)
       setLastReward(body.reward)
       setSuccess(true)
       setLegalOnFile(true)
@@ -504,6 +534,14 @@ function RateForm() {
             </div>
           </div>
         </MotionSection>
+
+        {/* ── Restored draft notice ───────────────────────────────────── */}
+        {draftRestored && (
+          <div data-testid="draft-restored" className="mb-6 rounded-xl border border-white/15 px-4 py-3">
+            <p className="text-xs text-white">We kept the rating you started. Check it, then tap Submit to post it.</p>
+            <button onClick={discardDraft} className="mt-1 text-xs underline" style={{ color: '#A0A0A0' }}>Discard it</button>
+          </div>
+        )}
 
         {/* ── Error ───────────────────────────────────────────────────── */}
         {error && (

@@ -44,10 +44,16 @@ export function safeInternalPath(raw: string | null | undefined): string | null 
 }
 
 /** Store where /auth/callback should send the user after exchange. */
-export function setOAuthNextHint(path: string): void {
+/** Forget a pending return path (e.g. sign-up finished without needing an email link). */
+export function clearOAuthNextHint(): void {
+  if (typeof document === 'undefined') return
+  document.cookie = `${OAUTH_NEXT_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`
+}
+
+export function setOAuthNextHint(path: string, maxAgeSeconds = 600): void {
   if (typeof document === 'undefined') return
   const safe = safeInternalPath(path)
   if (!safe) return
   const secure = window.location.protocol === 'https:'
-  document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(safe)}; Path=/; Max-Age=600; SameSite=Lax${secure ? '; Secure' : ''}`
+  document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(safe)}; Path=/; Max-Age=${Math.floor(maxAgeSeconds)}; SameSite=Lax${secure ? '; Secure' : ''}`
 }

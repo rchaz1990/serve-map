@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import LegalConsent from '@/app/components/LegalConsent'
 import { LEGAL_VERSION } from '@/lib/legal'
 import { recordGuestLegal } from '@/lib/legal-client'
-import { getAuthCallbackUrl, safeInternalPath, setOAuthNextHint } from '@/lib/auth-redirect'
+import { clearOAuthNextHint, getAuthCallbackUrl, safeInternalPath, setOAuthNextHint } from '@/lib/auth-redirect'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { finishPendingManager, isEmailNotConfirmed } from '@/lib/auth-flows'
 
@@ -93,6 +93,9 @@ function LoginForm() {
     if (!legalAccepted) { setError('Please confirm you agree to the Terms of Service and Privacy Policy.'); return }
     setLoading(true)
     setError('')
+    const next = safeInternalPath(searchParams.get('redirect'))
+    // If "Confirm email" is on, the confirmation link brings them back here (same browser).
+    if (next) setOAuthNextHint(next, 3600)
     const { data: signUpData, error } = await supabase.auth.signUp({
       email,
       password,
@@ -107,6 +110,7 @@ function LoginForm() {
       setInfo(`Check ${email} for a confirmation link from Slate, then sign in here.`)
       return
     }
+    clearOAuthNextHint() // signed in already; no email link will need it
     // Record the ticked acknowledgment on the server (version + time). If this fails,
     // rating and following still require it, so nothing is used without agreement.
     {
@@ -125,7 +129,7 @@ function LoginForm() {
         body: JSON.stringify({ name: name || email }),
       })).catch(() => {})
     }
-    router.push('/live')
+    router.push(next ?? '/live')
   }
 
   const handleForgotPassword = async () => {
@@ -181,6 +185,12 @@ function LoginForm() {
           <p style={{ color: '#555', fontSize: '15px' }}>
             {mode === 'signin' ? 'Sign in to continue.' : 'Create your free guest account.'}
           </p>
+          {searchParams.get('from') === 'rate' && (
+            <p data-testid="rate-context" style={{ color: '#888', fontSize: '13px', marginTop: '12px' }}>
+              {mode === 'signin' ? 'Sign in' : 'Create an account'} to post your rating. What you wrote is saved on this
+              device and will be there when you come back.
+            </p>
+          )}
         </div>
 
         <button onClick={handleGoogle} style={{ width: '100%', padding: '14px', background: 'white', color: '#333', border: 'none', borderRadius: '4px', fontSize: '15px', cursor: 'pointer', marginBottom: '20px', fontWeight: '500' }}>

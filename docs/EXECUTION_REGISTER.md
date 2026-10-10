@@ -1,5 +1,5 @@
 # Slate Execution Register
-Last updated: 2026-10-08
+Last updated: 2026-10-09
 Status: Initial register; planning record, not evidence of completion or authorization.
 
 ## Purpose
@@ -15,6 +15,8 @@ Record consequential next steps, experiments, blockers and founder decisions so 
 - Next action: Vera proposes minimum executable worker protocol and separate guest protocol, with recommended sample size, behavioral measures, consent/privacy safeguards and explicit stop/go criteria. Founder approves field outreach and execution.
 - Dependencies: Confirm only necessary live product capabilities; email is not a dependency for scan/rate/follow.
 - Completion evidence: Dated, consent-appropriate observed worker and guest actions, failures, denominators and founder continue/revise/stop decision.
+- Decision (founder, 2026-10-09): the first Stranger Test baseline evaluates the natural interface **without guided onboarding hints**. Interactive first-time hints stay on hold; if added later, ship them before a round and keep them fixed for that round (or use a defined comparison group). Hints must never suggest a score or push following. For Vera's protocol.
+- Prerequisite noted (2026-10-09): first-time guest rating flow fix (draft kept through sign-up/sign-in, returns to the worker's rating page) — separate draft PR, needs approval to deploy before the baseline.
 
 ### SLATE-002 — Shift email reliability / PR #37
 - Type: Engineering fix and diagnostic | Priority: P1 | Status: Atlas reported PR open, reviewed as safe to merge; merge/deployment NOT verified here

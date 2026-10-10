@@ -60,3 +60,9 @@ node follow.test.js http://localhost:3104 keys.json   # 19 checks: no third-part
 ```
 Note: `vibe.test.js` check "4th eligible report" fails during the first UTC hour of a day (its seeded
 reports then fall inside the 1-hour flag window). Test artifact, not a product change.
+
+## First-time guest rating flow (`rating-draft.test.js`)
+Run on the integrated stack (36 + 37 + 38 applied); pass the app log path as the third argument:
+```bash
+node rating-draft.test.js http://localhost:3104 keys.json <app.log>   # 19 checks: draft kept through sign-up/sign-in/confirmation/Google, never auto-submitted or auto-consented, no leaks
+```
