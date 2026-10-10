@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js'
+import { workerParticipating } from '@/lib/participant-server'
 
 // Test worker profiles (migration 42). Server code uses the service role, which bypasses
 // the database's visibility rules, so every service-role path that acts on a worker by id
@@ -29,8 +30,23 @@ export async function viewerMayUseProfile(admin: SupabaseClient, serverId: strin
   const test = await isTestProfile(admin, serverId)
   if (test === 'error') return 'error'
   if (test === 'missing') return 'hidden'
-  if (!test) return 'ok'
-  const tester = await isTesterEmail(admin, viewer?.email)
-  if (tester === 'error') return 'error'
-  return tester ? 'ok' : 'hidden'
+  if (test) {
+    const tester = await isTesterEmail(admin, viewer?.email)
+    if (tester === 'error') return 'error'
+    if (!tester) return 'hidden'
+  }
+  // Early test (migration 44): a worker who has not accepted the current worker participant
+  // agreement is hidden from everyone but the owner — the same rule as the database policies.
+  const visible = await workerVisibleInTest(admin, serverId, viewer)
+  if (visible === 'error') return 'error'
+  return visible ? 'ok' : 'hidden'
+}
+
+async function workerVisibleInTest(admin: SupabaseClient, serverId: string, viewer: User | null): Promise<boolean | 'error'> {
+  const participating = await workerParticipating(admin, serverId)
+  if (participating !== false) return participating
+  if (!viewer) return false
+  const { data, error } = await admin.from('servers').select('wallet_address').eq('id', serverId).maybeSingle()
+  if (error) return 'error'
+  return data?.wallet_address === viewer.id
 }

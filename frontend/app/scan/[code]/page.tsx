@@ -8,6 +8,7 @@ import Navbar from '@/app/components/Navbar'
 import FollowConsent from '@/app/components/FollowConsent'
 import { followWorker } from '@/lib/follow-worker'
 import { PAUSED } from '@/lib/early-test'
+import { PARTICIPANT_COPY } from '@/lib/participant'
 
 export default function ScanPage() {
   const params = useParams()
@@ -81,7 +82,7 @@ export default function ScanPage() {
 
     if (!server) {
       console.error('No server found for ID:', serverId)
-      setError('Server not found. Please scan the QR code again.')
+      setError(PARTICIPANT_COPY.unavailable)
       setLoading(false)
       return
     }

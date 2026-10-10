@@ -5,7 +5,7 @@
 // RELEASE: one version for the whole Stranger Test release (#36 → #48). In the release
 // commit, set this to the publication date (YYYY-MM-DD) and set the same value in
 // migration 39's current_legal_version(). Tests fail if the two differ.
-export const LEGAL_VERSION = '2026-10-10'
+export const LEGAL_VERSION = '2026-10-13'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
