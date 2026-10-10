@@ -5,6 +5,7 @@ import { useParams, usePathname, useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
+import { activeShiftSince } from '@/lib/shifts'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,8 @@ type StaffMember = {
   restaurant_name: string
   is_primary: boolean
   currently_working: boolean
+  // On shift right now (shifts.is_active within the active window), not employment.
+  on_shift: boolean
   server_name: string
   server_role: string
   average_rating: number
@@ -164,6 +167,7 @@ export default function RestaurantProfilePage() {
           serverRestsRes,
           ratsRes,
           managersRes,
+          shiftsRes,
         ] = await Promise.all([
           // Vibe reports for this venue (last 48h, ordered newest first)
           supabase
@@ -194,6 +198,17 @@ export default function RestaurantProfilePage() {
             .select('id, restaurant_name')
             .ilike('restaurant_name', lookupName)
             .limit(1),
+
+          // Who is on shift here right now: shifts.is_active, same source as the
+          // manager dashboard and /restaurant/[id]/tonight. Not currently_working,
+          // which only means "works here". Recency guard drops never-ended shifts.
+          supabase
+            .from('shifts')
+            .select('server_id')
+            .ilike('restaurant_name', lookupName)
+            .eq('is_active', true)
+            .not('server_id', 'is', null)
+            .gte('started_at', activeShiftSince()),
         ])
 
         if (cancelled) return
@@ -202,6 +217,7 @@ export default function RestaurantProfilePage() {
         if (serverRestsRes.error) console.error('[restaurant] server_restaurants', serverRestsRes.error)
         if (ratsRes.error) console.error('[restaurant] ratings', ratsRes.error)
         if (managersRes.error) console.error('[restaurant] restaurant_managers', managersRes.error)
+        if (shiftsRes.error) console.error('[restaurant] shifts', shiftsRes.error)
 
         const vibes = vibesRes.data
         const serverRests = serverRestsRes.data
@@ -209,6 +225,13 @@ export default function RestaurantProfilePage() {
         const managers = managersRes.data
 
         if (vibes) setVibeReports(vibes as VibeReport[])
+
+        // If shifts can't be read, show nobody as on shift rather than guessing.
+        const onShiftIds = new Set(
+          (shiftsRes.data ?? [])
+            .map((s: { server_id: string | null }) => s.server_id)
+            .filter((id): id is string => typeof id === 'string' && id.length > 0),
+        )
 
         if (serverRests) {
           const mapped = serverRests.map((sr: Record<string, unknown>) => {
@@ -218,6 +241,7 @@ export default function RestaurantProfilePage() {
               restaurant_name: sr.restaurant_name as string,
               is_primary: sr.is_primary as boolean,
               currently_working: sr.currently_working as boolean,
+              on_shift: onShiftIds.has(sr.server_id as string),
               server_name: (srv?.name as string) ?? 'Unknown',
               server_role: (srv?.role as string) ?? '',
               average_rating: (srv?.average_rating as number) ?? 0,
@@ -418,7 +442,7 @@ export default function RestaurantProfilePage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold text-white">{s.server_name}</p>
-                        {s.currently_working && (
+                        {s.on_shift && (
                           <span className="rounded-full border border-white/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white">
                             Here now
                           </span>
