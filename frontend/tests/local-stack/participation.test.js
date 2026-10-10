@@ -198,7 +198,7 @@ async function optedInFollower(w) {
     check('P19 Privacy: temporary location use vs stored result; distance internal; older records disclosed',
       /This use is temporary/.test(privacy) && /We do not store your coordinates/.test(privacy) && /which only Slate can see/.test(privacy) && /recorded before this change/.test(privacy))
     check('P20 Privacy: deletion within 30 days after verification; what is removed and what is kept',
-      /within 30 days/.test(privacy) && /What we keep after deletion/.test(privacy) && /cannot be edited or deleted/.test(privacy) && /backups until they expire/.test(privacy))
+      /within 30 days/.test(privacy) && /What we keep after deletion/.test(privacy) && /cannot be edited or deleted/.test(privacy) && /backups kept by our database provider/.test(privacy))
     check('P21 Privacy: 90-day inactive-data review is manual; nothing deleted automatically',
       /inactive for 90 days/.test(privacy) && /Nothing is deleted automatically/.test(privacy))
     check('P22 Terms: coordinates not stored; existing workers agree before using the dashboard; rating deletion on request',
