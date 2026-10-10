@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
+import { getAuthCallbackUrl } from '@/lib/auth-redirect'
+import { finishPendingManager, MANAGER_ROLES, pendingManagerMetadata } from '@/lib/auth-flows'
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
@@ -21,11 +23,12 @@ export default function RestaurantManagerSignupPage() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [checkEmail, setCheckEmail] = useState(false)
   const [googleLoaded, setGoogleLoaded] = useState(false)
 
   const venueInputRef = useRef<HTMLInputElement>(null)
 
-  const ROLE_OPTIONS = ['General Manager', 'Assistant Manager', 'Host', 'Owner']
+  const ROLE_OPTIONS = MANAGER_ROLES
 
   // Google Places autocomplete
   useEffect(() => {
@@ -86,28 +89,28 @@ export default function RestaurantManagerSignupPage() {
 
     setLoading(true)
     try {
-      // 1. Create Supabase auth account
+      // 1. Create the account. The restaurant details ride along with it, so the
+      //    manager row can be created after the email is confirmed if confirmation is on.
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: name } },
+        options: {
+          data: pendingManagerMetadata(name, restaurantName, role),
+          emailRedirectTo: getAuthCallbackUrl(),
+        },
       })
       if (authError) throw new Error(authError.message)
       if (!authData.user?.id) throw new Error('Signup did not return a user id.')
 
-      // 2. Insert into restaurant_managers
-      const { data: inserted, error: insertError } = await supabase
-        .from('restaurant_managers')
-        .insert({
-          email,
-          name,
-          restaurant_name: restaurantName,
-          auth_id: authData.user.id,
-          role,
-        })
-        .select('id, restaurant_name')
-        .single()
-      if (insertError) throw new Error(insertError.message)
+      // Email confirmation on: no session yet. The row is created on first sign-in.
+      if (!authData.session) {
+        setCheckEmail(true)
+        return
+      }
+
+      // 2. Signed in already (confirmation off): create or claim the manager row now.
+      const inserted = await finishPendingManager(supabase, authData.user)
+      if (!inserted) throw new Error('Could not create your restaurant account. Please try again.')
 
       // Same keys Navbar + dashboard expect
       localStorage.setItem('slateUserType', 'manager')
@@ -274,9 +277,18 @@ export default function RestaurantManagerSignupPage() {
                 </div>
               )}
 
+              {checkEmail && (
+                <div className="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3">
+                  <p className="text-xs text-green-400">
+                    Check {email} for a confirmation link from Slate. After confirming, sign in on the restaurant
+                    login page and your restaurant account will be set up.
+                  </p>
+                </div>
+              )}
+
               <button
                 onClick={handleSubmit}
-                disabled={!canSubmit || loading}
+                disabled={!canSubmit || loading || checkEmail}
                 className="mt-2 w-full rounded-full bg-white py-3.5 text-sm font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-40"
               >
                 {loading ? 'Creating account…' : 'Create manager account'}

@@ -47,3 +47,28 @@ Apply 36 and `37_recruiting_consent.sql`, start the app with `RESEND_BASE_URL=ht
 ```bash
 node consent.test.js http://localhost:3104 keys.json   # 22 checks: hidden default, one per pair, daily limit under concurrency, delivery outcomes + reconciliation logging, access (set APP_LOG=<app log> to check log lines)
 ```
+
+## Terms/Privacy acknowledgment and public copy (`legal.test.js`)
+```bash
+node legal.test.js http://localhost:3104 keys.json   # 30 checks: acknowledgment (worker sign-up, guest sign-up, rating, follow), follow-after-rating, shift disclosure, corrected copy, /whitepaper 404
+```
+
+## Follow emails (`follow.test.js`)
+Apply `38_follow_email_consent.sql` (after 36/37), start the app with `RESEND_BASE_URL=http://localhost:54400`, then:
+```bash
+node follow.test.js http://localhost:3104 keys.json   # 19 checks: no third-party enrolment, explicit opt-in only, no follower emails to workers, Google consent gates
+```
+Note: `vibe.test.js` check "4th eligible report" fails during the first UTC hour of a day (its seeded
+reports then fall inside the 1-hour flag window). Test artifact, not a product change.
+
+## First-time guest rating flow (`rating-draft.test.js`)
+Run on the integrated stack (36 + 37 + 38 applied); pass the app log path as the third argument:
+```bash
+node rating-draft.test.js http://localhost:3104 keys.json <app.log>   # 22 checks: draft kept through sign-up/sign-in/confirmation (incl. link opened on another device)/Google, never auto-submitted or auto-consented, no leaks
+```
+## Limited-test data policy (`participation.test.js`)
+Apply `39_participant_data_policy.sql` (after 36/37/38). Restart `gateway.js` (admin GET user). Then:
+```bash
+node participation.test.js http://localhost:3104 keys.json   # 31 checks: no stored coordinates, internal distance, worker agreement gate (DB + emails + dashboard), copy, manual deletion + cleanup scripts
+```
+Note: P31 clears every stored coordinate in the local database (local only).

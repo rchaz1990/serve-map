@@ -107,7 +107,7 @@ function guestActivity(ratings: RatingRow[], vibes: VibeListRow[]): ActivityItem
       at: v.created_at,
       kind: 'vibe',
       title: `${VIBE_EMOJI[key] ?? ''} ${VIBE_LABEL[key] ?? (v.vibe || 'Vibe')} report`.trim(),
-      detail: v.gps_verified ? 'GPS verified' : 'Guest vibe',
+      detail: v.gps_verified ? 'Location checked' : 'Guest vibe',
     }
   })
   return [...fromRatings, ...fromVibes]
@@ -807,7 +807,13 @@ export default function RestaurantManagerDashboard() {
           is_active: true,
           activated_by: 'manager',
         })
-        if (insertErr) throw new Error(insertErr.message)
+        if (insertErr) {
+          // 42501: refused by the database — this worker hasn't accepted the current
+          // Terms/Privacy yet (or the profile isn't claimed). Say so plainly.
+          throw new Error(insertErr.code === '42501'
+            ? `${member.name || 'This worker'} needs to sign in and accept Slate's current Terms before a shift can start.`
+            : insertErr.message)
+        }
 
         // Notify followers — best-effort
         authJsonHeaders().then(headers => fetch('/api/notify-followers', {
@@ -1808,7 +1814,7 @@ export default function RestaurantManagerDashboard() {
                           className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest"
                           style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.4)' }}
                         >
-                          GPS Verified
+                          Location checked
                         </span>
                       ) : (
                         <span

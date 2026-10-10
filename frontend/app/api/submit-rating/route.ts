@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { recordLegalAcceptance, workerTermsOnFile } from '@/lib/legal-server'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -57,12 +58,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
-  const { serverId, score, comment, tags, isTest } = body as {
+  const { serverId, score, comment, tags, isTest, legalAccepted } = body as {
     serverId?: unknown
     score?: unknown
     comment?: unknown
     tags?: unknown
     isTest?: unknown
+    legalAccepted?: unknown
+  }
+
+  // A guest acknowledges the Terms and Privacy Policy once per version before their
+  // first rating; the server records it and refuses ratings without it.
+  const legal = await recordLegalAcceptance(supabaseAdmin, user, legalAccepted, 'guest')
+  if (legal === 'missing') {
+    return NextResponse.json({ error: 'Please confirm you agree to the Terms of Service and Privacy Policy.', code: 'legal_required' }, { status: 400 })
+  }
+  if (legal === 'error') {
+    return NextResponse.json({ error: 'We could not save your agreement. Please try again.' }, { status: 503 })
   }
 
   if (typeof serverId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(serverId)) {
@@ -83,7 +95,7 @@ export async function POST(request: Request) {
 
   const { data: server, error: serverErr } = await supabaseAdmin
     .from('servers')
-    .select('id')
+    .select('id, wallet_address')
     .eq('id', serverId)
     .maybeSingle()
   if (serverErr) {
@@ -92,6 +104,14 @@ export async function POST(request: Request) {
   }
   if (!server) {
     return NextResponse.json({ error: 'Server not found.' }, { status: 404 })
+  }
+  // Only workers who have accepted the current Terms/Privacy as a worker can receive new
+  // ratings (limited-test policy). Unclaimed profiles never can. Existing ratings stay.
+  if (!(await workerTermsOnFile(supabaseAdmin, server.wallet_address as string | null))) {
+    return NextResponse.json(
+      { error: 'This server isn\'t taking ratings on Slate right now.', code: 'worker_not_accepting' },
+      { status: 403 },
+    )
   }
 
   const { data: follow, error: followErr } = await supabaseAdmin

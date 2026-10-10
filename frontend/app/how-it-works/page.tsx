@@ -17,7 +17,7 @@ export default function HowItWorksPage() {
             How Slate works.
           </h1>
           <p className="max-w-xl text-base leading-relaxed" style={{ color: '#606060' }}>
-            No reservations required. Just great experiences, real ratings, and a reputation that lasts forever.
+            Great experiences, real ratings, and a reputation that follows the person — not the venue.
           </p>
         </div>
 
@@ -32,7 +32,7 @@ export default function HowItWorksPage() {
               {
                 n: '01',
                 title: 'Check what\'s live',
-                body: 'Open Slate and see which NYC venues have active energy right now. Chill, Live, or Packed — reported by real guests who are there.',
+                body: 'Open Slate and see which NYC venues have energy tonight. Chill, Live, or Packed — reported by guests who are there.',
               },
               {
                 n: '02',
@@ -42,12 +42,12 @@ export default function HowItWorksPage() {
               {
                 n: '03',
                 title: 'Scan and rate',
-                body: 'Your server shares their QR code after service. Scan it, leave a verified rating in 30 seconds. GPS-confirmed. Tamper-proof.',
+                body: 'Your server shares their QR code after service. Scan it and rate them in 30 seconds with your Slate account.',
               },
               {
                 n: '04',
-                title: 'Follow forever',
-                body: 'Follow them on Slate. When they move to a new venue you get notified automatically. The relationship is yours — not the restaurant\'s.',
+                title: 'Follow the talent',
+                body: 'Follow them on Slate and get an email when they start a shift — wherever they work. The relationship is yours, not the restaurant\'s.',
               },
             ].map((step, i, arr) => (
               <div key={step.n}>
@@ -90,23 +90,23 @@ export default function HowItWorksPage() {
               },
               {
                 n: '02',
-                title: 'Activate your QR each shift',
-                body: 'One tap. Your QR is live for 8 hours. Show it to guests after great service. No app download required for them.',
+                title: 'Show your QR each shift',
+                body: 'Start your shift and your QR appears in your dashboard. Show it to guests after great service. No app download required for them.',
               },
               {
                 n: '03',
-                title: 'Build your on-chain reputation',
-                body: 'Every verified rating is stored permanently on Solana. No employer can take it away. No platform can delete it.',
+                title: 'Build your service record',
+                body: 'Every rating adds to your Slate profile and your reputation score. It belongs to your career, not your employer.',
               },
               {
                 n: '04',
-                title: 'Earn $SERVE rewards',
-                body: 'Top rated servers earn token rewards weekly. Distributed automatically by smart contract. No application needed.',
+                title: 'Earn Slate Points',
+                body: 'Every rating earns Slate Points today. $SERVE, a reward layer for workers, is an idea we may build — not launched and not guaranteed.',
               },
               {
                 n: '05',
                 title: 'Follow your career anywhere',
-                body: 'Change restaurants. Your profile, ratings, and followers come with you. Always. Your reputation is yours forever.',
+                body: 'Change restaurants. Your profile, ratings, and followers come with you. Your reputation shouldn\'t reset when you change jobs.',
               },
             ].map((step, i, arr) => (
               <div key={step.n}>
@@ -149,17 +149,17 @@ export default function HowItWorksPage() {
               {
                 n: '02',
                 title: 'Your staff becomes your marketing',
-                body: 'When a top server joins your team their followers get notified and come to you. Staff reputation drives real bookings.',
+                body: 'When your staff start a shift, their followers hear about it. Great staff can bring their regulars with them.',
               },
               {
                 n: '03',
                 title: 'Real performance data',
-                body: 'See which staff members drive the most repeat visits and highest ratings. Know who your stars are before they leave.',
+                body: 'See which staff members earn the highest ratings and the most followers. Know who your stars are before they leave.',
               },
               {
                 n: '04',
                 title: 'The vibe meter',
-                body: 'Guests report your venue\'s energy in real time. Live intelligence that surfaces your best nights and fills your slower ones.',
+                body: 'Guests report your venue\'s energy as the night happens — a live read on your best nights and your slower ones.',
               },
             ].map((step, i, arr) => (
               <div key={step.n}>
@@ -190,26 +190,26 @@ export default function HowItWorksPage() {
         <section className="mt-20">
           <div className="mb-8">
             <h2 className="mb-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              How we verify every rating.
+              How ratings work today.
             </h2>
             <p className="max-w-xl text-sm leading-relaxed" style={{ color: '#606060' }}>
-              Slate uses three layers of verification to ensure every rating comes from a real experience:
+              Slate ties every rating to a real person and a real account:
             </p>
           </div>
 
           <div className="flex flex-col gap-4">
             {[
               {
-                title: 'QR code scan',
-                body: 'Server activates their shift QR. Only guests at the table can scan it. Active for 8 hours per shift.',
+                title: 'The server\'s own QR code',
+                body: 'Each server has their own QR code. Guests rate from it, so every rating goes to the right person.',
               },
               {
-                title: 'GPS geofencing',
-                body: 'Guest must be within 300 meters of the venue to submit a rating. Location is checked once and never stored.',
+                title: 'Signed-in guests',
+                body: 'Rating requires a Slate account. Slate Points are calculated by Slate, never by the guest\'s phone.',
               },
               {
-                title: 'Booking verification',
-                body: 'Guests who booked through partner venues are automatically verified without needing a QR scan.',
+                title: 'Clear rules',
+                body: 'Fake or coordinated ratings break our Terms. We remove them and can close the accounts behind them.',
               },
             ].map(item => (
               <div
@@ -228,7 +228,7 @@ export default function HowItWorksPage() {
           </div>
 
           <p className="mt-6 text-xs" style={{ color: '#404040' }}>
-            This makes Slate&apos;s ratings the most trustworthy individual service ratings in hospitality.
+            Location checks for ratings are in development. We&apos;ll keep adding protections as Slate grows.
           </p>
         </section>
 

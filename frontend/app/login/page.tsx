@@ -2,8 +2,21 @@
 import { useState, Suspense } from 'react'
 import { authJsonHeaders } from '@/lib/auth-fetch'
 import { supabase } from '@/lib/supabase'
-import { getAuthCallbackUrl, getAppOrigin, safeInternalPath, setOAuthNextHint } from '@/lib/auth-redirect'
+import LegalConsent from '@/app/components/LegalConsent'
+import { LEGAL_VERSION } from '@/lib/legal'
+import { recordGuestLegal } from '@/lib/legal-client'
+import { clearOAuthNextHint, getAuthCallbackUrl, safeInternalPath, setOAuthNextHint } from '@/lib/auth-redirect'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { finishPendingManager, isEmailNotConfirmed } from '@/lib/auth-flows'
+
+const NOTICES: Record<string, string> = {
+  confirmed_elsewhere: 'We couldn\'t finish signing you in on this device. If you just confirmed your email, it\'s confirmed — sign in below. If you started a rating before signing up, it\'s saved in the browser where you started it: sign in there to post it.',
+  password_updated: 'Password updated. Sign in with your new password.',
+}
+const ERRORS: Record<string, string> = {
+  link_invalid: 'That link has expired or was already used. Sign in, or request a new link.',
+  auth_failed: 'Sign in didn\'t complete. Please try again.',
+}
 
 function LoginForm() {
   const router = useRouter()
@@ -13,23 +26,32 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(ERRORS[searchParams.get('error') ?? ''] ?? '')
   const [forgotSent, setForgotSent] = useState(false)
+  const [legalAccepted, setLegalAccepted] = useState(false)
+  // Messages carried in the URL from email links and redirects (fixed text only).
+  const [info, setInfo] = useState(NOTICES[searchParams.get('notice') ?? ''] ?? '')
+  const [needsConfirm, setNeedsConfirm] = useState(false)
+  // Email-confirmation sign-up that started from a rating: say where the draft lives.
+  const [draftDeviceNote, setDraftDeviceNote] = useState(false)
 
   const handleSignIn = async () => {
     setLoading(true)
     setError('')
     try {
+      setNeedsConfirm(false)
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (isEmailNotConfirmed(error)) {
+        setNeedsConfirm(true)
+        setError('Please confirm your email first. Check your inbox for the link from Slate.')
+        return
+      }
       if (error) { setError(error.message); return }
       if (!data.user?.id) { setError('Sign in did not return a user.'); return }
 
-      // Managers first (same order as /auth/callback + Navbar)
-      const { data: managerRow } = await supabase
-        .from('restaurant_managers')
-        .select('id, restaurant_name')
-        .eq('auth_id', data.user.id)
-        .maybeSingle()
+      // Managers first (same order as /auth/callback + Navbar). Also finishes a
+      // restaurant sign-up whose account was confirmed by email.
+      const managerRow = await finishPendingManager(supabase, data.user)
       // A safe return path beats the role dashboard. Signup does not use this.
       const next = safeInternalPath(searchParams.get('redirect'))
 
@@ -70,10 +92,34 @@ function LoginForm() {
   }
 
   const handleSignUp = async () => {
+    if (!legalAccepted) { setError('Please confirm you agree to the Terms of Service and Privacy Policy.'); return }
     setLoading(true)
     setError('')
-    const { data: signUpData, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
+    const next = safeInternalPath(searchParams.get('redirect'))
+    // If "Confirm email" is on, the confirmation link brings them back here (same browser).
+    if (next) setOAuthNextHint(next, 3600)
+    const { data: signUpData, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: name }, emailRedirectTo: getAuthCallbackUrl() },
+    })
     if (error) { setError(error.message); setLoading(false); return }
+    // With email confirmation on, there is no session until the link is clicked; the
+    // tick is then asked for again (and recorded) at the first rating or follow.
+    if (!signUpData.session) {
+      setLoading(false)
+      setMode('signin')
+      setInfo(`Check ${email} for a confirmation link from Slate, then sign in here.`)
+      if (searchParams.get('from') === 'rate') setDraftDeviceNote(true)
+      return
+    }
+    clearOAuthNextHint() // signed in already; no email link will need it
+    // Record the ticked acknowledgment on the server (version + time). If this fails,
+    // rating and following still require it, so nothing is used without agreement.
+    {
+      const legalErr = await recordGuestLegal(signUpData.session.access_token)
+      if (legalErr) console.error('[login] could not record acknowledgment:', legalErr)
+    }
     localStorage.setItem('slateUserType', 'guest')
     // Send welcome email — fire and forget. The route sends only to the signed-in
     // user's own address, so it needs the new session (absent if email
@@ -86,7 +132,7 @@ function LoginForm() {
         body: JSON.stringify({ name: name || email }),
       })).catch(() => {})
     }
-    router.push('/live')
+    router.push(next ?? '/live')
   }
 
   const handleForgotPassword = async () => {
@@ -95,14 +141,27 @@ function LoginForm() {
       return
     }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${getAppOrigin()}/login`,
+      redirectTo: getAuthCallbackUrl(),
     })
     if (!error) {
       setForgotSent(true)
     }
   }
 
+  const resendConfirmation = async () => {
+    const { error } = await supabase.auth.resend({ type: 'signup', email, options: { emailRedirectTo: getAuthCallbackUrl() } })
+    setNeedsConfirm(false)
+    if (error) { setError(error.message); return }
+    setError('')
+    setInfo(`Confirmation email sent to ${email}.`)
+  }
+
   const handleGoogle = async () => {
+    if (mode === 'signup') {
+      if (!legalAccepted) { setError('Please confirm you agree to the Terms of Service and Privacy Policy.'); return }
+      // The callback records this after Google returns (short-lived, callback path only).
+      document.cookie = `slate_legal_guest=${LEGAL_VERSION}; path=/auth/callback; max-age=600; samesite=lax`
+    }
     const next = safeInternalPath(searchParams.get('redirect'))
     if (next) setOAuthNextHint(next)
     const { error } = await supabase.auth.signInWithOAuth({
@@ -129,6 +188,12 @@ function LoginForm() {
           <p style={{ color: '#555', fontSize: '15px' }}>
             {mode === 'signin' ? 'Sign in to continue.' : 'Create your free guest account.'}
           </p>
+          {searchParams.get('from') === 'rate' && (
+            <p data-testid="rate-context" style={{ color: '#888', fontSize: '13px', marginTop: '12px' }}>
+              {mode === 'signin' ? 'Sign in' : 'Create an account'} to post your rating. What you wrote is saved on this
+              device and will be there when you come back.
+            </p>
+          )}
         </div>
 
         <button onClick={handleGoogle} style={{ width: '100%', padding: '14px', background: 'white', color: '#333', border: 'none', borderRadius: '4px', fontSize: '15px', cursor: 'pointer', marginBottom: '20px', fontWeight: '500' }}>
@@ -148,9 +213,32 @@ function LoginForm() {
         <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
           style={{ width: '100%', padding: '14px', background: '#111', color: 'white', border: '1px solid #222', borderRadius: '4px', fontSize: '15px', marginBottom: '24px', outline: 'none', boxSizing: 'border-box' }} />
 
-        {error && <p style={{ color: '#ff4444', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }}>{error}</p>}
+        {info && <p style={{ color: '#4ade80', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }}>{info}</p>}
+        {draftDeviceNote && (
+          <p data-testid="draft-device-note" style={{ color: '#aaa', fontSize: '13px', marginBottom: '16px', textAlign: 'center', lineHeight: 1.5 }}>
+            Your rating hasn&apos;t been posted yet. It&apos;s saved only in this browser on this device, for about an hour.
+            Open the confirmation link here to pick up where you left off. If you open it somewhere else, come back
+            to this browser and sign in to post your rating.
+          </p>
+        )}
 
-        <button onClick={mode === 'signin' ? handleSignIn : handleSignUp} disabled={loading}
+        {mode === 'signup' && (
+          <div style={{ marginBottom: '20px' }}>
+            <LegalConsent id="signup-legal" checked={legalAccepted} onChange={setLegalAccepted}>
+              I&apos;m 18 or older, and I agree to Slate&apos;s
+            </LegalConsent>
+          </div>
+        )}
+
+        {error && <p style={{ color: '#ff4444', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }}>{error}</p>}
+        {needsConfirm && (
+          <button onClick={resendConfirmation}
+            style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline', display: 'block', margin: '0 auto 16px' }}>
+            Resend confirmation email
+          </button>
+        )}
+
+        <button onClick={mode === 'signin' ? handleSignIn : handleSignUp} disabled={loading || (mode === 'signup' && !legalAccepted)}
           style={{ width: '100%', padding: '14px', background: 'white', color: 'black', border: 'none', borderRadius: '4px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', marginBottom: '20px' }}>
           {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
         </button>

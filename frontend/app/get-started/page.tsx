@@ -81,7 +81,7 @@ export default function GetStartedPage() {
               I work in hospitality
             </h2>
             <p className="mb-10 flex-1 text-sm leading-7" style={{ color: '#606060' }}>
-              Claim your free portable profile. Build your on-chain reputation. Earn $SERVE rewards for every great shift.
+              Claim your free portable profile. Build a service record that follows your career. Earn Slate Points for great service.
             </p>
             <a
               href="/servers/signup"
@@ -121,7 +121,7 @@ export default function GetStartedPage() {
 
         {/* Footer note */}
         <p className="mt-14 text-xs" style={{ color: '#404040' }}>
-          Free forever for every server and bartender.
+          Free for servers and bartenders.
         </p>
 
       </main>

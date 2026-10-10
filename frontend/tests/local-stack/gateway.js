@@ -29,8 +29,20 @@ const ANON = sign({ role: 'anon', iss: 'local', exp: far })
 const SERVICE = sign({ role: 'service_role', iss: 'local', exp: far })
 fs.writeFileSync(KEYS_OUT, JSON.stringify({ anon: ANON, service: SERVICE }))
 
-const users = {} // email -> {id,email,password,user_metadata,app_metadata}
+const users = {} // email -> {id,email,password,user_metadata,app_metadata,created_at,confirmed_at}
+// Email confirmation simulation: POST /__config {confirm:true|false}. Sent emails are
+// recorded (token_hash links) and readable via GET /__last_email?email=…
+const config = { confirm: false }
+const outbox = {} // email -> { type, token_hash }
+const tokens_ = {} // token_hash -> { email, type }
+const codes_ = {} // PKCE auth code -> { email, challenge, method }
+function mail(email, type) {
+  const token_hash = crypto.randomBytes(16).toString('hex')
+  tokens_[token_hash] = { email: email.toLowerCase(), type }
+  outbox[email.toLowerCase()] = { type, token_hash }
+}
 const sentEmails = [] // emails sent through the Resend stand-in
+const refreshTokens = {} // refresh token -> email
 let resendMode = 'ok'
 function psql(sql, vars) {
   const args = ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-qAt']
@@ -39,22 +51,35 @@ function psql(sql, vars) {
 }
 function userObj(u) {
   const now = new Date().toISOString()
-  return { id: u.id, aud: 'authenticated', role: 'authenticated', email: u.email, email_confirmed_at: now, confirmed_at: now,
+  return { id: u.id, aud: 'authenticated', role: 'authenticated', email: u.email, email_confirmed_at: u.confirmed_at || null, confirmed_at: u.confirmed_at || null,
     user_metadata: u.user_metadata, app_metadata: u.app_metadata, identities: [], created_at: u.created_at || now, updated_at: now }
 }
 function session(u) {
   const exp = Math.floor(Date.now() / 1000) + 3600
   const at = sign({ sub: u.id, email: u.email, role: 'authenticated', aud: 'authenticated', exp,
     app_metadata: u.app_metadata, user_metadata: u.user_metadata })
-  return { access_token: at, refresh_token: crypto.randomUUID(), token_type: 'bearer', expires_in: 3600, expires_at: exp, user: userObj(u) }
+  const rt = crypto.randomUUID()
+  refreshTokens[rt] = u.email.toLowerCase()
+  return { access_token: at, refresh_token: rt, token_type: 'bearer', expires_in: 3600, expires_at: exp, user: userObj(u) }
 }
-function createUser(email, password, meta, provider = 'email', createdAt) {
-  const u = { id: crypto.randomUUID(), email, password, user_metadata: meta || {}, app_metadata: { provider, providers: [provider] }, created_at: createdAt }
+function createUser(email, password, meta, provider = 'email', createdAt, confirmed = true) {
+  const created = createdAt || new Date().toISOString()
+  // Auto-confirmed accounts are confirmed the moment they are created, like Supabase.
+  const u = { id: crypto.randomUUID(), email, password, user_metadata: meta || {}, app_metadata: { provider, providers: [provider] },
+    created_at: created, confirmed_at: confirmed ? created : null }
   users[email.toLowerCase()] = u
   // psql variables are quoted by psql itself (:'x'), so values cannot inject SQL.
   execFileSync('psql', ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-q',
-    '-v', `id=${u.id}`, '-v', `email=${email}`], { input: "insert into auth.users (id, email) values (:'id', :'email');\n" })
+    '-v', `id=${u.id}`, '-v', `email=${email}`, '-v', `created=${created}`, '-v', `confirmed=${u.confirmed_at || ''}`,
+    '-v', `umeta=${JSON.stringify(u.user_metadata || {})}`],
+    { input: "insert into auth.users (id, email, created_at, email_confirmed_at, raw_user_meta_data) values (:'id', :'email', :'created', nullif(:'confirmed','')::timestamptz, (:'umeta')::jsonb);\n" })
   return u
+}
+function confirmUser(u) {
+  if (u.confirmed_at) return
+  u.confirmed_at = new Date().toISOString()
+  execFileSync('psql', ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-q', '-v', `id=${u.id}`],
+    { input: "update auth.users set email_confirmed_at = now() where id = :'id';\n" })
 }
 
 http.createServer((req, res) => {
@@ -102,15 +127,74 @@ http.createServer((req, res) => {
       const u = createUser(json.email, json.password || 'x', json.data, json.provider || 'email', json.created_at)
       return send(200, session(u))
     }
+    if (url.pathname === '/__config') { Object.assign(config, json || {}); return send(200, config) }
+    if (url.pathname === '/__last_email') return send(200, outbox[(url.searchParams.get('email') || '').toLowerCase()] || null)
 
     if (url.pathname === '/auth/v1/signup' && req.method === 'POST') {
       if (users[(json.email || '').toLowerCase()]) return send(422, { code: 422, error_code: 'user_already_exists', msg: 'User already registered' })
-      return send(200, session(createUser(json.email, json.password, json.data)))
+      const u = createUser(json.email, json.password, json.data, 'email', undefined, !config.confirm)
+      if (config.confirm) { mail(u.email, 'signup'); return send(200, userObj(u)) } // no session until confirmed
+      return send(200, session(u))
     }
     if (url.pathname === '/auth/v1/token' && url.searchParams.get('grant_type') === 'password') {
       const u = users[(json?.email || '').toLowerCase()]
-      if (!u || u.password !== json.password) return send(400, { error: 'invalid_grant', error_description: 'Invalid login credentials' })
+      if (!u || u.password !== json.password) return send(400, { code: 400, error_code: 'invalid_credentials', msg: 'Invalid login credentials' })
+      if (!u.confirmed_at) return send(400, { code: 400, error_code: 'email_not_confirmed', msg: 'Email not confirmed' })
       return send(200, session(u))
+    }
+    if (url.pathname === '/auth/v1/token' && url.searchParams.get('grant_type') === 'refresh_token') {
+      const owner = refreshTokens[json?.refresh_token]
+      const u = owner && users[owner]
+      if (!u) return send(400, { code: 400, error_code: 'refresh_token_not_found', msg: 'Invalid Refresh Token' })
+      delete refreshTokens[json.refresh_token]
+      return send(200, session(u)) // carries the current app_metadata, like Supabase
+    }
+    if (url.pathname === '/auth/v1/token' && url.searchParams.get('grant_type') === 'pkce') {
+      // PKCE code exchange: succeeds only with the verifier stored by the browser that asked.
+      const c = codes_[json?.auth_code]
+      const v = json?.code_verifier || ''
+      const ok = c && (c.method === 'plain' ? v === c.challenge : crypto.createHash('sha256').update(v).digest('base64url') === c.challenge)
+      if (ok) { delete codes_[json.auth_code]; const u = users[c.email]; confirmUser(u); return send(200, session(u)) }
+    }
+    if (url.pathname === '/auth/v1/token') {
+      // Unknown code or wrong browser (no matching verifier), like a link opened on another device.
+      return send(400, { code: 400, error_code: 'bad_code_verifier', msg: 'code challenge does not match previously saved code verifier' })
+    }
+    if (url.pathname === '/auth/v1/verify' && req.method === 'POST') {
+      const t = tokens_[json?.token_hash]
+      if (!t || (t.type !== json.type && !(t.type === 'signup' && json.type === 'email'))) return send(403, { code: 403, error_code: 'otp_expired', msg: 'Email link is invalid or has expired' })
+      delete tokens_[json.token_hash]
+      const u = users[t.email]
+      if (!u) return send(403, { code: 403, error_code: 'otp_expired', msg: 'Email link is invalid or has expired' })
+      confirmUser(u)
+      return send(200, session(u))
+    }
+    if (url.pathname === '/auth/v1/recover' && req.method === 'POST') {
+      if (users[(json?.email || '').toLowerCase()]) {
+        mail(json.email, 'recovery')
+        // Default (PKCE) reset link: also record an auth code tied to the requester's challenge.
+        if (json.code_challenge) {
+          const code = crypto.randomUUID()
+          codes_[code] = { email: json.email.toLowerCase(), challenge: json.code_challenge, method: (json.code_challenge_method || 's256').toLowerCase() }
+          outbox[json.email.toLowerCase()].code = code
+        }
+      }
+      return send(200, {})
+    }
+    if (url.pathname === '/auth/v1/resend' && req.method === 'POST') {
+      const u = users[(json?.email || '').toLowerCase()]
+      if (u && !u.confirmed_at) mail(u.email, 'signup')
+      return send(200, {})
+    }
+    if (url.pathname === '/auth/v1/user' && req.method === 'PUT') {
+      const c = verify((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
+      const u = c && Object.values(users).find(x => x.id === c.sub)
+      if (!u) return send(401, { code: 401, msg: 'invalid JWT' })
+      if (typeof json?.password === 'string') {
+        if (json.password.length < 6) return send(422, { code: 422, error_code: 'weak_password', msg: 'Password should be at least 6 characters.' })
+        u.password = json.password
+      }
+      return send(200, userObj(u))
     }
     if (url.pathname === '/auth/v1/user' && req.method === 'GET') {
       const c = verify((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
@@ -118,6 +202,26 @@ http.createServer((req, res) => {
       return u ? send(200, userObj(u)) : send(401, { code: 401, msg: 'invalid JWT' })
     }
     if (url.pathname === '/auth/v1/logout') return send(204)
+    // Admin user update (service role only): merges app_metadata like Supabase does.
+    const adminMatch = url.pathname.match(/^\/auth\/v1\/admin\/users\/([0-9a-f-]+)$/)
+    if (adminMatch && req.method === 'GET') {
+      const c = verify((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
+      if (!c || c.role !== 'service_role') return send(403, { code: 403, msg: 'not admin' })
+      const u = Object.values(users).find(x => x.id === adminMatch[1])
+      return u ? send(200, userObj(u)) : send(404, { code: 404, msg: 'User not found' })
+    }
+    if (adminMatch && req.method === 'PUT') {
+      const c = verify((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
+      if (!c || c.role !== 'service_role') return send(403, { code: 403, msg: 'not admin' })
+      const u = Object.values(users).find(x => x.id === adminMatch[1])
+      if (!u) return send(404, { code: 404, msg: 'User not found' })
+      if (json?.app_metadata) u.app_metadata = { ...u.app_metadata, ...json.app_metadata }
+      // Mirror into auth.users like Supabase (raw_app_meta_data), for database triggers.
+      execFileSync('psql', ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-q',
+        '-v', `id=${u.id}`, '-v', `meta=${JSON.stringify(u.app_metadata)}`],
+        { input: "update auth.users set raw_app_meta_data = (:'meta')::jsonb where id = :'id';\n" })
+      return send(200, userObj(u))
+    }
 
     if (url.pathname.startsWith('/rest/v1/')) {
       const headers = { ...req.headers, host: `localhost:${PGRST}` }

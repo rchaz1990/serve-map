@@ -97,6 +97,23 @@ const serverAuthMock = {
   },
 }
 
+// Terms/Privacy acknowledgment: the real version constant; recording is stubbed here
+// (the local-stack legal.test.js exercises the real recording).
+const { LEGAL_VERSION } = (() => {
+  const src = fs.readFileSync(path.join(FRONTEND, 'lib/legal.ts'), 'utf8')
+  const mod = { exports: {} }
+  new Function('exports', ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(mod.exports)
+  return mod.exports
+})()
+const legalRecorded = []
+const legalMock = {
+  recordLegalAcceptance: async (_admin, user, claimed, context) => {
+    if (claimed !== LEGAL_VERSION) return 'missing'
+    legalRecorded.push({ id: user.id, context })
+    return 'recorded'
+  },
+}
+
 // ── load the real route ──────────────────────────────────────────────────────
 const src = fs.readFileSync(path.join(FRONTEND, 'app/api/signup-server/route.ts'), 'utf8')
 const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
@@ -104,6 +121,7 @@ const origLoad = Module._load
 Module._load = function (req, parent, isMain) {
   if (req === '@supabase/supabase-js') return supabaseMock
   if (req === '@/lib/server-auth') return serverAuthMock
+  if (req === '@/lib/legal-server') return legalMock
   return origLoad.call(this, req, parent, isMain)
 }
 const ROUTE_JS = path.join(FRONTEND, 'app/api/signup-server/route.js')
@@ -127,7 +145,7 @@ function check(name, ok, detail) {
   if (ok) { pass++; console.log('PASS', name) } else { fail++; console.log('FAIL', name, detail ?? '') }
 }
 const reset = () => { hooks.uniqueOwner = false; hooks.beforeServerInsert = null; hooks.inserts = 0; db.servers = []; db.server_restaurants = []; db.restaurant_managers = []; for (const k in authUsers) delete authUsers[k] }
-const base = { name: 'Hazel Test', role: 'Server', restaurant: 'Slate Dry Run Test Venue', city: 'New York', specialties: ['Wine'] }
+const base = { name: 'Hazel Test', role: 'Server', restaurant: 'Slate Dry Run Test Venue', city: 'New York', specialties: ['Wine'], legalAccepted: LEGAL_VERSION }
 const mine = uid => db.servers.filter(s => s.wallet_address === uid)
 
 ;(async () => {
@@ -186,6 +204,16 @@ const mine = uid => db.servers.filter(s => s.wallet_address === uid)
   authUsers.tR = { id: 'uid-R', email: 'r@x.com' }
   await call('tR', { ...base, photoUrl: 'https://proj.supabase.co/storage/v1/object/public/Avatars/uid-Q-123.jpg' })
   check("someone else's photo dropped", mine('uid-R')[0].photo_url === null)
+
+  // 8b. Terms/Privacy acknowledgment is required before anything is saved
+  reset(); authUsers.tT = { id: 'uid-T', email: 't@x.com' }
+  r = await call('tT', { ...base, legalAccepted: undefined })
+  check('no acknowledgment → 400 legal_required, nothing saved', r.status === 400 && r.json.code === 'legal_required' && db.servers.length === 0, r)
+  r = await call('tT', { ...base, legalAccepted: '2000-01' })
+  check('stale acknowledgment version → 400, nothing saved', r.status === 400 && db.servers.length === 0, r)
+  r = await call('tT', base)
+  check('current acknowledgment → profile saved and acknowledgment recorded as worker',
+    r.status === 200 && db.servers.length === 1 && legalRecorded.some(x => x.id === 'uid-T' && x.context === 'worker'), r)
 
   // 9. validation
   reset(); authUsers.tV2 = { id: 'uid-V2', email: 'v2@x.com' }

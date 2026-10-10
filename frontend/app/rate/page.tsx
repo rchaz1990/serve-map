@@ -1,6 +1,11 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
+import LegalConsent from '@/app/components/LegalConsent'
+import FollowConsent from '@/app/components/FollowConsent'
+import { LEGAL_VERSION } from '@/lib/legal'
+import { legalOnFile as fetchLegalOnFile } from '@/lib/legal-client'
+import { saveRatingDraft, loadRatingDraft, clearRatingDraft } from '@/lib/rating-draft'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
@@ -47,8 +52,10 @@ const ratingLabels: Record<number, string> = {
 }
 
 /** Login URL that keeps the full /rate?server= path. Used by submit and follow. */
+// Signing in from the rating flow opens the sign-up form (most first-time guests have no
+// account); "Sign in" is one tap away there. The draft never goes in the URL.
 function rateLoginHref(serverId: string): string {
-  return `/login?redirect=${encodeURIComponent(`/rate?server=${serverId}`)}`
+  return `/login?mode=signup&from=rate&redirect=${encodeURIComponent(`/rate?server=${serverId}`)}`
 }
 
 // ── Inner form (needs Suspense because of useSearchParams) ────────────────────
@@ -73,14 +80,37 @@ function RateForm() {
   const [rating, setRating] = useState(0)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [comment, setComment] = useState('')
+  const [ratingsClosed, setRatingsClosed] = useState(false)
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isFollowing, setIsFollowing] = useState(false)
+  const [confirmingFollow, setConfirmingFollow] = useState(false)
+  const [followError, setFollowError] = useState('')
   const [lastReward, setLastReward] = useState<{ starReward: number; commentBonus: number; followBonus: number; total: number } | null>(null)
+  const [draftRestored, setDraftRestored] = useState(false)
+
+  // Restore an unfinished rating for this worker (saved before signing in). Fills the
+  // form only — the guest still reviews it and taps Submit themselves.
+  useEffect(() => {
+    if (!serverId) return
+    const draft = loadRatingDraft(serverId)
+    if (!draft) return
+    setRating(draft.rating)
+    setSelectedTags(draft.tags)
+    setComment(draft.comment)
+    setDraftRestored(true)
+  }, [serverId])
+
+  function discardDraft() {
+    if (serverId) clearRatingDraft(serverId)
+    setRating(0)
+    setSelectedTags([])
+    setComment('')
+    setDraftRestored(false)
+  }
 
   useEffect(() => {
-    console.log('Rate page loaded with server:', serverId)
     if (!serverId) return
 
     const loadServer = async () => {
@@ -95,8 +125,6 @@ function RateForm() {
         .eq('id', serverId)
         .maybeSingle()
 
-      console.log('Server lookup result:', server, lookupError)
-
       if (lookupError) {
         console.error('Supabase error:', lookupError)
         setError(`Database error: ${lookupError.message}`)
@@ -110,6 +138,11 @@ function RateForm() {
       }
 
       setServerData(server as ServerRow)
+      // Server-enforced in /api/submit-rating; checked here so nobody fills in a rating
+      // that can't be posted.
+      fetch(`/api/rating-status?server=${encodeURIComponent(serverId)}`)
+        .then(r => r.json()).then(j => setRatingsClosed(j?.accepting !== true))
+        .catch(() => setRatingsClosed(false))
 
       // Check if the current guest is already following
       const { data: { session } } = await supabase.auth.getSession()
@@ -146,13 +179,20 @@ function RateForm() {
       follower_email: session.user.email,
       server_id: serverId,
       follower_type: 'guest',
+      // Confirmed in FollowConsent ("Follow and email me"): opt in to shift emails.
+      notify_email: true,
     })
 
     // 23505 = already following (one follow per guest per server).
     if (!followError || followError.code === '23505') {
       setIsFollowing(true)
+      setConfirmingFollow(false)
     } else {
       console.error('[rate] follow failed:', followError.message)
+      // 42501: refused by the database — this worker hasn't accepted the current Terms.
+      setFollowError(followError.code === '42501'
+        ? 'This server isn\'t accepting new followers on Slate right now.'
+        : 'Could not follow right now. Please try again.')
     }
   }
 
@@ -164,6 +204,18 @@ function RateForm() {
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     )
   }
+
+  // Guests acknowledge the Terms and Privacy Policy once per version (recorded on the
+  // server). Already-acknowledged accounts don't see the checkbox again.
+  const [legalAccepted, setLegalAccepted] = useState(false)
+  const [legalOnFile, setLegalOnFile] = useState(false)
+  useEffect(() => {
+    // Fresh from the server: an agreement recorded at sign-up moments ago counts.
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session) { setLegalOnFile(false); return }
+      setLegalOnFile(await fetchLegalOnFile().catch(() => false))
+    })
+  }, [])
 
   const handleSubmitRating = async () => {
     if (!serverId) {
@@ -185,7 +237,14 @@ function RateForm() {
         token = data.session?.access_token ?? null
       }
       if (!token) {
+        // Keep what they wrote on this device, then sign up / sign in. Nothing is sent.
+        saveRatingDraft(serverId, { rating, tags: selectedTags, comment })
         router.push(rateLoginHref(serverId))
+        return
+      }
+
+      if (!legalOnFile && !legalAccepted) {
+        setError('Please confirm you agree to the Terms of Service and Privacy Policy.')
         return
       }
 
@@ -202,6 +261,7 @@ function RateForm() {
           comment: comment.trim() ? comment.trim() : null,
           tags: selectedTags,
           isTest: isTestDevice(),
+          legalAccepted: legalOnFile || legalAccepted ? LEGAL_VERSION : null,
         }),
       })
 
@@ -212,6 +272,7 @@ function RateForm() {
         const retryToken = data.session?.access_token
         if (retryToken) res = await postRating(retryToken)
         if (res.status === 401) {
+          saveRatingDraft(serverId, { rating, tags: selectedTags, comment })
           router.push(rateLoginHref(serverId))
           return
         }
@@ -226,8 +287,12 @@ function RateForm() {
         return
       }
 
+      clearRatingDraft(serverId)
+      setDraftRestored(false)
       setLastReward(body.reward)
       setSuccess(true)
+      setLegalOnFile(true)
+      supabase.auth.refreshSession().catch(() => {}) // pick up the recorded acknowledgment
     } catch (err) {
       console.error('Rating submission error:', err)
       setError('Failed to submit rating. Please try again.')
@@ -298,20 +363,20 @@ function RateForm() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: '13px' }}>
                   <span>{rating} star rating</span>
-                  <span style={{ color: 'white' }}>+{lastReward.starReward} $SERVE</span>
+                  <span style={{ color: 'white' }}>+{lastReward.starReward} pts</span>
                 </div>
 
                 {lastReward.commentBonus > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: '13px' }}>
                     <span>Written review bonus</span>
-                    <span style={{ color: 'white' }}>+{lastReward.commentBonus} $SERVE</span>
+                    <span style={{ color: 'white' }}>+{lastReward.commentBonus} pts</span>
                   </div>
                 )}
 
                 {lastReward.followBonus > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: '13px' }}>
                     <span>Follow bonus</span>
-                    <span style={{ color: 'white' }}>+{lastReward.followBonus} $SERVE</span>
+                    <span style={{ color: 'white' }}>+{lastReward.followBonus} pts</span>
                   </div>
                 )}
 
@@ -328,7 +393,7 @@ function RateForm() {
                   }}
                 >
                   <span>Total</span>
-                  <span>{lastReward.total} $SERVE</span>
+                  <span>{lastReward.total} Slate Points</span>
                 </div>
               </div>
             </div>
@@ -336,9 +401,15 @@ function RateForm() {
 
           {/* Follow CTA — stays visible after rating so guest can still follow */}
           <div className="mt-8 w-full max-w-sm">
-            {!isFollowing ? (
+            {!isFollowing && confirmingFollow ? (
+              <FollowConsent
+                firstName={serverData?.name?.split(' ')[0] ?? 'your server'}
+                onConfirm={handleFollow}
+                onCancel={() => setConfirmingFollow(false)}
+              />
+            ) : !isFollowing ? (
               <button
-                onClick={handleFollow}
+                onClick={() => setConfirmingFollow(true)}
                 style={{
                   width: '100%',
                   background: 'transparent',
@@ -358,6 +429,7 @@ function RateForm() {
                 Following ✓
               </p>
             )}
+            {followError && <p className="mt-2 text-xs text-red-400">{followError}</p>}
           </div>
 
           <a href="/" className="slate-btn slate-btn-primary mt-8">
@@ -452,22 +524,6 @@ function RateForm() {
 
         <div className="slate-rule mb-12" />
 
-        {/* ── Follow ──────────────────────────────────────────────────── */}
-        <MotionSection className="mb-12">
-          <p className="slate-eyebrow mb-5">Follow</p>
-          {!isFollowing ? (
-            <button
-              onClick={handleFollow}
-              className="slate-btn slate-btn-ghost w-full"
-            >
-              Follow {serverData?.name?.split(' ')[0] ?? serverFirstName}
-            </button>
-          ) : (
-            <p className="text-center text-sm slate-muted">Following</p>
-          )}
-        </MotionSection>
-
-        <div className="slate-rule mb-12" />
 
         {/* ── $SERVE notice ───────────────────────────────────────────── */}
         <MotionSection className="mb-12">
@@ -482,11 +538,27 @@ function RateForm() {
                 Earns {serverFirstName} Slate Points
               </p>
               <p className="mt-1 text-xs leading-relaxed slate-secondary">
-                Builds their on-chain reputation.
+                Adds to their Slate profile.
               </p>
             </div>
           </div>
         </MotionSection>
+
+        {/* ── Restored draft notice ───────────────────────────────────── */}
+        {draftRestored && (
+          <div data-testid="draft-restored" className="mb-6 rounded-xl border border-white/15 px-4 py-3">
+            <p className="text-xs text-white">We kept the rating you started. Check it, then tap Submit to post it.</p>
+            <button onClick={discardDraft} className="mt-1 text-xs underline" style={{ color: '#A0A0A0' }}>Discard it</button>
+          </div>
+        )}
+
+        {ratingsClosed && (
+          <div className="mb-6 rounded-xl border border-white/15 px-4 py-3" data-testid="ratings-closed">
+            <p className="text-xs" style={{ color: '#A0A0A0' }}>
+              {serverFirstName === 'your server' ? 'This server' : serverFirstName} isn&apos;t taking ratings on Slate right now.
+            </p>
+          </div>
+        )}
 
         {/* ── Error ───────────────────────────────────────────────────── */}
         {error && (
@@ -495,11 +567,23 @@ function RateForm() {
           </div>
         )}
 
+        {/* ── Acknowledgment (first rating per Terms/Privacy version) ─── */}
+        {!legalOnFile && (
+          <div className="mb-6">
+            <LegalConsent checked={legalAccepted} onChange={setLegalAccepted}>
+              I&apos;m 18 or older, {serverFirstName === 'your server' ? 'this server' : serverFirstName} personally served me, and I agree to Slate&apos;s
+            </LegalConsent>
+            <p className="mt-2 pl-7 text-xs leading-relaxed" style={{ color: '#606060' }}>
+              Your rating and comment appear on their public profile without your name. Slate stores them until you ask us to delete them; they are not on a blockchain.
+            </p>
+          </div>
+        )}
+
         {/* ── Submit ──────────────────────────────────────────────────── */}
         <div className="flex flex-col gap-3">
           <button
             onClick={handleSubmitRating}
-            disabled={rating === 0 || loading}
+            disabled={rating === 0 || loading || ratingsClosed}
             className="slate-btn slate-btn-primary slate-btn-lg w-full disabled:opacity-25"
           >
             {loading ? (

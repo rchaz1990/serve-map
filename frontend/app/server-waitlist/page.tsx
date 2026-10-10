@@ -33,7 +33,7 @@ export default function ServerWaitlistPage() {
             member of Slate.
           </h1>
           <p className="mx-auto mt-5 max-w-sm text-base leading-relaxed" style={{ color: '#A0A0A0' }}>
-            Claim your portable profile when we launch. Founding members get bonus $SERVE rewards.
+            Be first to claim your profile — your reputation, your regulars, wherever you work.
           </p>
         </div>
 
@@ -55,7 +55,7 @@ export default function ServerWaitlistPage() {
         />
 
         <p className="mt-6 text-center text-xs" style={{ color: '#606060' }}>
-          Free forever for servers and bartenders.
+          Free for servers and bartenders.
         </p>
 
       </main>

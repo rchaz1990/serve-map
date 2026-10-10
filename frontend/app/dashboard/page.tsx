@@ -9,6 +9,8 @@ import { MotionSection } from '@/app/components/motion'
 import { authJsonHeaders } from '@/lib/auth-fetch'
 import { supabase } from '@/lib/supabase'
 import { geocodeAddress } from '@/lib/geocode'
+import { workerTermsOnFile } from '@/lib/legal-client'
+import WorkerTermsGate from '@/app/components/WorkerTermsGate'
 
 const QR_DURATION_MS = 8 * 60 * 60 * 1000 // 8 hours
 
@@ -413,10 +415,10 @@ function ServeRewardsSection({
             fontFamily: '"Space Mono", ui-monospace, monospace',
           }}
         >
-          $SERVE earned lifetime
+          Slate Points earned · lifetime
         </div>
         <div style={{ marginTop: '12px', fontSize: '12px', color: '#444', lineHeight: 1.6 }}>
-          Your permanent on-chain reputation score. Only goes up. Never resets.
+          Your reputation score, built from every guest rating — it stays with you when you change jobs.
         </div>
       </div>
 
@@ -1106,6 +1108,8 @@ export default function DashboardPage() {
     comment: string | null
   }[]>([])
   const [profileLoading, setProfileLoading] = useState(true)
+  // Existing workers must agree to the current Terms/Privacy before using the dashboard.
+  const [workerTermsNeeded, setWorkerTermsNeeded] = useState(false)
 
   // /jobs and ?section=jobs land here — scroll to Jobs / Venues once profile loads.
   useEffect(() => {
@@ -1223,6 +1227,7 @@ export default function DashboardPage() {
       setProfileOpenToOpportunities(row.open_to_opportunities ?? false)
       setProfileFollowApproval(row.follow_approval ?? 'approval')
       setProfileVisibility(row.profile_visibility ?? 'public')
+      setWorkerTermsNeeded(!(await workerTermsOnFile().catch(() => false)))
       setProfileLoading(false)
     }
 
@@ -1385,7 +1390,9 @@ export default function DashboardPage() {
       }),
     })).catch(() => {})
 
-    const insertShift = async (gpsVerified: boolean, distance: number | null, userLat: number | null, userLng: number | null) => {
+    // The location check runs on this device. Only its result (and the distance) is
+    // saved; the device's coordinates never leave the phone.
+    const insertShift = async (gpsVerified: boolean, distance: number | null) => {
       const { data, error } = await supabase.from('shifts').insert({
         server_id: serverId,
         restaurant_name: restaurantName,
@@ -1394,15 +1401,13 @@ export default function DashboardPage() {
         activated_by: 'server',
         gps_verified: gpsVerified,
         distance_meters: distance,
-        user_lat: userLat,
-        user_lng: userLng,
       }).select('id').single()
       if (error) console.error('[supabase] shift start:', error)
       else setShiftDbId(data.id)
     }
 
     if (!navigator.geolocation) {
-      insertShift(false, null, null, null)
+      insertShift(false, null)
       return
     }
 
@@ -1422,16 +1427,31 @@ export default function DashboardPage() {
               Math.cos(userLat * Math.PI / 180) * Math.cos(rLat * Math.PI / 180) *
               Math.sin(dLon / 2) * Math.sin(dLon / 2)
             const distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
-            insertShift(distance <= 500, distance, userLat, userLng)
+            insertShift(distance <= 500, distance)
           } else {
-            insertShift(false, null, userLat, userLng)
+            insertShift(false, null)
           }
         } catch {
-          insertShift(false, null, userLat, userLng)
+          insertShift(false, null)
         }
       },
-      () => { insertShift(false, null, null, null) },
+      () => { insertShift(false, null) },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
+  }
+
+  if (!profileLoading && serverProfile && workerTermsNeeded) {
+    return (
+      <div className="slate-page">
+        <Navbar />
+        <div className="slate-rule" />
+        <main className="slate-main mx-auto max-w-2xl px-8 py-12">
+          <WorkerTermsGate
+            onAccepted={() => setWorkerTermsNeeded(false)}
+            onSignOut={async () => { await supabase.auth.signOut(); router.push('/') }}
+          />
+        </main>
+      </div>
     )
   }
 
@@ -1487,7 +1507,7 @@ export default function DashboardPage() {
                 <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
                   Welcome back, {serverProfile.name.split(' ')[0]}
                 </h1>
-                <span title="Verified on-chain profile">
+                <span title="Your Slate profile">
                   <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 shrink-0">
                     <circle cx="12" cy="12" r="12" fill="white" />
                     <path d="M7 12.5l3.5 3.5 6.5-7" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -1514,7 +1534,7 @@ export default function DashboardPage() {
             { label: 'Rating',    value: serverProfile?.avg_rating ? serverProfile.avg_rating.toFixed(1) : '—' },
             { label: 'Reviews',   value: serverProfile?.total_ratings ?? 0 },
             { label: 'Followers', value: serverProfile?.follower_count ?? 0 },
-            { label: '$SERVE',    value: serverProfile?.serve_balance_lifetime ?? 0 },
+            { label: 'Slate Points', value: serverProfile?.serve_balance_lifetime ?? 0 },
           ].map(({ label, value }) => (
             <div key={label} className="slate-stat">
               <span className="slate-stat-value">{value}</span>

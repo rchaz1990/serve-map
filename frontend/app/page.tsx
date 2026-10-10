@@ -8,14 +8,14 @@ const MARQUEE_CSS = `
 `
 
 const MARQUEE_ITEMS = [
-  "Employees Only · PACKED 🚀",
-  "Death & Co · LIVE 🔥",
-  "Attaboy · PACKED 🚀",
-  "Dante · LIVE 🔥",
-  "The Dead Rabbit · LIVE 🔥",
-  "Please Don't Tell · PACKED 🚀",
-  "Maison Premiere · CHILL 🧊",
-  "Amor y Amargo · CHILL 🧊",
+  "Your service · Your reputation",
+  "Rate the person, not the place",
+  "Follow the talent",
+  "Wherever you work",
+  "Built for hospitality workers",
+  "Free for servers & bartenders",
+  "NYC tonight",
+  "Your service record",
 ]
 
 export default function Home() {
@@ -38,17 +38,17 @@ export default function Home() {
           />
           <div className="absolute inset-0" style={{ backgroundColor: 'rgba(0,0,0,0.78)', zIndex: 1 }} />
           <div className="relative mx-auto w-full max-w-5xl pt-24 pb-16" style={{ zIndex: 2 }}>
-            <p className="slate-eyebrow mb-6">NYC · Live Now</p>
+            <p className="slate-eyebrow mb-6">Now live in NYC</p>
             <h1 className="slate-title mb-5 text-5xl leading-[1.0] sm:text-6xl lg:text-8xl">
               Your night
               <br />
               starts here.
             </h1>
             <p className="mb-4 max-w-xl text-lg font-medium text-white/90 sm:text-xl lg:text-2xl">
-              The reputation layer for hospitality talent.
+              Your service. Your reputation. Wherever you work.
             </p>
             <p className="mb-10 max-w-xl text-sm leading-relaxed sm:text-base slate-muted">
-              Portable on-chain profiles, verified ratings, and Slate Points — free for every hospitality worker.
+              Portable worker profiles, guest ratings, and Slate Points — free for every hospitality worker.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <a
@@ -86,17 +86,17 @@ export default function Home() {
                 {
                   n: '01',
                   label: 'FEEL THE VIBE',
-                  body: 'See which venues are electric tonight. Community reported. Location verified. Updated in real time.',
+                  body: 'See which venues are electric tonight — reported by guests who are there.',
                 },
                 {
                   n: '02',
                   label: 'RATE THE PERSON',
-                  body: 'Scan your server\'s QR code after great service. Leave a GPS verified on-chain rating in 30 seconds. Not the restaurant — the individual.',
+                  body: 'Scan your server\'s QR code after great service and rate them in 30 seconds. Not the restaurant — the individual.',
                 },
                 {
                   n: '03',
-                  label: 'FOLLOW FOREVER',
-                  body: 'Your favorite bartender moves spots. You already know. Follow the talent not the venue.',
+                  label: 'FOLLOW THE TALENT',
+                  body: 'Your favorite bartender moves spots. Follow them, and know when they\'re working — wherever that is.',
                 },
               ].map(item => (
                 <div key={item.n} className="relative overflow-hidden px-0 py-10 sm:px-10 sm:py-8 first:pl-0 last:pr-0">
@@ -142,7 +142,7 @@ export default function Home() {
               Your rewards.
             </h2>
             <p className="mb-8 text-sm leading-relaxed" style={{ color: '#606060' }}>
-              Your ratings live on the blockchain. Portable. Permanent. Yours forever — no matter where you work next.
+              Your reputation shouldn&apos;t reset when you change jobs. Build a service record that follows your career.
             </p>
             <a
               href="/servers/signup"
@@ -174,7 +174,7 @@ export default function Home() {
               tonight.
             </h2>
             <p className="mb-8 text-sm leading-relaxed" style={{ color: '#606060' }}>
-              Updated in real time. Community reported. Location verified. See which venues are packed, live, or chill — right now.
+              Reported by guests on the ground. See which venues are packed, live, or chill tonight.
             </p>
             <a
               href="/live"
@@ -198,7 +198,7 @@ export default function Home() {
               Are you a server or bartender?
             </h2>
             <p className="mx-auto mb-10 max-w-xl text-base leading-relaxed" style={{ color: '#606060' }}>
-              Your reputation belongs to you. Not your employer. Not Yelp. Claim your free profile and start earning Slate Points — redeemable 1:1 for $SERVE tokens at launch — for every great shift.
+              Your reputation should belong to you — not your employer, not a review site. Claim your free profile and earn Slate Points every time a guest rates your service.
             </p>
             <a
               href="/servers/signup"
@@ -206,9 +206,9 @@ export default function Home() {
             >
               Claim your free profile →
             </a>
-            <p className="mt-4 text-xs" style={{ color: '#404040' }}>Free forever. Takes 2 minutes.</p>
+            <p className="mt-4 text-xs" style={{ color: '#404040' }}>Free for servers and bartenders. Takes 2 minutes.</p>
             <p className="mt-3 text-xs" style={{ color: '#404040' }}>
-              Every follow request requires your approval. Block anyone at any time. You are always in control.
+              Choose whether follows need your approval. Block anyone at any time. You are always in control.
             </p>
           </div>
         </MotionSection>
@@ -219,19 +219,19 @@ export default function Home() {
         <MotionSection className="px-6 py-20 lg:px-24 lg:py-28" style={{ backgroundColor: '#050505' }}>
           <div className="mx-auto max-w-4xl">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: '#404040' }}>
-              The token
+              Where Slate is going
             </p>
             <h2 className="mb-8 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              How $SERVE Works
+              The value you create should come back to you.
             </h2>
             <p className="mb-6 max-w-2xl text-base leading-8" style={{ color: '#C0C0C0' }}>
-              Every rating, every shift, every great night earns you Slate Points. Points convert 1:1 into $SERVE tokens when we launch the token after hitting our traction milestones. No speculation, no crypto knowledge required — just real rewards for real hospitality.
+              Slate is building a future where hospitality workers own their professional reputation, carry it wherever they work, and participate in the value they create. It starts with a service record and Slate Points today. No crypto knowledge required.
             </p>
             <div className="grid grid-cols-1 gap-px bg-white/10 sm:grid-cols-3">
               {[
-                { label: 'Earn now', body: 'Every verified rating and shift earns Slate Points, starting today.' },
-                { label: 'Convert 1:1', body: 'When $SERVE launches, every point you hold becomes one token. No math, no discount.' },
-                { label: 'Launch on traction', body: 'We launch after hitting real milestones — not hype. Your points are locked in and waiting.' },
+                { label: 'Today', body: 'Every guest rating earns you Slate Points and builds a service record that stays with you when you change jobs.' },
+                { label: 'Planned', body: '$SERVE — a reward layer for the workers who create value in hospitality. Not launched, and not guaranteed.' },
+                { label: 'The vision', body: 'A network workers help shape. We plan to explore blockchain so your record can travel beyond Slate — not live today, and not guaranteed.' },
               ].map(item => (
                 <div key={item.label} className="px-8 py-8" style={{ backgroundColor: '#050505' }}>
                   <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-white">{item.label}</p>
@@ -298,7 +298,7 @@ export default function Home() {
               </a>
               <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: '#404040' }}>
                 <svg viewBox="0 0 24 24" fill="currentColor" className="h-2 w-2"><circle cx="12" cy="12" r="12" /></svg>
-                Built on Solana
+                Blockchain portability: planned, not live
               </span>
             </div>
           </div>
@@ -306,7 +306,7 @@ export default function Home() {
           <div className="border-t border-white/10 pt-6">
             <p className="mb-4 text-xs leading-6" style={{ color: '#404040' }}>
               <span className="font-semibold" style={{ color: '#606060' }}>When does $SERVE launch?</span>
-              {' '}After we hit our traction milestones. Until then, every point you earn is locked in and waiting for you.
+              {' '}It hasn&apos;t been created, and it may never launch. Slate Points are not a token and have no cash value. If that changes, we&apos;ll publish the full rules first.
             </p>
             <p className="text-xs" style={{ color: '#404040' }}>
               © 2026 Slate ·{' '}

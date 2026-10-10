@@ -4,7 +4,8 @@ import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
-import { getAuthCallbackUrl, setOAuthNextHint, getAppOrigin } from '@/lib/auth-redirect'
+import { finishPendingManager, isEmailNotConfirmed } from '@/lib/auth-flows'
+import { getAuthCallbackUrl, setOAuthNextHint } from '@/lib/auth-redirect'
 
 const LOGIN_TIMEOUT_MS = 15_000
 
@@ -50,6 +51,10 @@ function RestaurantManagerLoginForm() {
 
       if (timedOut) return
 
+      if (isEmailNotConfirmed(authError)) {
+        setError('Please confirm your email first. Check your inbox for the link from Slate, then sign in.')
+        return
+      }
       if (authError) {
         setError(authError.message)
         return
@@ -60,39 +65,11 @@ function RestaurantManagerLoginForm() {
         return
       }
 
-      // Check if manager account exists — surface lookup errors so we never hang
-      const { data: managerData, error: lookupError } = await supabase
-        .from('restaurant_managers')
-        .select('id, restaurant_name')
-        .eq('auth_id', data.session.user.id)
-        .maybeSingle()
+      // Own manager row → claim a waitlist row by verified email → create the row
+      // from a restaurant sign-up confirmed by email (lib/auth-flows.ts).
+      const manager = await finishPendingManager(supabase, data.session.user)
 
       if (timedOut) return
-
-      if (lookupError) {
-        setError(lookupError.message)
-        await supabase.auth.signOut()
-        return
-      }
-
-      let manager = managerData
-
-      // Email fallback (e.g. waitlist row created before auth_id was set).
-      // The database links the row by the signed-in user's verified email.
-      if (!manager && data.session.user.email) {
-        const { data: linked, error: linkErr } = await supabase.rpc('link_my_manager')
-
-        if (timedOut) return
-
-        if (linkErr) {
-          setError(linkErr.message)
-          await supabase.auth.signOut()
-          return
-        }
-
-        const row = Array.isArray(linked) ? linked[0] : null
-        if (row) manager = { id: row.id as string, restaurant_name: row.restaurant_name as string }
-      }
 
       if (manager) {
         localStorage.setItem('slateUserType', 'manager')
@@ -147,7 +124,7 @@ function RestaurantManagerLoginForm() {
     }
 
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${getAppOrigin()}/restaurant/login`,
+      redirectTo: getAuthCallbackUrl(),
     })
 
     if (resetError) {
