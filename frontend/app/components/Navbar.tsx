@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type RefObject } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase, getAuthSession } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
@@ -44,6 +44,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   const [showNotifications, setShowNotifications] = useState(false)
   const [pendingFollowerCount, setPendingFollowerCount] = useState(0)
   const bellRef = useRef<HTMLDivElement>(null)
+  const mobileBellRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // ── Step 1: Read localStorage synchronously — no async delay ──────────────
@@ -155,9 +156,9 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
   // Close notification dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
-        setShowNotifications(false)
-      }
+      const t = e.target as Node
+      const inside = (bellRef.current?.contains(t) ?? false) || (mobileBellRef.current?.contains(t) ?? false)
+      if (!inside) setShowNotifications(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -253,6 +254,76 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
     setUnreadCount(prev => Math.max(0, prev - 1))
   }
 
+  // The notification bell and its list. Rendered in the desktop links and, for signed-in
+  // users on small screens, in the mobile header next to the menu button.
+  function renderBell(ref: RefObject<HTMLDivElement | null>, mobile: boolean) {
+    return (
+          <div ref={ref} style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowNotifications(v => !v)}
+              aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : 'Notifications'}
+              aria-expanded={showNotifications}
+              style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: mobile ? '10px' : '4px', display: 'flex', alignItems: 'center' }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} style={{ width: 18, height: 18, color: unreadCount > 0 ? 'white' : 'rgba(255,255,255,0.4)' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+              </svg>
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: -4, right: -4,
+                  background: 'white', color: 'black',
+                  borderRadius: '50%', width: 16, height: 16,
+                  fontSize: 9, display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', fontWeight: 700, lineHeight: 1,
+                }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {showNotifications && (
+              <div style={{
+                ...(mobile
+                  ? { position: 'fixed' as const, top: 64, left: 16, right: 16 }
+                  : { position: 'absolute' as const, top: 'calc(100% + 12px)', right: 0, width: 320 }),
+                background: 'rgba(10,10,10,0.92)', border: '1px solid rgba(255,255,255,0.1)',
+                maxHeight: 400, overflowY: 'auto',
+                zIndex: 1000, borderRadius: 12,
+                boxShadow: '0 24px 64px rgba(0,0,0,0.65)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                animation: 'slate-fade-up 200ms cubic-bezier(0.22, 1, 0.36, 1)',
+              }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid #1a1a1a', fontSize: 11, letterSpacing: '2px', color: '#444', textTransform: 'uppercase' }}>
+                  Notifications
+                </div>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: '24px 16px', color: '#444', fontSize: 13, textAlign: 'center' }}>
+                    No new notifications
+                  </div>
+                ) : (
+                  notifications.map(n => (
+                    <a
+                      key={n.id}
+                      href={n.link ?? '#'}
+                      onClick={() => markRead(n.id)}
+                      style={{ display: 'block', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', textDecoration: 'none', color: 'white', transition: 'background 160ms ease' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.04)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent' }}
+                    >
+                      <div style={{ fontSize: 13, marginBottom: 4, lineHeight: 1.4 }}>{n.title}</div>
+                      <div style={{ fontSize: 11, color: '#555' }}>
+                        {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </a>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+    )
+  }
+
   function DesktopAuthLinks() {
     if (!authLoaded) return null
     if (!session) {
@@ -305,66 +376,7 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
         )}
 
         {/* Notification bell */}
-        <div ref={bellRef} style={{ position: 'relative' }}>
-          <button
-            onClick={() => setShowNotifications(v => !v)}
-            aria-label="Notifications"
-            style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} style={{ width: 18, height: 18, color: unreadCount > 0 ? 'white' : 'rgba(255,255,255,0.4)' }}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-            </svg>
-            {unreadCount > 0 && (
-              <span style={{
-                position: 'absolute', top: -4, right: -4,
-                background: 'white', color: 'black',
-                borderRadius: '50%', width: 16, height: 16,
-                fontSize: 9, display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontWeight: 700, lineHeight: 1,
-              }}>
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-
-          {showNotifications && (
-            <div style={{
-              position: 'absolute', top: 'calc(100% + 12px)', right: 0,
-              background: 'rgba(10,10,10,0.92)', border: '1px solid rgba(255,255,255,0.1)',
-              width: 320, maxHeight: 400, overflowY: 'auto',
-              zIndex: 1000, borderRadius: 12,
-              boxShadow: '0 24px 64px rgba(0,0,0,0.65)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              animation: 'slate-fade-up 200ms cubic-bezier(0.22, 1, 0.36, 1)',
-            }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid #1a1a1a', fontSize: 11, letterSpacing: '2px', color: '#444', textTransform: 'uppercase' }}>
-                Notifications
-              </div>
-              {notifications.length === 0 ? (
-                <div style={{ padding: '24px 16px', color: '#444', fontSize: 13, textAlign: 'center' }}>
-                  No new notifications
-                </div>
-              ) : (
-                notifications.map(n => (
-                  <a
-                    key={n.id}
-                    href={n.link ?? '#'}
-                    onClick={() => markRead(n.id)}
-                    style={{ display: 'block', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', textDecoration: 'none', color: 'white', transition: 'background 160ms ease' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.04)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent' }}
-                  >
-                    <div style={{ fontSize: 13, marginBottom: 4, lineHeight: 1.4 }}>{n.title}</div>
-                    <div style={{ fontSize: 11, color: '#555' }}>
-                      {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  </a>
-                ))
-              )}
-            </div>
-          )}
-        </div>
+        {renderBell(bellRef, false)}
 
         <button
           onClick={handleSignOut}
@@ -404,6 +416,12 @@ export default function Navbar({ overlay = false }: { overlay?: boolean }) {
         </nav>
 
         <DesktopAuthLinks />
+
+        {authLoaded && session && (
+          <div className="ml-auto mr-4 flex items-center md:hidden" data-testid="mobile-bell">
+            {renderBell(mobileBellRef, true)}
+          </div>
+        )}
 
         <button
           className="flex items-center justify-center text-white md:hidden"
