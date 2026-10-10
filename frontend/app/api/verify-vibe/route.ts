@@ -110,12 +110,12 @@ export async function POST(request: Request) {
 
   const serveReward = result.serve_reward ?? 0
   const message = serveReward > 0
-    ? `You earned ${serveReward} $SERVE!`
+    ? `You earned ${serveReward} Slate Points!`
     : result.daily_reward_cap_reached
-      ? 'Report submitted. You have earned today\'s maximum $SERVE for vibe reports.'
+      ? 'Report submitted. You have earned today\'s maximum Slate Points for vibe reports.'
       : locationConsistent
         ? 'Report submitted.'
-        : 'Report submitted. Turn on location at the venue to earn $SERVE.'
+        : 'Report submitted. Turn on location at the venue to earn more Slate Points.'
 
   return NextResponse.json({
     success: true,

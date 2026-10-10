@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { recordLegalAcceptance } from '@/lib/legal-server'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -57,12 +58,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
   }
 
-  const { serverId, score, comment, tags, isTest } = body as {
+  const { serverId, score, comment, tags, isTest, legalAccepted } = body as {
     serverId?: unknown
     score?: unknown
     comment?: unknown
     tags?: unknown
     isTest?: unknown
+    legalAccepted?: unknown
+  }
+
+  // A guest acknowledges the Terms and Privacy Policy once per version before their
+  // first rating; the server records it and refuses ratings without it.
+  const legal = await recordLegalAcceptance(supabaseAdmin, user, legalAccepted, 'guest')
+  if (legal === 'missing') {
+    return NextResponse.json({ error: 'Please confirm you agree to the Terms of Service and Privacy Policy.', code: 'legal_required' }, { status: 400 })
+  }
+  if (legal === 'error') {
+    return NextResponse.json({ error: 'We could not save your agreement. Please try again.' }, { status: 503 })
   }
 
   if (typeof serverId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(serverId)) {

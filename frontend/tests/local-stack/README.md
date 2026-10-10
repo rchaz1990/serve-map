@@ -47,3 +47,8 @@ Apply 36 and `37_recruiting_consent.sql`, start the app with `RESEND_BASE_URL=ht
 ```bash
 node consent.test.js http://localhost:3104 keys.json   # 22 checks: hidden default, one per pair, daily limit under concurrency, delivery outcomes + reconciliation logging, access (set APP_LOG=<app log> to check log lines)
 ```
+
+## Terms/Privacy acknowledgment and public copy (`legal.test.js`)
+```bash
+node legal.test.js http://localhost:3104 keys.json   # 30 checks: acknowledgment (worker sign-up, guest sign-up, rating, follow), follow-after-rating, shift disclosure, corrected copy, /whitepaper 404
+```

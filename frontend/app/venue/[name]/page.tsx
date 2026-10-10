@@ -194,7 +194,7 @@ function VibeForm({ venueName, onSubmitted }: { venueName: string; onSubmitted: 
                 className="ml-2 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
                 style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}
               >
-                GPS ✓
+                Location ✓
               </span>
             )}
           </p>
@@ -515,7 +515,7 @@ export default function VenuePage() {
                       className="ml-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
                       style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}
                     >
-                      GPS ✓
+                      Location ✓
                     </span>
                   )}
                 </p>
@@ -589,7 +589,7 @@ export default function VenuePage() {
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           {r.gps_verified && (
-                            <span style={{ color: '#4ade80', fontSize: '10px' }}>GPS ✓</span>
+                            <span style={{ color: '#4ade80', fontSize: '10px' }}>Location ✓</span>
                           )}
                           <span className="text-[10px]" style={{ color: '#404040' }}>{timeAgo(r.created_at)}</span>
                         </div>

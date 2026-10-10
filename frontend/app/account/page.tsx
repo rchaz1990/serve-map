@@ -254,7 +254,7 @@ export default function AccountPage() {
                       {VIBE_EMOJI[v.vibe]} {VIBE_LABEL[v.vibe] ?? v.vibe} · {formatDate(v.created_at)}
                     </p>
                   </div>
-                  <span className="text-xs font-semibold" style={{ color: '#A0A0A0' }}>+5 $SERVE</span>
+                  <span className="text-xs font-semibold" style={{ color: '#A0A0A0' }}>1–5 pts</span>
                 </div>
               ))}
             </div>

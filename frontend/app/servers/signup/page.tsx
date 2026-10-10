@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import { authJsonHeaders } from '@/lib/auth-fetch'
+import LegalConsent from '@/app/components/LegalConsent'
+import { LEGAL_VERSION } from '@/lib/legal'
 import { supabase } from '@/lib/supabase'
 import { isTestDevice } from '@/lib/funnel'
 
@@ -201,7 +203,8 @@ export default function ServerSignupPage() {
 
   const canAdvanceStep0 = firstName && lastName && (resumeUser || email)
   const canAdvanceStep1 = role && venue && city
-  const canAdvanceStep2 = bio.length >= 20
+  const [legalAccepted, setLegalAccepted] = useState(false)
+  const canAdvanceStep2 = bio.length >= 20 && legalAccepted
 
   async function handleClaim() {
     // Validate passwords match (not needed when finishing an existing account)
@@ -279,6 +282,8 @@ export default function ServerSignupPage() {
           photoUrl,
           specialties: selectedSpecialties,
           isTest: testDevice,
+          // The version the worker explicitly ticked; the server records it.
+          legalAccepted: legalAccepted ? LEGAL_VERSION : null,
         }),
       })
 
@@ -324,6 +329,7 @@ export default function ServerSignupPage() {
 
   function handleNext() {
     if (step < 2) setStep(step + 1)
+    else if (!legalAccepted) setError('Please confirm you agree to the Terms of Service and Privacy Policy.')
     else handleClaim()
   }
 
@@ -353,7 +359,7 @@ export default function ServerSignupPage() {
               </div>
               <h1 className="text-3xl font-bold tracking-tight text-white">Claim your profile</h1>
               <p className="mt-3 text-sm" style={{ color: '#A0A0A0' }}>
-                Your reputation follows you. Build it once, keep it forever.
+                Your reputation, your regulars — wherever you work.
               </p>
             </div>
 
@@ -654,6 +660,29 @@ export default function ServerSignupPage() {
               </div>
             )}
 
+            {/* Acknowledgment (final step, before the account is created) */}
+            {step === 2 && (
+              <div className="mt-6 rounded-xl border border-white/10 px-4 py-4">
+                <p className="mb-3 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
+                  Before you claim your profile: your name, photo, workplaces, ratings, comments, followers and Slate
+                  Points are public on Slate.
+                </p>
+                <p className="mb-3 text-xs leading-relaxed" style={{ color: '#A0A0A0' }} data-testid="shift-disclosure">
+                  <strong className="text-white">Starting a shift is public.</strong> When you start a shift, anyone can
+                  see which venue you&apos;re working at and that you&apos;re on shift now, and Slate may email your
+                  followers to tell them. If you share your location, we store it with that shift.
+                </p>
+                <p className="mb-3 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
+                  <strong className="text-white">Choose who follows you.</strong> Anyone can follow you unless you turn on
+                  follow approval in your dashboard settings; then you approve each follower first. Slate Points have no
+                  cash value. Ratings are stored by Slate, not on a blockchain.
+                </p>
+                <LegalConsent checked={legalAccepted} onChange={setLegalAccepted}>
+                  I&apos;m 18 or older, and I&apos;ve read and agree to Slate&apos;s
+                </LegalConsent>
+              </div>
+            )}
+
             {/* Error */}
             {error && (
               <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
@@ -678,7 +707,7 @@ export default function ServerSignupPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                     </svg>
-                    Creating on-chain…
+                    Creating your profile…
                   </span>
                 ) : step < 2 ? 'Continue' : 'Claim my profile'}
               </button>

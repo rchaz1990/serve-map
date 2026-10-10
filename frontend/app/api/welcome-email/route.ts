@@ -29,10 +29,10 @@ export async function POST(request: Request) {
     html: `
       <div style="background:#000;color:#fff;padding:40px;font-family:Georgia,serif;max-width:600px;">
         <h1 style="font-size:32px;margin-bottom:16px;">Welcome to Slate, ${name.split(' ')[0]}.</h1>
-        <p style="color:#aaa;font-size:16px;line-height:1.7;">Your founding member profile is live on Slate. Your reputation now follows you — from restaurant to restaurant, forever.</p>
+        <p style="color:#aaa;font-size:16px;line-height:1.7;">Your founding member profile is live on Slate. Your reputation, your regulars — wherever you work.</p>
         <div style="margin:32px 0;padding:24px;border:1px solid #222;">
           <p style="color:#666;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;">What's next</p>
-          <p style="color:#aaa;font-size:15px;line-height:1.7;">1. Go to your dashboard and activate your first shift<br>2. Share your profile link with guests<br>3. Earn $SERVE rewards for every great rating</p>
+          <p style="color:#aaa;font-size:15px;line-height:1.7;">1. Go to your dashboard and activate your first shift<br>2. Share your profile link with guests<br>3. Earn Slate Points for every great rating (points have no cash value)</p>
         </div>
         <a href="https://slatenow.xyz/dashboard" style="display:inline-block;background:#fff;color:#000;padding:14px 32px;text-decoration:none;font-size:14px;letter-spacing:2px;text-transform:uppercase;">Go to your dashboard</a>
         <p style="color:#333;font-size:13px;margin-top:40px;">Slate — The reputation layer for hospitality workers.<br>slatenow.xyz</p>
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     html: `
       <div style="background:#000;color:#fff;padding:40px;font-family:Georgia,serif;max-width:600px;">
         <h1 style="font-size:32px;margin-bottom:16px;">Welcome to Slate, ${name.split(' ')[0]}.</h1>
-        <p style="color:#aaa;font-size:16px;line-height:1.7;">You're now part of the first hospitality social layer built on Solana. Discover which NYC venues are live tonight and follow the servers who make your night unforgettable.</p>
+        <p style="color:#aaa;font-size:16px;line-height:1.7;">Slate is building portable reputations for the people who make your night. Discover which NYC venues are live tonight and follow the servers who make your night unforgettable.</p>
         <div style="margin:32px 0;padding:24px;border:1px solid #222;">
           <p style="color:#666;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;">What's next</p>
           <p style="color:#aaa;font-size:15px;line-height:1.7;">1. See which venues are live tonight<br>2. Report the vibe at wherever you're eating<br>3. Follow your favorite servers and bartenders</p>

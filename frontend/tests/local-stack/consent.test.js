@@ -3,6 +3,7 @@
 // the gateway (http://localhost:54400) so sent emails are recorded instead of delivered.
 // usage: NODE_PATH=$(npm root -g) node consent.test.js <appUrl> <keys.json>
 const { execFileSync } = require('child_process')
+const LEGAL_VERSION = require('fs').readFileSync(require('path').join(__dirname, '../../lib/legal.ts'), 'utf8').match(/LEGAL_VERSION = '([^']+)'/)[1]
 const fs = require('fs')
 const [APP, KEYS] = process.argv.slice(2)
 const GW = 'http://localhost:54400'
@@ -55,7 +56,7 @@ const logHas = text => !LOG || fs.readFileSync(LOG, 'utf8').includes(text)
   const pid = sql(`insert into servers (name, email, wallet_address) values ('Default Worker', '${plain.email}', '${plain.id}') returning id`).split('\n')[0]
   check('C1 database default: new profile hidden from recruiters', sql(`select open_to_opportunities::text from servers where id = '${pid}'`) === 'false')
   const fresh = await account('signup')
-  const su = await api('/api/signup-server', fresh.token, { name: 'Signup Worker', restaurant: `Some Bar ${run}`, role: 'Server' })
+  const su = await api('/api/signup-server', fresh.token, { name: 'Signup Worker', restaurant: `Some Bar ${run}`, role: 'Server', legalAccepted: LEGAL_VERSION })
   check('C2 worker sign-up creates a hidden profile', su.status === 200 && sql(`select open_to_opportunities::text from servers where wallet_address = '${fresh.id}'`) === 'false', su)
   check('C3 worker can deliberately turn it on', await rest('PATCH', `servers?id=eq.${pid}`, plain.token, { open_to_opportunities: true }) < 300
     && sql(`select open_to_opportunities::text from servers where id = '${pid}'`) === 'true')

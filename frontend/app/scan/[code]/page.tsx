@@ -94,38 +94,8 @@ export default function ScanPage() {
     setLoading(false)
   }
 
-  const handleFollow = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      router.push(`/login?redirect=${encodeURIComponent(`/scan/${serverId}`)}`)
-      return
-    }
-
-    // The database sets the status from the server's setting (approved for
-    // automatic servers, pending for servers that approve followers), blocks
-    // self-follows, and keeps follower_count in step.
-    const { data: inserted, error: followError } = await supabase.from('follows').insert({
-      follower_id: session.user.id,
-      follower_email: session.user.email,
-      server_id: serverId,
-      follower_type: 'guest',
-    }).select('status').single()
-
-    if (!followError) {
-      const status = inserted?.status === 'approved' ? 'approved' : 'pending'
-      setFollowStatus(status)
-      if (status === 'approved') setFollowerCount(prev => prev + 1)
-    } else if (followError.code === '23505') {
-      // Already following: show the saved status instead of failing silently.
-      const { data: existing } = await supabase
-        .from('follows')
-        .select('status')
-        .eq('follower_id', session.user.id)
-        .eq('server_id', serverId)
-        .maybeSingle()
-      if (existing) setFollowStatus(existing.status === 'approved' ? 'approved' : 'pending')
-    }
-  }
+  // Following happens after rating (on the rating page), once the guest has agreed to
+  // the Terms and seen what following does. The scan page only offers "Rate".
 
   if (loading) return (
     <div style={{ background: '#000', minHeight: '100vh' }}>
@@ -238,24 +208,11 @@ export default function ScanPage() {
             Rate {server?.name?.split(' ')[0]}
           </button>
 
-          <button
-            onClick={handleFollow}
-            disabled={followStatus !== 'none'}
-            style={{
-              width: '100%', background: 'transparent', color: 'white',
-              border: '1px solid #333', padding: '16px',
-              fontSize: '14px', letterSpacing: '2px',
-              textTransform: 'uppercase',
-              cursor: followStatus !== 'none' ? 'default' : 'pointer',
-              opacity: followStatus !== 'none' ? 0.5 : 1
-            }}
-          >
-            {followStatus === 'approved'
-              ? 'Following'
-              : followStatus === 'pending'
-              ? 'Request sent'
-              : `Follow ${server?.name?.split(' ')[0]}`}
-          </button>
+          {followStatus !== 'none' && (
+            <p style={{ color: '#666', fontSize: '13px', textAlign: 'center' }}>
+              {followStatus === 'approved' ? `You follow ${server?.name?.split(' ')[0]}` : 'Follow request sent'}
+            </p>
+          )}
         </div>
       </div>
     </div>

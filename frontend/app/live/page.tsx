@@ -376,7 +376,7 @@ function VenueCard({
                   className="rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
                   style={{ backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}
                 >
-                  GPS Verified
+                  Location checked
                 </span>
               )}
               {vibeName && (
@@ -439,7 +439,7 @@ function VenueCard({
             </p>
             <p className="mb-5 text-[11px]" style={{ color: gpsVerifiedForSubmit ? '#4ade80' : gpsChecking ? '#606060' : '#505050' }}>
               {gpsVerifiedForSubmit
-                ? 'GPS Verified — earn 5 pts'
+                ? 'Location checked — earn 5 pts'
                 : gpsChecking
                 ? 'Checking location…'
                 : 'Not verified — earn 1 pt'}
@@ -670,7 +670,7 @@ function VenueSearch() {
                   onClick={handleSubmit}
                   className="w-full rounded-full bg-white py-3 text-xs font-semibold text-black transition-opacity hover:opacity-80 disabled:opacity-30"
                 >
-                  {submitting ? 'Verifying…' : 'Share the vibe — earn 5 pts'}
+                  {submitting ? 'Verifying…' : 'Share the vibe — earn up to 5 pts'}
                 </button>
               </>
             )}

@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Slate — Book the experience. Follow the talent.",
+  title: "Slate — Your service. Your reputation. Wherever you work.",
   description:
-    "Slate connects guests with the servers and bartenders who make their night — with verified ratings, portable on-chain profiles, and $SERVE token rewards.",
+    "Slate gives servers and bartenders a portable service record built from guest ratings — and lets guests follow the people who make their night.",
   manifest: '/manifest.json',
   themeColor: '#000000',
   appleWebApp: {

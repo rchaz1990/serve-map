@@ -31,6 +31,7 @@ fs.writeFileSync(KEYS_OUT, JSON.stringify({ anon: ANON, service: SERVICE }))
 
 const users = {} // email -> {id,email,password,user_metadata,app_metadata}
 const sentEmails = [] // emails sent through the Resend stand-in
+const refreshTokens = {} // refresh token -> email
 let resendMode = 'ok'
 function psql(sql, vars) {
   const args = ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-qAt']
@@ -46,7 +47,9 @@ function session(u) {
   const exp = Math.floor(Date.now() / 1000) + 3600
   const at = sign({ sub: u.id, email: u.email, role: 'authenticated', aud: 'authenticated', exp,
     app_metadata: u.app_metadata, user_metadata: u.user_metadata })
-  return { access_token: at, refresh_token: crypto.randomUUID(), token_type: 'bearer', expires_in: 3600, expires_at: exp, user: userObj(u) }
+  const rt = crypto.randomUUID()
+  refreshTokens[rt] = u.email.toLowerCase()
+  return { access_token: at, refresh_token: rt, token_type: 'bearer', expires_in: 3600, expires_at: exp, user: userObj(u) }
 }
 function createUser(email, password, meta, provider = 'email', createdAt) {
   const u = { id: crypto.randomUUID(), email, password, user_metadata: meta || {}, app_metadata: { provider, providers: [provider] }, created_at: createdAt }
@@ -112,12 +115,29 @@ http.createServer((req, res) => {
       if (!u || u.password !== json.password) return send(400, { error: 'invalid_grant', error_description: 'Invalid login credentials' })
       return send(200, session(u))
     }
+    if (url.pathname === '/auth/v1/token' && url.searchParams.get('grant_type') === 'refresh_token') {
+      const owner = refreshTokens[json?.refresh_token]
+      const u = owner && users[owner]
+      if (!u) return send(400, { code: 400, error_code: 'refresh_token_not_found', msg: 'Invalid Refresh Token' })
+      delete refreshTokens[json.refresh_token]
+      return send(200, session(u)) // carries the current app_metadata, like Supabase
+    }
     if (url.pathname === '/auth/v1/user' && req.method === 'GET') {
       const c = verify((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
       const u = c && c.sub && Object.values(users).find(x => x.id === c.sub)
       return u ? send(200, userObj(u)) : send(401, { code: 401, msg: 'invalid JWT' })
     }
     if (url.pathname === '/auth/v1/logout') return send(204)
+    // Admin user update (service role only): merges app_metadata like Supabase does.
+    const adminMatch = url.pathname.match(/^\/auth\/v1\/admin\/users\/([0-9a-f-]+)$/)
+    if (adminMatch && req.method === 'PUT') {
+      const c = verify((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
+      if (!c || c.role !== 'service_role') return send(403, { code: 403, msg: 'not admin' })
+      const u = Object.values(users).find(x => x.id === adminMatch[1])
+      if (!u) return send(404, { code: 404, msg: 'User not found' })
+      if (json?.app_metadata) u.app_metadata = { ...u.app_metadata, ...json.app_metadata }
+      return send(200, userObj(u))
+    }
 
     if (url.pathname.startsWith('/rest/v1/')) {
       const headers = { ...req.headers, host: `localhost:${PGRST}` }

@@ -1,6 +1,7 @@
 // /api/submit-rating against a REAL local database (production grants/RLS + migration 34)
 // and the app's real route. usage: node rating.test.js <appUrl> <keys.json>
 const { execFileSync } = require('child_process')
+const LEGAL_VERSION = require('fs').readFileSync(require('path').join(__dirname, '../../lib/legal.ts'), 'utf8').match(/LEGAL_VERSION = '([^']+)'/)[1]
 const fs = require('fs')
 const crypto = require('crypto')
 const [APP, KEYS] = process.argv.slice(2)
@@ -23,7 +24,7 @@ async function worker(tag) {
 async function rate(token, body) {
   const headers = { 'content-type': 'application/json' }
   if (token) headers.authorization = `Bearer ${token}`
-  const r = await fetch(APP + '/api/submit-rating', { method: 'POST', headers, body: JSON.stringify(body) })
+  const r = await fetch(APP + '/api/submit-rating', { method: 'POST', headers, body: JSON.stringify({ legalAccepted: LEGAL_VERSION, ...body }) })
   return { status: r.status, json: await r.json() }
 }
 const stats = id => sql(`select total_ratings || '|' || average_rating || '|' || serve_balance || '|' ||

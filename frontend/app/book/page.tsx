@@ -172,7 +172,7 @@ export default function BookPage() {
             {selectedRestaurant?.name} · {date} · {time} · {partySize} {Number(partySize) === 1 ? 'guest' : 'guests'}
           </p>
           <p className="mt-8 max-w-sm text-xs" style={{ color: '#A0A0A0' }}>
-            A confirmation has been sent to {guestEmail}. Your rating after dining helps your server earn $SERVE rewards.
+            A confirmation has been sent to {guestEmail}. Your rating after dining helps build your server&apos;s reputation.
           </p>
           <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <a href="/rate" className="inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-80">
@@ -319,7 +319,7 @@ export default function BookPage() {
             </div>
 
             <p className="mt-6 text-xs" style={{ color: '#A0A0A0' }}>
-              Your rating after dining helps servers earn $SERVE token rewards automatically.
+              Your rating after dining helps build your server&apos;s reputation — wherever they work.
             </p>
           </section>
         )}
