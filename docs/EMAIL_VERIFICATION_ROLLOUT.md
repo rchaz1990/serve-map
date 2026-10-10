@@ -1,6 +1,6 @@
 # Email verification rollout (PR #42)
 
-Status: prepared, not deployed. Every step below needs founder approval.
+Status: prepared, not deployed. Rebased onto `main` `e3157a8`. Every step below needs founder approval.
 The app code works with Supabase **Confirm email** OFF (today) or ON.
 
 ## What changes for people
@@ -17,22 +17,70 @@ The app code works with Supabase **Confirm email** OFF (today) or ON.
 Existing accounts keep working. Google users are unaffected. The one never-confirmed
 account (never signed in) would need to confirm before signing in.
 
-## Deployment order
-1. **Merge PR #42** (Vercel deploys). Safe with confirmation OFF. Verify: `/reset-password` loads; guest sign-up still lands on `/live`.
-2. **Supabase → Authentication → URL Configuration**
-   - Site URL: `https://www.slatenow.xyz`
-   - Redirect URLs: add `https://www.slatenow.xyz/auth/callback` (reset links now return there too)
-3. **Supabase → Authentication → Emails → Templates** (links that work on any device):
-   - *Confirm signup*: link to `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`
-   - *Reset password*: link to `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`
-   - Keep the default templates' other text. (Default `{{ .ConfirmationURL }}` links also work, but
-     only finish sign-in in the same browser; elsewhere people see "confirmed — sign in".)
-4. **Delivery test (Milo)** with confirmation still OFF: "Forgot password?" to an address that is
-   **not** a Supabase team member; open the link on a phone; set a new password; sign in with it.
-   Check inbox vs spam. Check **Authentication → Rate Limits → emails per hour** is high enough.
-5. **Turn on Confirm email.** Test: one guest, one worker (`?test=1`), one restaurant sign-up
-   end to end, plus sign-in-before-confirming + resend.
-   **Rollback:** turn Confirm email off (immediate; nothing else depends on it).
+## Password recovery (what this PR delivers)
+1. Person taps **Forgot password?** (guest or restaurant sign-in), or an operator uses
+   **Supabase → Authentication → Users → Send password recovery**.
+2. The email link (template below) opens `/auth/confirm?token_hash=…&type=recovery`. The **server**
+   verifies the token with Supabase (`verifyOtp`), signs the person in, sets a 15-minute recovery
+   marker, and opens `/reset-password`. Works on any device.
+3. `/reset-password` shows the form only with a session **and** a marker for that same account.
+   New password ≥ 6 characters, typed twice; on success the marker is cleared.
+4. Errors: expired, reused or tampered link → `/login` "That link has expired or was already used";
+   page opened without a valid link → "This reset link has expired or was already used. Request a
+   new one"; signed in without a recovery link → "use Forgot password? on the sign-in page".
+   Link lifetime = Supabase **Email OTP expiration** (default 3600 s); marker lifetime 15 minutes.
+
+## Exact Supabase changes (NOT applied — founder approval required)
+**Authentication → URL Configuration**
+- **Site URL**: the production origin people use. Confirm whether that is `https://slatenow.xyz` or
+  `https://www.slatenow.xyz` (templates below use `{{ .SiteURL }}`).
+- **Redirect URLs**: add `https://slatenow.xyz/auth/callback` and `https://www.slatenow.xyz/auth/callback`.
+  Do not remove existing entries.
+
+**Authentication → Emails → Templates**
+- **Reset password** — change only the link target:
+  `<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery">Reset password</a>`
+- **Confirm signup** (only needed when "Confirm email" is turned on):
+  `<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">Confirm your email</a>`
+- Leave other templates as they are.
+
+**Authentication → Providers → Email**: keep **Email OTP expiration** at 3600 s (or lower); leave
+**Confirm email** OFF for the controlled test (turning it on is a separate decision).
+
+Rollback: restore the default template link `{{ .ConfirmationURL }}` (with this PR deployed, default
+links still work in the same browser).
+
+## Combined deployment sequence (PR #36 → migration 38 → PR #46 → PR #42)
+Conflicts between this PR and #36/#46 were resolved and tested together on reference branch
+`atlas/integration-36-46-42` (auth 36/36, legal 30/30, follow 13/13). Reuse those resolutions.
+0. Preconditions: verified backup; `main` still `e3157a8` (else rebase all and re-test); green previews.
+1. **Merge PR #36** (code only). Check `/terms`, `/privacy`, `/whitepaper` → 404, guest and worker
+   sign-up agreement boxes, Follow only after rating. Rollback: Vercel instant rollback (no database change).
+2. **Run migration 38** right after #36 is live (follows now need a recorded agreement, which #36
+   collects). Verify per `docs/FOLLOW_EMAIL_CONSENT.md`. Until step 3, the old route still emails all
+   approved followers — at account-derived addresses for any new follow. Rollback: `38_rollback…`.
+   Do **not** run the optional backfill (founder decision: no backfill without fresh opt-in).
+3. **Rebase PR #46 onto main, re-test, merge.** Check: UI follow records opt-in; a shift start emails
+   only opted-in followers. The 15 existing follows stop receiving shift emails until re-confirmed.
+   Rollback: Vercel rollback of #46 (38 can stay; old code keeps working with it).
+4. **Rebase this PR onto main (reuse the integration resolutions), re-test, merge.** Check
+   `/reset-password` loads; guest sign-up still requires the agreement.
+5. **Apply the Supabase changes above.**
+6. **One live reset** on the test account (sends one email; needs approval), then the observed live
+   worker sign-up, scan, rating and follow (needs approval).
+
+## Google sign-in — unresolved (not redesigned here)
+- A **new** person who uses "Continue with Google" from sign-**in** mode, or from the scan/rating
+  sign-in redirect, gets an account without seeing the agreement. Ratings and follows still refuse
+  until they agree (server-side). Blocking creation itself needs a Supabase "before user created"
+  hook (configuration decision).
+- The Google sign-up agreement travels in a 10-minute cookie; if Google returns in a different
+  browser (e.g. an in-app browser), it is not recorded and is asked again at first rating/follow.
+- With "Confirm email" on, an email sign-up has no session yet, so the agreement is asked again at
+  first rating/follow.
+- Whether Google sign-in links to an existing email/password account with the same address (a possible
+  extra recovery route for Gmail users) is untested; not relied on.
+- Restaurant (manager) sign-up has no Terms agreement yet (restaurants are not in the test).
 
 ## Remaining risks
 - Accounts created before step 5 were auto-confirmed; their inboxes were never proven. They are
