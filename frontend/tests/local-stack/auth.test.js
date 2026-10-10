@@ -70,7 +70,7 @@ function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS'
     check('A5 confirmation link → confirmed and signed in (guest lands on /get-started)',
       page.url().endsWith('/get-started') && sql(`select email_confirmed_at is not null from auth.users where email = '${e}'`) === 't', page.url())
     await go(page, `/auth/confirm?token_hash=${resent.token_hash}&type=signup`)
-    check('A6 reusing the link → "expired or already used"', page.url().includes('error=link_invalid') && /expired or was already used/.test(await text(page)), page.url())
+    check('A6 reusing the link → "expired or already used"', page.url().includes('error=link_invalid') && /already been used or has expired\. If you already confirmed your email, sign in below/.test(await text(page)), page.url())
   }
 
   // B. Worker sign-up → check email → confirm on ANOTHER device → finish profile

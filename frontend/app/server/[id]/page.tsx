@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useParams } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import FollowConsent from '@/app/components/FollowConsent'
+import { PAUSED } from '@/lib/early-test'
 import { MotionSection } from '@/app/components/motion'
 
 type Server = {
@@ -522,12 +523,13 @@ export default function ServerProfilePage() {
           </p>
         )}
         {/* ── Follow button (full width, hidden on own profile) ──────────── */}
-        {!isOwnProfile && confirmingFollow && followStatus === 'none' && (
+        {!isOwnProfile && !PAUSED.follows && confirmingFollow && followStatus === 'none' && (
           <div style={{ marginBottom: '56px' }}>
             <FollowConsent firstName={firstName} onConfirm={handleFollow} onCancel={() => setConfirmingFollow(false)} />
           </div>
         )}
-        {!isOwnProfile && !(confirmingFollow && followStatus === 'none') && (
+        {/* Early test: new follows are paused; an existing follow can still be removed. */}
+        {!isOwnProfile && !(confirmingFollow && followStatus === 'none') && (!PAUSED.follows || followStatus !== 'none') && (
           <button
             onClick={() => {
               if (followStatus === 'none' && followerId) setConfirmingFollow(true)

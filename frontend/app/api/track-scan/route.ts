@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getRequestUser, supabaseAdmin } from '@/lib/server-auth'
 import { isTestProfile, viewerMayUseProfile } from '@/lib/test-profiles'
+import { PAUSED } from '@/lib/early-test'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
   const access = await viewerMayUseProfile(admin, serverId, await getRequestUser(request))
   if (access === 'error') return NextResponse.json({ error: 'Failed to record scan' }, { status: 503 })
   if (access === 'hidden') return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // Early test: QR scans are not recorded (no tracking before or without agreement).
+  if (PAUSED.qrScanTracking) return NextResponse.json({ success: true, recorded: false })
   const testProfile = (await isTestProfile(admin, serverId)) === true
 
   const { error } = await admin.from('qr_scans').insert({

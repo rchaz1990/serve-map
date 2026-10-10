@@ -2,6 +2,7 @@
 // without another rating attempt; the 24-hour rating limit and all follow protections stay.
 // Local stack only. usage: NODE_PATH=$(npm root -g) node returning-guest.test.js <appUrl> <keys.json>
 const { chromium } = require('playwright')
+const { PAUSED, skip, skippedCount } = require('./early-test')
 const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
@@ -77,7 +78,13 @@ const followRow = (g, w) => sql(`select coalesce(status,'') || '|' || notify_ema
   // Returning after a rating (inside the 24-hour cooldown)
   const r = await rate(G, W)
   check('R3 setup: guest rates the worker', r.status === 200, r)
-  {
+  if (PAUSED.follows) {
+    const p = await page(G); await scan(p, W)
+    const s = await ui(p)
+    check('R4p early test (follows paused): returning guest inside 24h is told they rated recently; no Rate and no Follow button', !s.rateBtn && s.recent && !s.follow, s)
+    await p.context().close()
+    for (const k of ['R4', 'R5', 'R6', 'R7']) skip(k, 'follows')
+  } else {
     const p = await page(G); await scan(p, W)
     const s = await ui(p)
     check('R4 returning guest inside 24h: told they rated recently, no Rate button (no failed attempt needed), Follow offered', !s.rateBtn && s.recent && s.follow && !s.following, s)
@@ -98,7 +105,7 @@ const followRow = (g, w) => sql(`select coalesce(status,'') || '|' || notify_ema
   check('R8 24-hour rating limit unchanged (second rating refused, still one rating)', second.status === 429 && sql(`select count(*) from ratings where server_id = '${W.serverId}'`) === '1', second)
 
   // Approval-required worker → follow request pending
-  {
+  if (PAUSED.follows) skip('R9', 'follows'); else {
     const W2 = await worker('approval', { approval: 'approval' })
     const G2 = await account('guest2'); await rate(G2, W2)
     const p = await page(G2); await scan(p, W2)
@@ -110,7 +117,7 @@ const followRow = (g, w) => sql(`select coalesce(status,'') || '|' || notify_ema
   }
 
   // Worker who no longer accepts new follows (not on the current agreement) → refused by the database
-  {
+  if (PAUSED.follows) skip('R10', 'follows'); else {
     const W3 = await worker('closed', { agree: false })
     const G3 = await account('guest3'); await api('/api/legal/accept', G3.token, { version: LEGAL_VERSION })
     sql(`insert into ratings (server_id, score, guest_email, guest_id) values ('${W3.serverId}', 5, '${G3.email}', '${G3.id}')`)
@@ -129,7 +136,8 @@ const followRow = (g, w) => sql(`select coalesce(status,'') || '|' || notify_ema
     sql(`update ratings set created_at = now() - interval '25 hours' where server_id = '${W4.serverId}'`)
     const p = await page(G4); await scan(p, W4)
     const s = await ui(p)
-    check('R11 rated more than 24h ago: Rate available again, Follow also offered (already rated)', s.rateBtn && !s.recent && s.follow, s)
+    if (PAUSED.follows) check('R11p early test: rated more than 24h ago → Rate available again; no Follow (paused)', s.rateBtn && !s.recent && !s.follow, s)
+    else check('R11 rated more than 24h ago: Rate available again, Follow also offered (already rated)', s.rateBtn && !s.recent && s.follow, s)
     await p.context().close()
   }
 
@@ -147,6 +155,6 @@ const followRow = (g, w) => sql(`select coalesce(status,'') || '|' || notify_ema
   }
 
   await browser.close()
-  console.log(`\n${pass} passed, ${fail} failed`)
+  console.log(`\n${pass} passed, ${fail} failed${skippedCount() ? `, ${skippedCount()} skipped (paused features)` : ''}`)
   process.exit(fail ? 1 : 0)
 })().catch(e => { console.error('ERROR', e); process.exit(1) })
