@@ -5,12 +5,12 @@ import { supabase } from '@/lib/supabase'
 import LegalConsent from '@/app/components/LegalConsent'
 import { LEGAL_VERSION } from '@/lib/legal'
 import { recordGuestLegal } from '@/lib/legal-client'
-import { getAuthCallbackUrl, safeInternalPath, setOAuthNextHint } from '@/lib/auth-redirect'
+import { clearOAuthNextHint, getAuthCallbackUrl, safeInternalPath, setOAuthNextHint } from '@/lib/auth-redirect'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { finishPendingManager, isEmailNotConfirmed } from '@/lib/auth-flows'
 
 const NOTICES: Record<string, string> = {
-  confirmed_elsewhere: 'We couldn\'t finish signing you in on this device. If you just confirmed your email, it\'s confirmed — sign in below.',
+  confirmed_elsewhere: 'We couldn\'t finish signing you in on this device. If you just confirmed your email, it\'s confirmed — sign in below. If you started a rating before signing up, it\'s saved in the browser where you started it: sign in there to post it.',
   password_updated: 'Password updated. Sign in with your new password.',
 }
 const ERRORS: Record<string, string> = {
@@ -32,6 +32,8 @@ function LoginForm() {
   // Messages carried in the URL from email links and redirects (fixed text only).
   const [info, setInfo] = useState(NOTICES[searchParams.get('notice') ?? ''] ?? '')
   const [needsConfirm, setNeedsConfirm] = useState(false)
+  // Email-confirmation sign-up that started from a rating: say where the draft lives.
+  const [draftDeviceNote, setDraftDeviceNote] = useState(false)
 
   const handleSignIn = async () => {
     setLoading(true)
@@ -93,6 +95,9 @@ function LoginForm() {
     if (!legalAccepted) { setError('Please confirm you agree to the Terms of Service and Privacy Policy.'); return }
     setLoading(true)
     setError('')
+    const next = safeInternalPath(searchParams.get('redirect'))
+    // If "Confirm email" is on, the confirmation link brings them back here (same browser).
+    if (next) setOAuthNextHint(next, 3600)
     const { data: signUpData, error } = await supabase.auth.signUp({
       email,
       password,
@@ -105,8 +110,10 @@ function LoginForm() {
       setLoading(false)
       setMode('signin')
       setInfo(`Check ${email} for a confirmation link from Slate, then sign in here.`)
+      if (searchParams.get('from') === 'rate') setDraftDeviceNote(true)
       return
     }
+    clearOAuthNextHint() // signed in already; no email link will need it
     // Record the ticked acknowledgment on the server (version + time). If this fails,
     // rating and following still require it, so nothing is used without agreement.
     {
@@ -125,7 +132,7 @@ function LoginForm() {
         body: JSON.stringify({ name: name || email }),
       })).catch(() => {})
     }
-    router.push('/live')
+    router.push(next ?? '/live')
   }
 
   const handleForgotPassword = async () => {
@@ -181,6 +188,12 @@ function LoginForm() {
           <p style={{ color: '#555', fontSize: '15px' }}>
             {mode === 'signin' ? 'Sign in to continue.' : 'Create your free guest account.'}
           </p>
+          {searchParams.get('from') === 'rate' && (
+            <p data-testid="rate-context" style={{ color: '#888', fontSize: '13px', marginTop: '12px' }}>
+              {mode === 'signin' ? 'Sign in' : 'Create an account'} to post your rating. What you wrote is saved on this
+              device and will be there when you come back.
+            </p>
+          )}
         </div>
 
         <button onClick={handleGoogle} style={{ width: '100%', padding: '14px', background: 'white', color: '#333', border: 'none', borderRadius: '4px', fontSize: '15px', cursor: 'pointer', marginBottom: '20px', fontWeight: '500' }}>
@@ -201,6 +214,13 @@ function LoginForm() {
           style={{ width: '100%', padding: '14px', background: '#111', color: 'white', border: '1px solid #222', borderRadius: '4px', fontSize: '15px', marginBottom: '24px', outline: 'none', boxSizing: 'border-box' }} />
 
         {info && <p style={{ color: '#4ade80', fontSize: '14px', marginBottom: '16px', textAlign: 'center' }}>{info}</p>}
+        {draftDeviceNote && (
+          <p data-testid="draft-device-note" style={{ color: '#aaa', fontSize: '13px', marginBottom: '16px', textAlign: 'center', lineHeight: 1.5 }}>
+            Your rating hasn&apos;t been posted yet. It&apos;s saved only in this browser on this device, for about an hour.
+            Open the confirmation link here to pick up where you left off. If you open it somewhere else, come back
+            to this browser and sign in to post your rating.
+          </p>
+        )}
 
         {mode === 'signup' && (
           <div style={{ marginBottom: '20px' }}>
