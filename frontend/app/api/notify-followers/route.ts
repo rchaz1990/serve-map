@@ -59,11 +59,16 @@ export async function POST(request: Request) {
 
   const serverName = (serverRow.name as string | null) || 'Your server'
 
-  const { data: followers } = await supabaseAdmin
-    .from('follows')
-    .select('follower_email')
-    .eq('server_id', serverId)
-    .eq('status', 'approved')
+  // Only approved followers who confirmed "Follow and email me", at their own account
+  // address (migration 38). Never a stored or client-supplied address.
+  const { data: recipientRows, error: recipientsError } = await supabaseAdmin
+    .rpc('notification_recipients', { p_server_id: serverId })
+  if (recipientsError) {
+    console.error('[notify-followers] recipients:', recipientsError.message)
+    return NextResponse.json({ error: 'Could not load followers' }, { status: 503 })
+  }
+  const followers = ((recipientRows ?? []) as { email: string | null }[])
+    .map(r => ({ follower_email: r.email }))
 
   if (!followers || followers.length === 0) {
     return NextResponse.json({ success: true, notified: 0 })

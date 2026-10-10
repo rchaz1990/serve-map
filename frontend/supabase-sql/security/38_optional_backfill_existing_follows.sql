@@ -1,0 +1,10 @@
+-- OPTIONAL — founder decision; NOT part of migration 38 and NOT to be run by default.
+-- Existing follows were created before the explicit "Follow and email me" confirmation,
+-- so migration 38 leaves them without email opt-in (no shift emails). Running this would
+-- resume emails for existing approved follows WITHOUT a fresh confirmation, at each
+-- follower's own account address (never the stored follower_email).
+-- Recommended instead: ask existing followers to confirm again.
+-- begin;
+-- update public.follows set email_opt_in_at = now(), notify_email = true
+--   where status = 'approved' and email_opt_in_at is null;
+-- commit;
