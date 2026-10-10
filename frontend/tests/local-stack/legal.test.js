@@ -196,8 +196,9 @@ async function worker(tag) {
     const pay = await visible('/pay'), wp = await visible('/whitepaper'), forServers = await visible('/for-servers')
     check('L14 Terms: no "on the Solana blockchain and are permanent"; has agreement + location sections',
       !/written to the Solana blockchain/i.test(terms) && /Agreeing to These Terms/.test(terms) && /Location Checks/.test(terms) && /no guarantee/i.test(terms))
-    check('L15 Privacy: discloses stored coordinates and visible distance; no "never stored"',
-      /store your coordinates and your distance from the venue/.test(privacy) && /not proof/.test(privacy) && !/never stored/i.test(privacy))
+    check('L15 Privacy: coordinates used temporarily, not stored; distance internal; older records disclosed; no "never stored"',
+      /We do not store your coordinates/.test(privacy) && /which only Slate can see/.test(privacy) && /recorded before this change may still include coordinates/.test(privacy)
+        && /not proof/.test(privacy) && !/never stored/i.test(privacy))
     check('L16 Home: no "Building on Solana", no 1:1 conversion, $SERVE "may never launch"',
       !/Building on Solana/.test(home) && !/1:1/.test(home) && /may never launch/.test(home))
     check('L17 /pay: no balance, USD conversion or bank payout', /Not available/.test(pay) && !/≈ \$/.test(pay) && !/business days/.test(pay))

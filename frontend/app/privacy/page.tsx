@@ -10,11 +10,11 @@ const SECTIONS = [
       },
       {
         subtitle: 'Location data',
-        text: 'When you report a venue\'s vibe, or start a shift as a server or bartender, Slate asks your browser for your device location to check that you are near the venue. If you allow it, we store your coordinates and your distance from the venue with that report or shift. Your coordinates are not shown publicly; your distance from the venue and whether the location check passed can be seen by others using Slate. Device location can be inaccurate or changed, so a location check is not proof that someone was there. Ratings do not use your location — they start from scanning the server\'s QR code.',
+        text: 'When you report a venue\'s vibe, or start a shift as a server or bartender, Slate asks your browser for your device location to check that you are near the venue. This use is temporary. For a shift, the check happens on your device and your location is not sent to Slate. For a vibe report, your device sends its position to Slate\'s server, which uses it once to work out your distance from the venue. We do not store your coordinates. We keep only the result of the check (passed or not), which others using Slate can see, and your approximate distance from the venue, which only Slate can see. Reports and shifts recorded before this change may still include coordinates; they are not public, and we are reviewing them for deletion. Device location can be inaccurate or changed, so a location check is not proof that someone was there. Ratings do not use your location — they start from scanning the server\'s QR code.',
       },
       {
         subtitle: 'Ratings and reviews',
-        text: 'When you rate a server or bartender, your score, any written comment, and any tags you choose are stored by Slate and shown on that person\'s public profile. Your name and email address are not shown with your rating. Each rating is stored with a random account identifier that others using Slate can see; it does not show your name or email.',
+        text: 'When you rate a server or bartender, your score, any written comment, and any tags you choose are stored by Slate and shown on that person\'s public profile until you or they ask us to delete them. Your name and email address are not shown with your rating. Each rating is stored with a random account identifier that others using Slate can see; it does not show your name or email.',
       },
       {
         subtitle: 'Usage data',
@@ -31,7 +31,7 @@ const SECTIONS = [
       },
       {
         subtitle: 'To send notifications',
-        text: 'If you follow a server on Slate, we email you when that server starts a shift. To stop these emails, unfollow the server or contact us.',
+        text: 'If you follow a server on Slate and choose to get emails, we email you when that server starts a shift. To stop these emails, unfollow the server or contact us.',
       },
       {
         subtitle: 'To calculate Slate Points',
@@ -48,7 +48,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: 'What is public',
-        text: 'Server and bartender profiles are public: name, photo, role, bio, specialties, workplaces, ratings and comments, follower count, Slate Points, and the venue where you are working while you are on shift. Email addresses, phone numbers, and location coordinates are not public.',
+        text: 'Server and bartender profiles are public: name, photo, role, bio, specialties, workplaces, ratings and comments, follower count, Slate Points, and the venue where you are working while you are on shift. Email addresses, phone numbers, location coordinates and distances from a venue are not public.',
       },
       {
         subtitle: 'Blockchain',
@@ -82,11 +82,32 @@ const SECTIONS = [
       },
       {
         subtitle: 'Account deletion',
-        text: 'You can request deletion of your Slate account and associated personal data by emailing team@slatenow.xyz.',
+        text: 'You can ask us to delete your account by emailing team@slatenow.xyz from the email address on your account. After we confirm the request comes from you, we aim to complete it within 30 days. For guests, this removes your account, the ratings and comments you wrote (they disappear from the worker\'s profile and the worker\'s rating is recalculated), your follows, the notifications we stored for you, your vibe reports and venue comments, and your Slate Points. For servers and bartenders, this removes your account, your profile and photo, your workplaces and shifts, your followers, and the ratings guests left on your profile.',
+      },
+      {
+        subtitle: 'What we keep after deletion',
+        text: 'Slate keeps a record of Slate Points awarded to worker profiles that cannot be edited or deleted. For a deleted worker profile it still holds the points amounts, dates and the email address the profile used; it is not public. Deleted data can also remain in our database provider\'s backups until they expire, and in our service providers\' records (for example, email delivery logs) for as long as they keep them.',
+      },
+      {
+        subtitle: 'Deleting a single rating',
+        text: 'You can ask us to delete a rating you wrote without deleting your account, using the same email address. Servers and bartenders can ask us to review a rating on their profile; we remove ratings that break our Terms.',
       },
       {
         subtitle: 'Email notifications',
         text: 'Shift emails stop when you unfollow a server. To stop all Slate emails, contact us.',
+      },
+    ],
+  },
+  {
+    title: 'How Long We Keep Data',
+    body: [
+      {
+        subtitle: 'While your account is open',
+        text: 'We keep your account, profile, ratings, comments and follows while your account is open, or until you ask us to delete them.',
+      },
+      {
+        subtitle: 'During our early test',
+        text: 'While Slate is in a limited early test, a member of our team manually reviews accounts and test data that have been inactive for 90 days, and may contact you or delete that data. Nothing is deleted automatically.',
       },
     ],
   },
@@ -113,7 +134,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'We may update this Privacy Policy from time to time. When we do we will update the date above. For material changes we will ask you to agree again before you next create a profile or submit a rating, and may also email you.',
+        text: 'We may update this Privacy Policy from time to time. When we do we will update the date above. For material changes we will ask you to agree again before you next create a profile, submit a rating, follow someone, or use your server or bartender dashboard, and may also email you.',
       },
     ],
   },

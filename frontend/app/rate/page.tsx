@@ -557,7 +557,7 @@ function RateForm() {
               I&apos;m 18 or older, {serverFirstName === 'your server' ? 'this server' : serverFirstName} personally served me, and I agree to Slate&apos;s
             </LegalConsent>
             <p className="mt-2 pl-7 text-xs leading-relaxed" style={{ color: '#606060' }}>
-              Your rating and comment appear on their public profile without your name. Slate stores them; they are not on a blockchain.
+              Your rating and comment appear on their public profile without your name. Slate stores them until you ask us to delete them; they are not on a blockchain.
             </p>
           </div>
         )}

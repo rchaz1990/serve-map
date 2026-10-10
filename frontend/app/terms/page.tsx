@@ -6,7 +6,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'You agree to these Terms and the Privacy Policy by ticking the agreement box when you create a server or bartender profile, or before your first rating. We record which version you agreed to and when.',
+        text: 'You agree to these Terms and the Privacy Policy by ticking the agreement box when you create a server or bartender profile, before your first rating or follow, or — if your server or bartender profile was created earlier — before you next use your dashboard. We record which version you agreed to and when.',
       },
     ],
   },
@@ -41,7 +41,7 @@ const SECTIONS = [
       },
       {
         subtitle: 'Removal',
-        text: 'Ratings are stored by Slate. Slate may remove any rating that breaks these Terms. Ratings cannot be edited after you submit them, so please rate thoughtfully and honestly.',
+        text: 'Ratings are stored by Slate. Slate may remove any rating that breaks these Terms. Ratings cannot be edited after you submit them, so please rate thoughtfully and honestly. You can ask us to delete a rating you wrote, or your account; see the Privacy Policy.',
       },
     ],
   },
@@ -50,7 +50,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'Vibe reports and shifts may use your device location to check that you are near the venue. These checks rely on your device and are not proof of presence. Do not misrepresent where you are. See the Privacy Policy for what is stored and who can see it.',
+        text: 'Vibe reports and shifts may use your device location to check that you are near the venue. Your coordinates are used only for that check and are not stored. These checks rely on your device and are not proof of presence. Do not misrepresent where you are. See the Privacy Policy for what is stored and who can see it.',
       },
     ],
   },
@@ -121,7 +121,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'We may update these Terms of Service from time to time. For material changes we will update the date above and ask you to agree again before you next create a profile or submit a rating, and may also email you.',
+        text: 'We may update these Terms of Service from time to time. For material changes we will update the date above and ask you to agree again before you next create a profile, submit a rating, follow someone, or use your server or bartender dashboard, and may also email you.',
       },
     ],
   },
