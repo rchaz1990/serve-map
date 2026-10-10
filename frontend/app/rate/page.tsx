@@ -11,6 +11,7 @@ import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
 import { isTestDevice } from '@/lib/funnel'
+import { authJsonHeaders } from '@/lib/auth-fetch'
 
 // ── Tags + stars ──────────────────────────────────────────────────────────────
 
@@ -140,7 +141,7 @@ function RateForm() {
       setServerData(server as ServerRow)
       // Server-enforced in /api/submit-rating; checked here so nobody fills in a rating
       // that can't be posted.
-      fetch(`/api/rating-status?server=${encodeURIComponent(serverId)}`)
+      authJsonHeaders().then(headers => fetch(`/api/rating-status?server=${encodeURIComponent(serverId)}`, { headers }))
         .then(r => r.json()).then(j => setRatingsClosed(j?.accepting !== true))
         .catch(() => setRatingsClosed(false))
 

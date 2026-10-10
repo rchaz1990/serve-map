@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { escapeHtml, getRequestUser, supabaseAdmin as getSupabaseAdmin } from '@/lib/server-auth'
 import { workerTermsOnFile } from '@/lib/legal-server'
+import { isTestProfile, isTesterEmail } from '@/lib/test-profiles'
 
 export async function POST(request: Request) {
   // Only the server themself, or a manager at a venue where they work, can notify
@@ -80,6 +81,21 @@ export async function POST(request: Request) {
   }
   const followers = ((recipientRows ?? []) as { email: string | null }[])
     .map(r => ({ follower_email: r.email }))
+
+  // Test profiles (migration 42): their emails may only reach authorized test accounts.
+  // If any recipient is not a test account (e.g. a real follow made before the profile was
+  // marked as a test profile), send nothing at all.
+  const testProfile = await isTestProfile(supabaseAdmin, serverId)
+  if (testProfile === 'error') return NextResponse.json({ error: 'Could not check profile' }, { status: 503 })
+  if (testProfile === true) {
+    for (const f of followers) {
+      const ok = await isTesterEmail(supabaseAdmin, f.follower_email)
+      if (ok !== true) {
+        console.error('[notify-followers] test profile has a non-test follower; nothing sent', serverId)
+        return NextResponse.json({ error: 'Test profile has non-test followers; nothing was sent.', code: 'test_mix' }, { status: 409 })
+      }
+    }
+  }
 
   if (!followers || followers.length === 0) {
     return NextResponse.json({ success: true, notified: 0 })

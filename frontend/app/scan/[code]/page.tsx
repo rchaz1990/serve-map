@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getAnonSessionId, isTestDevice } from '@/lib/funnel'
+import { authJsonHeaders } from '@/lib/auth-fetch'
 import Navbar from '@/app/components/Navbar'
 
 export default function ScanPage() {
@@ -22,16 +23,17 @@ export default function ScanPage() {
   useEffect(() => {
     if (!serverId || scanRecordedFor.current === serverId) return
     scanRecordedFor.current = serverId
-    fetch('/api/track-scan', {
+    // Sends the session token when signed in (test profiles only record scans by testers).
+    authJsonHeaders().then(headers => fetch('/api/track-scan', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         serverId,
         sessionId: getAnonSessionId(),
         isTest: isTestDevice(),
       }),
       keepalive: true,
-    }).catch(err => console.error('[scan] track failed:', err))
+    })).catch(err => console.error('[scan] track failed:', err))
   }, [serverId])
 
   useEffect(() => {

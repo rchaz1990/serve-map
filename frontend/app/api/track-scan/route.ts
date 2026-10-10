@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { getRequestUser, supabaseAdmin } from '@/lib/server-auth'
+import { isTestProfile, viewerMayUseProfile } from '@/lib/test-profiles'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -6,6 +8,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * Records one QR scan. Called by /scan/[code] on page load.
  * Uses the service-role client so qr_scans needs no public RLS policies.
  * Guests do not need to be logged in.
+ *
+ * Test profiles (migration 42): scans are recorded only for authorized test accounts;
+ * anyone else gets the same 404 as for an unknown id. The browser's isTest flag is an
+ * analytics label only, never an access control.
  */
 export async function POST(request: Request) {
   let body: { serverId?: unknown; sessionId?: unknown; isTest?: unknown }
@@ -23,17 +29,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid sessionId' }, { status: 400 })
   }
 
-  const { createClient } = await import('@supabase/supabase-js')
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const admin = supabaseAdmin()
+  const access = await viewerMayUseProfile(admin, serverId, await getRequestUser(request))
+  if (access === 'error') return NextResponse.json({ error: 'Failed to record scan' }, { status: 503 })
+  if (access === 'hidden') return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const testProfile = (await isTestProfile(admin, serverId)) === true
 
-  // server_id has a foreign key to servers(id), so unknown worker IDs are rejected by the DB
-  const { error } = await supabaseAdmin.from('qr_scans').insert({
+  const { error } = await admin.from('qr_scans').insert({
     server_id: serverId,
     session_id: sessionId,
-    is_test: isTest === true,
+    // Scans of a test profile are always test data, whatever the browser says.
+    is_test: testProfile || isTest === true,
   })
 
   if (error) {
