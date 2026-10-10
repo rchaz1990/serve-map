@@ -104,7 +104,7 @@ async function worker(tag) {
     const created = sql(`select count(*) from auth.users where email = '${e}'`)
     const disclosure = (await page.textContent('[data-testid="shift-disclosure"]').catch(() => '')) || ''
     check('L8b sign-up explains that starting a shift is public and may email followers, and the follow-approval setting',
-      /anyone can\s+see which venue you.re working at/.test(disclosure) && /email your\s+followers/.test(disclosure) && /follow approval/.test(await text(page)), disclosure)
+      /anyone can\s+see which venue you.re working at/.test(disclosure) && /Slate may email followers who\s+explicitly chose to receive shift emails\./.test(disclosure) && /follow approval/.test(await text(page)), disclosure)
     check('L8 sign-up UI: box unticked by default, Terms + Privacy links, Claim disabled, no account created yet',
       disabledBefore && unticked && links && created === '0', { disabledBefore, unticked, links, created })
     await box.check()

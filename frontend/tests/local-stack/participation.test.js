@@ -172,6 +172,13 @@ async function optedInFollower(w) {
     check('P16 the step explains shifts are public and location is used on the phone only, not stored',
       /anyone can\s+see which venue/.test(disclosure) && /isn.t sent to Slate or stored/.test(disclosure)
         && /can.t receive new followers or ratings/.test((await page.textContent('[data-testid="worker-terms-gate"]')) || '') && /follower count/.test((await page.textContent('[data-testid="worker-terms-gate"]')) || ''), disclosure)
+    {
+      const gateText = ((await page.textContent('[data-testid="worker-terms-gate"]')) || '').replace(/\s+/g, ' ')
+      check('P16b disclosure uses the reviewed wording (public items, followers not listed, follow prerequisite, opted-in emails)',
+        gateText.includes('Your name, photo, workplaces, ratings, comments, follower count and Slate Points are public on Slate. Individual followers are not publicly listed.')
+          && gateText.includes('People cannot follow you until you agree to the current Terms and Privacy Policy. After that, anyone can follow you unless you turn on follow approval in your dashboard settings.')
+          && gateText.includes('Slate may email followers who explicitly chose to receive shift emails.'), gateText)
+    }
     await box.check(); await btn.click(); await page.waitForTimeout(2500)
     check('P17 after ticking and agreeing: recorded and the dashboard opens', workerVersion(wUI.id) === LEGAL_VERSION && !(await page.isVisible('[data-testid="worker-terms-gate"]')), workerVersion(wUI.id))
     await page.context().close()
@@ -267,6 +274,17 @@ async function optedInFollower(w) {
     const out = (args) => { try { return { ok: true, out: execFileSync('node', [path.join(__dirname, '../../scripts/legal-version.mjs'), ...args], { encoding: 'utf8', stdio: 'pipe' }) } } catch (e) { return { ok: false, out: String(e.stderr || e.stdout) } } }
     const c = out(['check']), rel = out(['check', '--release'])
     check('P50 version tooling: app and migration 39 agree; release check refuses until a publication date is set', c.ok && !rel.ok && /NOT READY/.test(rel.out), { c, rel })
+    // "set" on a scratch copy: both files get the same exact date; migration 39 otherwise unchanged.
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lv-'))
+    for (const f of ['scripts/legal-version.mjs', 'lib/legal.ts', 'supabase-sql/security/39_participant_data_policy.sql']) {
+      fs.mkdirSync(path.dirname(path.join(tmp, f)), { recursive: true }); fs.copyFileSync(path.join(__dirname, '../..', f), path.join(tmp, f))
+    }
+    let setOk = true; try { execFileSync('node', [path.join(tmp, 'scripts/legal-version.mjs'), 'set', '2031-01-15'], { stdio: 'pipe' }); execFileSync('node', [path.join(tmp, 'scripts/legal-version.mjs'), 'check', '--release'], { stdio: 'pipe' }) } catch { setOk = false }
+    const m39orig = fs.readFileSync(path.join(__dirname, '../../supabase-sql/security/39_participant_data_policy.sql'), 'utf8')
+    const m39new = fs.readFileSync(path.join(tmp, 'supabase-sql/security/39_participant_data_policy.sql'), 'utf8')
+    check('P50b "set" writes the same exact date to the app and migration 39 and nothing else',
+      setOk && /LEGAL_VERSION = '2031-01-15'/.test(fs.readFileSync(path.join(tmp, 'lib/legal.ts'), 'utf8'))
+        && m39new === m39orig.replace(`select '${LEGAL_VERSION}'::text`, `select '2031-01-15'::text`))
   }
   {
     const ctx = await browser.newContext(); const page = await ctx.newPage()

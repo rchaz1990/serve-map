@@ -19,8 +19,9 @@ const isDate = v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v 
 const [cmd, arg] = process.argv.slice(2)
 if (cmd === 'set') {
   if (!isDate(arg)) { console.error('Give the publication date as YYYY-MM-DD.'); process.exit(1) }
-  fs.writeFileSync(APP, fs.readFileSync(APP, 'utf8').replace(APP_RE, `export const LEGAL_VERSION = '${arg}'`))
-  fs.writeFileSync(M39, fs.readFileSync(M39, 'utf8').replace(M39_RE, `as $$ select '${arg}'::text $$;`))
+  // Function replacers: a replacement string would treat "$$" as an escaped "$".
+  fs.writeFileSync(APP, fs.readFileSync(APP, 'utf8').replace(APP_RE, () => `export const LEGAL_VERSION = '${arg}'`))
+  fs.writeFileSync(M39, fs.readFileSync(M39, 'utf8').replace(M39_RE, () => `as $$ select '${arg}'::text $$;`))
 }
 const v = read()
 if (!v.app || !v.m39) { console.error('Could not find the version in', !v.app ? APP : M39); process.exit(1) }
