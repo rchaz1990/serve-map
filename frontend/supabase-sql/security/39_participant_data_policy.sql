@@ -62,7 +62,7 @@ create or replace function public.current_legal_version()
 returns text
 language sql
 immutable
-as $ select '2026-10-10'::text $;
+as $$ select '2026-10-10'::text $$;
 
 create or replace function public.worker_terms_ok(p_server_id uuid)
 returns boolean
