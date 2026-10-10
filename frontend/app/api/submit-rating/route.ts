@@ -150,6 +150,10 @@ export async function POST(request: Request) {
     if (limit === 'self') {
       return NextResponse.json({ error: 'You can\'t rate your own profile.' }, { status: 403 })
     }
+    if (limit === 'test_mix') {
+      // Migration 42: test accounts and real profiles never rate each other.
+      return NextResponse.json({ error: 'Test accounts and real profiles can\'t rate each other.', code: 'test_mix' }, { status: 403 })
+    }
     console.error('[submit-rating] rpc:', error.message)
     if (/does not exist|schema cache/i.test(error.message)) {
       return NextResponse.json(
