@@ -7,6 +7,7 @@ const fs = require('fs')
 const [APP, KEYS] = process.argv.slice(2)
 const GW = 'http://localhost:54400'
 const LEGAL_VERSION = fs.readFileSync(require('path').join(__dirname, '../../lib/legal.ts'), 'utf8').match(/LEGAL_VERSION = '([^']+)'/)[1]
+const { PAUSED, skip, skippedCount } = require('./early-test')
 const DB = process.env.STACK_DB || 'slate_stack'
 const { anon: ANON } = JSON.parse(fs.readFileSync(KEYS, 'utf8'))
 // Runs as the database owner = what Slate does in the SQL Editor.
@@ -16,7 +17,9 @@ const run = `m${Date.now()}`
 let n = 0
 const email = tag => `${run}-${++n}-${tag}@example.com`
 let pass = 0, fail = 0
-function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : JSON.stringify(detail ?? '').slice(0, 300)) }
+// Early test: checks of paused features are skipped (and printed), not failed (./early-test.js).
+const PAUSED_CHECKS = { M18: 'shiftEmails', M19: 'shiftEmails' }
+function check(name, ok, detail) { const f = PAUSED_CHECKS[name.split(' ')[0]]; if (f && PAUSED[f]) return skip(name, f); ok ? pass++ : fail++; console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : JSON.stringify(detail ?? '').slice(0, 300)) }
 
 async function account(tag, provider = 'email') {
   const e = email(tag)
@@ -162,6 +165,6 @@ const endShifts = (token, sid) => rest('PATCH', `shifts?server_id=eq.${sid}&is_a
   await endShifts(mA.token, wA.serverId)
   await browser.close()
 
-  console.log(`\n${pass} passed, ${fail} failed`)
+  console.log(`\n${pass} passed, ${fail} failed${skippedCount() ? `, ${skippedCount()} skipped (paused features)` : ''}`)
   process.exit(fail ? 1 : 0)
 })().catch(e => { console.error('ERROR', e); process.exit(1) })

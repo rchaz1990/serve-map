@@ -6,6 +6,7 @@ const { chromium } = require('playwright')
 const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
+const { PAUSED, skip, skippedCount } = require('./early-test')
 const [APP, KEYS] = process.argv.slice(2)
 const GW = 'http://localhost:54400'
 const DB = process.env.STACK_DB || 'slate_stack'
@@ -22,7 +23,9 @@ const run = `p${Date.now()}`
 let n = 0
 const email = tag => `${run}-${++n}-${tag}@example.com`
 let pass = 0, fail = 0
-function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : JSON.stringify(detail ?? '').slice(0, 300)) }
+// Early test: checks of paused features are skipped (and printed), not failed (./early-test.js).
+const PAUSED_CHECKS = { P1: 'vibeReports', P5: 'shiftEmails', P11: 'shiftEmails', P14: 'shiftEmails', P42: 'follows', P44: 'follows' }
+function check(name, ok, detail) { const f = PAUSED_CHECKS[name.split(' ')[0]]; if (f && PAUSED[f]) return skip(name, f); ok ? pass++ : fail++; console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : JSON.stringify(detail ?? '').slice(0, 300)) }
 
 async function account(tag) {
   const e = email(tag)
@@ -360,9 +363,9 @@ async function optedInFollower(w) {
     sql(`insert into serve_ledger (source, source_id, account_type, account_id, email, amount, balance_after) values ('rating', '${run}-x', 'server', '${W.serverId}', '${W.email}', 10, 10)`)
     sql(`set session_replication_role = replica; insert into follows (follower_id, follower_email, server_id, follower_type, status) values ('${G.id}', '${G.email}', '${W.serverId}', 'guest', 'approved')`)
     sql(`update servers set follower_count = 1 where id = '${W.serverId}'`)
-    sql(`insert into notifications (recipient_email, type, title, message, server_id) values ('${G.email}', 'shift_started', 't', 'm', '${W.serverId}')`)
-    sql(`insert into vibe_reports (restaurant_name, vibe, reported_by, user_lat, user_lng) values ('${VENUE}', 'LIVE', '${G.email}', 40.7, -74.0)`)
-    sql(`insert into venue_comments (restaurant_name, comment, commenter_email, commenter_name) values ('${VENUE}', 'hi', '${G.email}', 'Leaver')`)
+    sql(`set session_replication_role = replica; insert into notifications (recipient_email, type, title, message, server_id) values ('${G.email}', 'shift_started', 't', 'm', '${W.serverId}')`)
+    sql(`set session_replication_role = replica; insert into vibe_reports (restaurant_name, vibe, reported_by, user_lat, user_lng) values ('${VENUE}', 'LIVE', '${G.email}', 40.7, -74.0)`)
+    sql(`set session_replication_role = replica; insert into venue_comments (restaurant_name, comment, commenter_email, commenter_name) values ('${VENUE}', 'hi', '${G.email}', 'Leaver')`)
     sql(`insert into guest_rewards (email, slate_points) values ('${G.email}', 7)`)
     const c = previewCounts(G)
     check('P23 preview (read-only) finds the guest\'s rating, follow, notification, vibe report, comment and points',
@@ -385,7 +388,7 @@ async function optedInFollower(w) {
     sql(`insert into shifts (server_id, restaurant_name, is_active) values ('${W2.serverId}', '${VENUE}', false)`)
     sql(`insert into ratings (server_id, score, guest_email) values ('${W2.serverId}', 4, '${F.email}')`)
     sql(`set session_replication_role = replica; insert into follows (follower_id, follower_email, server_id, follower_type, status) values ('${F.id}', '${F.email}', '${W2.serverId}', 'guest', 'approved')`)
-    sql(`insert into notifications (recipient_email, type, title, message, server_id) values ('${F.email}', 'shift_started', 't', 'm', '${W2.serverId}')`)
+    sql(`set session_replication_role = replica; insert into notifications (recipient_email, type, title, message, server_id) values ('${F.email}', 'shift_started', 't', 'm', '${W2.serverId}')`)
     sql(`insert into qr_scans (server_id, session_id) values ('${W2.serverId}', 's')`)
     sql(`insert into serve_ledger (source, source_id, account_type, account_id, email, amount, balance_after) values ('rating', '${run}-y', 'server', '${W2.serverId}', '${W2.email}', 10, 10)`)
     const c = previewCounts(W2)
@@ -406,7 +409,7 @@ async function optedInFollower(w) {
   {
     const cleanup = fs.readFileSync(path.join(MANUAL, 'location_coordinate_cleanup.sql'), 'utf8')
     // Older-style rows that still carry coordinates (inserted directly, as before this change).
-    sql(`insert into vibe_reports (restaurant_name, vibe, reported_by, gps_verified, user_lat, user_lng) values ('${VENUE}', 'LIVE', 'old-${run}@example.com', true, 40.7, -74.0)`)
+    sql(`set session_replication_role = replica; insert into vibe_reports (restaurant_name, vibe, reported_by, gps_verified, user_lat, user_lng) values ('${VENUE}', 'LIVE', 'old-${run}@example.com', true, 40.7, -74.0)`)
     const wOld = await worker('oldshift', VENUE)
     sql(`insert into shifts (server_id, restaurant_name, is_active, user_lat, user_lng) values ('${wOld.serverId}', '${VENUE}', false, 40.7, -74.0)`)
     const v = sql(`select count(*) from vibe_reports where user_lat is not null or user_lng is not null`)
@@ -420,6 +423,6 @@ async function optedInFollower(w) {
         && sql(`select count(*) from shifts where user_lat is not null or user_lng is not null`) === '0' && sql(`select count(*) from vibe_reports where gps_verified`) === verified, { out: good.out, v, s })
   }
 
-  console.log(`\n${pass} passed, ${fail} failed`)
+  console.log(`\n${pass} passed, ${fail} failed${skippedCount() ? `, ${skippedCount()} skipped (paused features)` : ''}`)
   process.exit(fail ? 1 : 0)
 })().catch(e => { console.error('ERROR', e); process.exit(1) })

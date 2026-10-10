@@ -7,6 +7,7 @@ import Navbar from '@/app/components/Navbar'
 import { supabase } from '@/lib/supabase'
 import { authJsonHeaders } from '@/lib/auth-fetch'
 import { geocodeAddress } from '@/lib/geocode'
+import { PAUSED, PAUSED_MESSAGE } from '@/lib/early-test'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -300,7 +301,8 @@ function CommentsSection({ venueName }: { venueName: string }) {
     try {
       const { data: { session: s } } = await supabase.auth.getSession()
       const commenterEmail = s?.user?.email ?? null
-      const commenterName = name.trim() || (commenterEmail ? commenterEmail.split('@')[0] : 'Anonymous')
+      // Never derive a public name from the email address.
+      const commenterName = name.trim() || 'Anonymous'
       const { error } = await supabase.from('venue_comments').insert({
         restaurant_name: decodeURIComponent(venueName),
         comment: trimmed,
@@ -340,7 +342,10 @@ function CommentsSection({ venueName }: { venueName: string }) {
         Comments
       </h2>
 
-      {/* Post a comment */}
+      {/* Post a comment — paused for the early test (lib/early-test.ts). */}
+      {PAUSED.venueComments ? (
+        <p data-testid="comments-paused" className="mb-8 text-xs" style={{ color: '#606060' }}>{PAUSED_MESSAGE}</p>
+      ) : (
       <div className="mb-8 rounded-2xl border border-white/10 p-5" style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}>
         {!session && (
           <input
@@ -376,6 +381,7 @@ function CommentsSection({ venueName }: { venueName: string }) {
           </button>
         </div>
       </div>
+      )}
 
       {/* Comment list */}
       {loading ? (
@@ -528,7 +534,10 @@ export default function VenuePage() {
 
         {/* ── I'm here form ──────────────────────────────────────────────── */}
         <div className="mb-12">
-          <VibeForm venueName={venueName} onSubmitted={() => setRefreshKey(k => k + 1)} />
+          {/* Vibe reports are paused for the early test (lib/early-test.ts). */}
+          {PAUSED.vibeReports
+            ? <p data-testid="vibe-paused" className="text-xs" style={{ color: '#606060' }}>{PAUSED_MESSAGE}</p>
+            : <VibeForm venueName={venueName} onSubmitted={() => setRefreshKey(k => k + 1)} />}
         </div>
 
         {loading ? (

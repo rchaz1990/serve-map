@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import LegalConsent from '@/app/components/LegalConsent'
 import FollowConsent from '@/app/components/FollowConsent'
+import { PAUSED } from '@/lib/early-test'
 import { LEGAL_VERSION } from '@/lib/legal'
 import { legalOnFile as fetchLegalOnFile } from '@/lib/legal-client'
 import { saveRatingDraft, loadRatingDraft, clearRatingDraft } from '@/lib/rating-draft'
@@ -400,7 +401,9 @@ function RateForm() {
             </div>
           )}
 
-          {/* Follow CTA — stays visible after rating so guest can still follow */}
+          {/* Follow CTA — stays visible after rating so guest can still follow.
+              Paused for the early test (lib/early-test.ts). */}
+          {!PAUSED.follows && (
           <div className="mt-8 w-full max-w-sm">
             {!isFollowing && confirmingFollow ? (
               <FollowConsent
@@ -432,6 +435,7 @@ function RateForm() {
             )}
             {followError && <p className="mt-2 text-xs text-red-400">{followError}</p>}
           </div>
+          )}
 
           <a href="/" className="slate-btn slate-btn-primary mt-8">
             Back home
