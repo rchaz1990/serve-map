@@ -1,3 +1,5 @@
+> **Superseded for the combined Stranger Test release (#36, #46, #42, #47, #48).** Its deployment sequence assumed separate merges. Use [`STRANGER_TEST_RELEASE.md`](STRANGER_TEST_RELEASE.md) for the release order and migrations 38–41. The Supabase Auth settings and the Google notes below still apply; they are step 5 there.
+
 # Email verification rollout (PR #42)
 
 Status: prepared, not deployed. Rebased onto `main` `e3157a8`. Every step below needs founder approval.
