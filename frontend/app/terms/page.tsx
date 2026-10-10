@@ -69,7 +69,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: 'Slate Points',
-        text: 'Slate Points are a record of recognition on Slate. They are not a cryptocurrency, have no cash value, and cannot be sold, transferred, or exchanged. Slate may change how points are earned or end the points program.',
+        text: 'Slate Points are a record of recognition on Slate. They are not a cryptocurrency, have no cash value, and cannot be sold, transferred, or exchanged. Slate may change how points are earned or end the points program. During our early test, if a rating is deleted, points already awarded for it are not removed.',
       },
       {
         subtitle: '$SERVE',

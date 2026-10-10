@@ -4,7 +4,8 @@ export default function WorkerDisclosure() {
   return (
     <>
       <p className="mb-3 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
-        Your name, photo, workplaces, ratings, comments, followers and Slate Points are public on Slate.
+        Your name, photo, workplaces, ratings, comments, follower count and Slate Points are public on Slate.
+        Who follows you is not public; you see each follower&apos;s first name and last initial, not their email.
         You can ask us to delete your profile at any time (team@slatenow.xyz).
       </p>
       <p className="mb-3 text-xs leading-relaxed" style={{ color: '#A0A0A0' }} data-testid="shift-disclosure">
@@ -12,6 +13,11 @@ export default function WorkerDisclosure() {
         see which venue you&apos;re working at and that you&apos;re on shift now, and Slate may email your
         followers to tell them. If you share your location, it&apos;s used on your phone only to check that
         you&apos;re near the venue — it isn&apos;t sent to Slate or stored. Others can see whether the check passed.
+      </p>
+      <p className="mb-3 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
+        <strong className="text-white">Accept to take part.</strong> Until you accept the current Terms of Service
+        and Privacy Policy, you can&apos;t receive new followers or ratings, start shifts, or have Slate email your
+        followers. Your existing profile, ratings and followers stay as they are.
       </p>
       <p className="mb-3 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
         <strong className="text-white">Choose who follows you.</strong> Anyone can follow you unless you turn on

@@ -189,7 +189,10 @@ function RateForm() {
       setConfirmingFollow(false)
     } else {
       console.error('[rate] follow failed:', followError.message)
-      setFollowError('Could not follow right now. Please try again.')
+      // 42501: refused by the database — this worker hasn't accepted the current Terms.
+      setFollowError(followError.code === '42501'
+        ? 'This server isn\'t accepting new followers on Slate right now.'
+        : 'Could not follow right now. Please try again.')
     }
   }
 
@@ -535,7 +538,7 @@ function RateForm() {
                 Earns {serverFirstName} Slate Points
               </p>
               <p className="mt-1 text-xs leading-relaxed slate-secondary">
-                Builds their reputation — wherever they work.
+                Adds to their Slate profile.
               </p>
             </div>
           </div>

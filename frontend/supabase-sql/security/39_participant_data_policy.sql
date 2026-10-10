@@ -12,7 +12,7 @@
 --      role (server code) still reads everything.
 --   2. App users can no longer write user_lat / user_lng on shifts. (vibe_reports is only
 --      written by submit_vibe_report, called by the server, which now passes nulls.)
---   3. Starting a shift requires that the worker whose profile it is has acknowledged the
+--   3. Starting a shift, or receiving a new follow, requires that the worker whose profile it is has acknowledged the
 --      current Terms/Privacy version as a worker (app_metadata.legal_worker_version, written
 --      only by the server). Applies to the worker and to a verified manager starting it for
 --      them. Re-activating an ended shift is covered too; ending a shift is always allowed.
@@ -37,7 +37,7 @@ begin
      is distinct from '875552c348ccd8c68961adbf00e646c1' then
     raise exception 'shifts_insert_owner is not the expected version; stopping';
   end if;
-  if exists (select 1 from pg_policy where polrelid = 'public.shifts'::regclass and polname like 'shifts_%_worker_terms') then
+  if exists (select 1 from pg_policy where polname in ('shifts_insert_worker_terms', 'shifts_update_worker_terms', 'follows_insert_worker_terms')) then
     raise exception 'worker-terms policies already exist; stopping';
   end if;
   -- Column revokes only take effect if there is no table-wide SELECT/INSERT grant.
@@ -94,6 +94,13 @@ create policy shifts_update_worker_terms on public.shifts
   as restrictive for update to authenticated
   using (true)
   with check (is_active is not true or public.worker_terms_ok(server_id));
+
+-- New follows only for workers who accepted. App users can only INSERT follows (no UPDATE
+-- grant); approving a pending follow goes through /api/followers/approve, which checks the
+-- same agreement. Existing follows are not touched.
+create policy follows_insert_worker_terms on public.follows
+  as restrictive for insert to authenticated
+  with check (public.worker_terms_ok(server_id));
 
 commit;
 

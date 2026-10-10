@@ -49,7 +49,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: 'What is public',
-        text: 'Server and bartender profiles are public: name, photo, role, bio, specialties, workplaces, ratings and comments, follower count, Slate Points, and the venue where you are working while you are on shift. Email addresses, phone numbers, location coordinates and distances from a venue are not public.',
+        text: 'Server and bartender profiles are public: name, photo, role, bio, specialties, workplaces, ratings and comments, follower count, Slate Points, and the venue where you are working while you are on shift. Email addresses, phone numbers, location coordinates and distances from a venue are not public. Who follows a server or bartender is not public: only the follower count is shown, and the server or bartender sees each follower\'s first name and last initial, not their email address.',
       },
       {
         subtitle: 'Blockchain',
@@ -83,11 +83,11 @@ const SECTIONS = [
       },
       {
         subtitle: 'Account deletion',
-        text: 'You can ask us to delete your account by emailing team@slatenow.xyz from the email address on your account. After we confirm the request comes from you, we aim to complete it within 30 days. For guests, this removes your account, the ratings and comments you wrote (they disappear from the worker\'s profile and the worker\'s rating is recalculated), your follows, the notifications we stored for you, your vibe reports and venue comments, and your Slate Points. For servers and bartenders, this removes your account, your profile and photo, your workplaces and shifts, your followers, and the ratings guests left on your profile.',
+        text: 'To ask us to delete your account, email team@slatenow.xyz from the email address on your account. We first verify that the request comes from you; we aim to complete the deletion within 30 days after that verification. For guests, this removes your account, the ratings and comments you wrote (they disappear from the worker\'s profile and the worker\'s rating is recalculated), your follows, the notifications we stored for you, your vibe reports and venue comments, and your Slate Points. For servers and bartenders, this removes your account, your profile and photo, your workplaces and shifts, your followers, and the ratings guests left on your profile.',
       },
       {
         subtitle: 'What we keep after deletion',
-        text: 'Slate keeps a record of Slate Points awarded to worker profiles that cannot be edited or deleted. For a deleted worker profile it still holds the points amounts, dates and the email address the profile used; it is not public. If a guest\'s rating is deleted, the Slate Points the worker earned from it stay in the worker\'s balance. Copies of deleted data may also remain for a time in backups kept by our database provider and in records kept by our service providers (hosting, database, email delivery and newsletter), under those providers\' own retention practices, which we do not control.',
+        text: 'Slate keeps a record of Slate Points awarded to worker profiles (amounts and dates) that cannot be edited or deleted, and is not public. When a worker profile is deleted, we remove the email address from that record. During our early test, if a guest\'s rating is deleted, the Slate Points the worker already earned from it are not taken back: they stay in the worker\'s balance and in that record. Some copies or logs of deleted data may remain with our service providers (hosting, database, email delivery and newsletter) under those providers\' own retention practices, which we do not control.',
       },
       {
         subtitle: 'Deleting a single rating',

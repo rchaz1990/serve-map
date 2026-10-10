@@ -7,6 +7,7 @@ begin;
 
 drop policy if exists shifts_insert_worker_terms on public.shifts;
 drop policy if exists shifts_update_worker_terms on public.shifts;
+drop policy if exists follows_insert_worker_terms on public.follows;
 drop function if exists public.worker_terms_ok(uuid);
 drop function if exists public.current_legal_version();
 

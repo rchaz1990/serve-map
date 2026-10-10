@@ -140,6 +140,7 @@ export default function ServerProfilePage() {
   }, [profileId])
 
   const [confirmingFollow, setConfirmingFollow] = useState(false)
+  const [followClosed, setFollowClosed] = useState(false)
 
   async function handleFollow() {
     if (!followerId) { window.location.href = '/login'; return }
@@ -162,6 +163,8 @@ export default function ServerProfilePage() {
         // Confirmed in FollowConsent ("Follow and email me"): opt in to shift emails.
         notify_email: true,
       }).select('status').single()
+      // 42501: refused by the database — this worker hasn't accepted the current Terms.
+      if (followError?.code === '42501') { setFollowClosed(true); setConfirmingFollow(false) }
       if (!followError) {
         const status = inserted?.status === 'approved' ? 'approved' : 'pending'
         setFollowStatus(status)
@@ -513,6 +516,11 @@ export default function ServerProfilePage() {
           </button>
         </div>
 
+        {followClosed && (
+          <p data-testid="follow-closed" className="text-xs" style={{ color: '#A0A0A0', marginBottom: '12px' }}>
+            {firstName} isn&apos;t accepting new followers on Slate right now.
+          </p>
+        )}
         {/* ── Follow button (full width, hidden on own profile) ──────────── */}
         {!isOwnProfile && confirmingFollow && followStatus === 'none' && (
           <div style={{ marginBottom: '56px' }}>
