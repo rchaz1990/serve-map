@@ -2,12 +2,16 @@ import { NextResponse } from 'next/server'
 import { escapeHtml, getRequestUser, supabaseAdmin as getSupabaseAdmin } from '@/lib/server-auth'
 import { workerTermsOnFile } from '@/lib/legal-server'
 import { isTestProfile, isTesterEmail } from '@/lib/test-profiles'
+import { PAUSED } from '@/lib/early-test'
 
 export async function POST(request: Request) {
   // Only the server themself, or a manager at a venue where they work, can notify
   // that server's followers. Names come from the database, not from the caller.
   const user = await getRequestUser(request)
   if (!user) return NextResponse.json({ error: 'Sign in required' }, { status: 401 })
+  // Early test: shift emails (and their in-app notifications) are paused until the
+  // unsubscribe flow is fixed and verified. Nothing is sent and nothing is stored.
+  if (PAUSED.shiftEmails) return NextResponse.json({ success: true, paused: true, sent: 0 })
 
   const supabaseAdmin = getSupabaseAdmin()
   const { Resend } = await import('resend')

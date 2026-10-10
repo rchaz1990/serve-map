@@ -83,13 +83,9 @@ export default function AccountPage() {
       setUser(authUser as AuthUser)
 
       const [{ data: rats }, { data: vibes }, { data: rewards }] = await Promise.all([
-        // ratings has no guest_name/server_name columns — join servers for display name
-        supabase
-          .from('ratings')
-          // restaurant_name is never written to ratings; selecting it can fail the whole query
-          .select('id, score, comment, created_at, server_id, servers(name)')
-          .eq('guest_id', authUser.id)
-          .order('created_at', { ascending: false }),
+        // Own ratings. The rating's account id is not readable by app users (migration 43),
+        // so the database returns only the signed-in user's ratings, newest first.
+        supabase.rpc('my_ratings'),
         // Own vibe reports. Reporter emails are not publicly readable, so the
         // database matches them to the signed-in user's email.
         supabase.rpc('my_vibe_reports'),
@@ -104,14 +100,13 @@ export default function AccountPage() {
 
       if (rats) {
         const mappedRats = (rats as Array<Record<string, unknown>>).map((r) => {
-          const srv = r.servers as { name?: string } | null
           return {
             id: r.id as string,
             score: r.score as number,
             comment: (r.comment as string | null) ?? null,
             restaurant_name: null,
             created_at: r.created_at as string,
-            server_name: srv?.name ?? null,
+            server_name: (r.server_name as string | null) ?? null,
           }
         })
         setRatingsLeft(mappedRats)

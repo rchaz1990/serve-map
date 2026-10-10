@@ -7,6 +7,7 @@ import { authJsonHeaders } from '@/lib/auth-fetch'
 import Navbar from '@/app/components/Navbar'
 import FollowConsent from '@/app/components/FollowConsent'
 import { followWorker } from '@/lib/follow-worker'
+import { PAUSED } from '@/lib/early-test'
 
 export default function ScanPage() {
   const params = useParams()
@@ -27,7 +28,9 @@ export default function ScanPage() {
   const scanRecordedFor = useRef<string | null>(null)
 
   // Record the QR scan once per page load (no login required). Fire-and-forget.
+  // Early test: no scan is recorded before (or without) agreement — PAUSED.qrScanTracking.
   useEffect(() => {
+    if (PAUSED.qrScanTracking) return
     if (!serverId || scanRecordedFor.current === serverId) return
     scanRecordedFor.current = serverId
     // Sends the session token when signed in (test profiles only record scans by testers).
@@ -243,7 +246,7 @@ export default function ScanPage() {
             </button>
           )}
 
-          {rated && followStatus === 'none' && (confirmingFollow ? (
+          {!PAUSED.follows && rated && followStatus === 'none' && (confirmingFollow ? (
             <FollowConsent
               firstName={server?.name?.split(' ')[0] ?? 'your server'}
               onConfirm={confirmFollow}

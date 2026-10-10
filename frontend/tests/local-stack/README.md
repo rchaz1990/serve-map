@@ -83,3 +83,14 @@ node test-profile.test.js http://localhost:3104 keys.json   # 22 checks: hidden 
 ```bash
 node returning-guest.test.js http://localhost:3104 keys.json   # 13 checks: already-rated guest can follow without another rating attempt (consent panel, opt-in, pending/closed/already-following), 24h limit kept, relationship check scoped and test-profile aware
 ```
+
+## Early-test scope lock (`scope-lock.test.js`)
+Applies `43_scope_lock.sql` if missing, runs the pre-43b checks, then applies `43b_rating_identifier_private.sql`
+(the deploy order: 43 → app → 43b). Start the app with `RESEND_BASE_URL=http://localhost:54400`.
+```bash
+node scope-lock.test.js http://localhost:3104 keys.json   # 23 checks: follows/vibe reports/venue comments/shift notifications refused for every role, unfollow kept, no shift distance, no QR-scan or /scan page-view record, used-link message, guest_id unreadable (select/star/filter/order/embed × logged out/other user/author), my_ratings(), rollback order
+```
+**Paused features.** While `lib/early-test.ts` pauses a feature, suites print `SKIP …` for checks of that
+feature (via `early-test.js`) instead of failing; `follow.test.js` and `vibe.test.js` skip entirely. They run
+unchanged again when the feature is re-enabled. Test fixtures that seed historical rows into paused tables
+use `session_replication_role = replica` (local setup only).

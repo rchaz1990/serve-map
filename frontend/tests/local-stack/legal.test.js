@@ -2,6 +2,7 @@
 // on the local real-database stack. No production, no real emails.
 // usage: NODE_PATH=$(npm root -g) node legal.test.js <appUrl> <keys.json>
 const { chromium } = require('playwright')
+const { PAUSED, skip, skippedCount } = require('./early-test')
 const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
@@ -130,6 +131,7 @@ async function worker(tag) {
     check('L11 submit without ticking → message, nothing saved', /confirm you agree/i.test(await text(page)) && savedEarly === '0', savedEarly)
     await box.check(); await page.click('button:has-text("Submit")'); await page.waitForTimeout(2000)
     check('L12 ticked → rating saved', sql(`select count(*) from ratings where guest_email = '${guest.email}'`) === '1')
+    if (PAUSED.follows) { skip('L12b', 'follows'); skip('L12c', 'follows') } else {
     await page.click('button:has-text("Follow")'); await page.waitForTimeout(1000)
     const panel = (await page.textContent('[data-testid="follow-consent"]').catch(() => '')) || ''
     const followsBefore = sql(`select count(*) from follows where follower_id = '${guest.id}'`)
@@ -137,6 +139,7 @@ async function worker(tag) {
       /email you when .* starts a shift, including where they.re working/.test(panel) && /(not your email address|see your email address)/.test(panel) && /unfollow/i.test(panel) && followsBefore === '0', { panel, followsBefore })
     await page.click('button:has-text("Follow and email me")'); await page.waitForTimeout(1500)
     check('L12c confirming creates the follow', sql(`select count(*) from follows where follower_id = '${guest.id}' and server_id = '${s3.serverId}'`) === '1')
+    }
     const s4 = await worker('s4')
     // New session so the client sees the recorded acknowledgment
     const page2 = await fresh()
@@ -173,7 +176,7 @@ async function worker(tag) {
   }
 
   // Profile follow by a guest with no acknowledgment on file
-  {
+  if (PAUSED.follows) { skip('L24', 'follows'); skip('L25', 'follows') } else {
     const s6 = await worker('s6')
     const g2 = await account('profilefollow')
     const page = await fresh()
@@ -212,6 +215,6 @@ async function worker(tag) {
     check('L19 for-servers: no "Permanent. Immutable."', !/Immutable/.test(forServers) && !/Permanent\./.test(forServers))
   }
   await browser.close()
-  console.log(`\n${pass} passed, ${fail} failed`)
+  console.log(`\n${pass} passed, ${fail} failed${skippedCount() ? `, ${skippedCount()} skipped (paused features)` : ''}`)
   process.exit(fail ? 1 : 0)
 })().catch(e => { console.error('ERROR', e); process.exit(1) })

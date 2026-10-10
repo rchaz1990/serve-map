@@ -3,6 +3,7 @@
 // Prereqs: README.md in this folder; migration 33 applied to the local database.
 const { execFileSync } = require('child_process')
 const fs = require('fs')
+const { PAUSED } = require('./early-test')
 const [APP, KEYS] = process.argv.slice(2)
 const GW = 'http://localhost:54400'
 const DB = process.env.STACK_DB || 'slate_stack'
@@ -33,6 +34,8 @@ let pass = 0, fail = 0
 function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : JSON.stringify(detail ?? '').slice(0, 300)) }
 
 ;(async () => {
+  // Early test: vibe reports are paused (lib/early-test.ts). This suite runs again when they are re-enabled.
+  if (PAUSED.vibeReports) { console.log('SKIP whole suite (vibe reports: paused for the early test)'); console.log('\n0 passed, 0 failed, suite skipped (paused feature)'); process.exit(0) }
   // ── malicious ──
   const victim = await account('victim')
   let r = await vibe(null, { ...base(), ...VENUE, ...AT_VENUE, reporterEmail: victim.user.email, userId: victim.user.id, gpsVerified: true })
