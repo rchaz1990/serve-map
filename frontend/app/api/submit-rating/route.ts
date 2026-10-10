@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { recordLegalAcceptance, workerTermsOnFile } from '@/lib/legal-server'
+import { viewerMayUseProfile } from '@/lib/test-profiles'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -105,6 +106,10 @@ export async function POST(request: Request) {
   if (!server) {
     return NextResponse.json({ error: 'Server not found.' }, { status: 404 })
   }
+  // A test profile (migration 42) is "not found" for anyone who isn't a test account.
+  const access = await viewerMayUseProfile(supabaseAdmin, serverId, user)
+  if (access === 'error') return NextResponse.json({ error: 'Could not submit rating.' }, { status: 503 })
+  if (access === 'hidden') return NextResponse.json({ error: 'Server not found.' }, { status: 404 })
   // Only workers who have accepted the current Terms/Privacy as a worker can receive new
   // ratings (limited-test policy). Unclaimed profiles never can. Existing ratings stay.
   if (!(await workerTermsOnFile(supabaseAdmin, server.wallet_address as string | null))) {

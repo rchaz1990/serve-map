@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { escapeHtml, getRequestUser, supabaseAdmin } from '@/lib/server-auth'
+import { viewerMayUseProfile } from '@/lib/test-profiles'
 
 // A signed-in restaurant manager asks to connect with a server who opted in to
 // talent discovery. The recipient address is looked up here, never taken from
@@ -45,7 +46,10 @@ export async function POST(request: Request) {
     .select('name, email, open_to_opportunities')
     .eq('id', serverId)
     .maybeSingle()
-  if (!server || !server.open_to_opportunities) {
+  // Test profiles (migration 42) don't exist for managers who aren't test accounts.
+  const access = await viewerMayUseProfile(admin, serverId, user)
+  if (access === 'error') return NextResponse.json({ error: 'Could not check profile' }, { status: 503 })
+  if (!server || !server.open_to_opportunities || access === 'hidden') {
     return NextResponse.json({ error: 'This server is not open to contact' }, { status: 404 })
   }
   if (!server.email) return NextResponse.json({ error: 'No email on file for this server' }, { status: 409 })

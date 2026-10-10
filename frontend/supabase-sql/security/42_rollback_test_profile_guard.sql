@@ -1,6 +1,20 @@
--- Rollback for 42_test_profile_guard.sql. WARNING: any test profile becomes public again.
--- Hide or remove test profiles first if that matters (separate, approved step).
+-- Rollback for 42_test_profile_guard.sql.
+-- Refuses to run while any test profile or listed test account exists, because removing
+-- these rules would make test profiles public and let them mix with real users. First
+-- remove each test profile with the participant deletion procedure
+-- (docs/PARTICIPANT_DATA_DELETION.md, separately approved) and empty test_accounts.
 begin;
+
+do $$
+begin
+  if exists (select 1 from public.servers where test_profile) then
+    raise exception 'test profiles still exist (%); remove them with the approved deletion procedure first',
+      (select count(*) from public.servers where test_profile);
+  end if;
+  if exists (select 1 from public.test_accounts) then
+    raise exception 'test_accounts is not empty; remove the listed accounts first';
+  end if;
+end $$;
 drop trigger if exists ratings_no_test_mix on public.ratings;
 drop policy if exists follows_no_test_mix on public.follows;
 drop policy if exists ratings_hide_test on public.ratings;

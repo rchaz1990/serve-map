@@ -76,5 +76,5 @@ Note: P31 clears every stored coordinate in the local database (local only).
 ## Test worker profiles (`test-profile.test.js`)
 Applies `42_test_profile_guard.sql` to the local database if missing. Then:
 ```bash
-node test-profile.test.js http://localhost:3104 keys.json   # 15 checks: hidden from anon/real users (profiles, workplaces, shifts, ratings, pages), visible to testers, flag not client-settable, no follow/rating mixing, shift emails stay inside the test group, rollback
+node test-profile.test.js http://localhost:3104 keys.json   # 22 checks: hidden from anon/real users (profiles, workplaces, shifts, ratings, pages, rating-status, track-scan), visible to testers, flag not client-settable, no follow/rating mixing, notifications fail closed on mixed followers, rollback refuses while test profiles exist
 ```
