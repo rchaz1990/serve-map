@@ -807,7 +807,13 @@ export default function RestaurantManagerDashboard() {
           is_active: true,
           activated_by: 'manager',
         })
-        if (insertErr) throw new Error(insertErr.message)
+        if (insertErr) {
+          // 42501: refused by the database — this worker hasn't accepted the current
+          // Terms/Privacy yet (or the profile isn't claimed). Say so plainly.
+          throw new Error(insertErr.code === '42501'
+            ? `${member.name || 'This worker'} needs to sign in and accept Slate's current Terms before a shift can start.`
+            : insertErr.message)
+        }
 
         // Notify followers — best-effort
         authJsonHeaders().then(headers => fetch('/api/notify-followers', {
