@@ -1,5 +1,5 @@
 # Slate Execution Register
-Last updated: 2026-10-09
+Last updated: 2026-10-10
 Status: Initial register; planning record, not evidence of completion or authorization.
 
 ## Purpose
@@ -35,6 +35,19 @@ Record consequential next steps, experiments, blockers and founder decisions so 
 - Next action: Investigate adjacent solutions and disconfirming evidence, including whether workers already have adequate alternatives or do not value portability; translate findings into falsifiable next-step experiments. Start actual assigned work immediately after the short round.
 - Dependencies: Distinguish existing Slate features from aspirational capabilities. Do not claim long-term portability, rewards or economic outcomes are proven.
 - Completion evidence: Concise sourced findings, contrary evidence, specific recommended test and founder decision.
+
+### SLATE-004 — Test-account session cleanup (DEFERRED)
+- Type: Security housekeeping | Priority: P2 | Status: **DEFERRED — not resolved**
+- Why: During the confirmation-link test (2026-10-10), the single-use link was opened twice. The first open (15:13:40 UTC) confirmed the account and created a session whose sign-in cookies went to an unidentified client (Yahoo in-app browser or an email link scanner; logs cannot tell which). The second open got "expired". The founder then signed in twice from iPhone Safari.
+- Scope: test account `thatgreatassguy1234567@yahoo.com`, Auth user `76f369a5-72e9-4447-90c6-1339201864a4` (guest only; listed in `test_accounts`; no worker profile).
+- Remaining: 3 sessions and 3 refresh tokens, all owned by this account —
+  `679ef469-0fa9-4213-a86f-82f6f72c5349` (15:13:40 UTC, from the confirmation link, never refreshed), `e06ff3c3-287f-4365-ac52-514d3a8dbb9d` (15:21:25 UTC, iPhone Safari), `de407505-50e6-4db2-b9c2-6b721086f219` (15:21:46 UTC, iPhone Safari).
+- Attempts (founder-approved): two runs on 2026-10-10 of one guarded statement deleting exactly these three sessions (refresh tokens follow by cascade; rolls back unless exactly 3 sessions and 3 refresh tokens are removed). **Both were cancelled at the database approval prompt; read-only checks after each confirmed nothing changed** (account: 3 sessions, 3 refresh tokens, still confirmed; all users: 107 sessions, 141 refresh tokens).
+- Risk: low. Guest test account; it sees only test-visible data. The unknown session's access token expired ~16:13 UTC; its refresh token stays valid until revoked.
+- Founder decision (2026-10-10): defer; do not hold up the project. Do not treat as resolved.
+- Next action: **revisit before the first stranger invitation, or when the test account is retired, whichever comes first.** Re-run the same guarded statement only with fresh founder approval; then verify 0 sessions and 0 refresh tokens for this account, still confirmed, still in `test_accounts`, overall totals down by exactly 3/3, no other changes.
+- Related product fixes (not started; need approval): `/auth/confirm` should say "may already be confirmed — sign in" for a used link, and a confirm-button step so link scanners cannot use the token.
+- Completion evidence: dated revocation result and read-only verification.
 
 ## Operating rule
 1. Capture any founder-approved critical next step or consequential open question here before it disappears into a chat.
