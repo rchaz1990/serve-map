@@ -30,7 +30,7 @@
 
 | Area | Effect |
 |---|---|
-| Reversibility | Can't be undone, except by restoring a Supabase backup, which would also roll back everything else. **Do not export the coordinates first**: an export would be another copy to protect. |
+| Reversibility | Can't be undone. The project is on Supabase's Free plan, so there is no project backup we can restore. **Do not export the coordinates first**: an export would be another copy to protect. |
 | Features | None affected. Badges, rewards and integrity scores use the stored result. |
-| Backups | Old copies remain in Supabase backups until they expire. This is disclosed in the Privacy Policy. |
+| Provider copies | Any copies Supabase keeps follow its own retention practices, which are not confirmed. The Privacy Policy describes this without promising a period. |
 | Rollback | Not applicable to the cleanup itself. Migration 39 has its own rollback, which restores grants only. |

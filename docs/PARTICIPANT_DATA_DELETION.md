@@ -62,8 +62,9 @@ If the account both follows its own profile or rated itself (normally blocked), 
   - For a worker profile, its rows keep the points amounts, dates and the profile's email address.
   - **Not bypassed.** Changing that is a separate founder decision.
   - Points a worker earned from a guest rating that is later deleted stay in the worker's balance.
-- **Supabase backups** keep data until they expire.
-- **Provider logs** (Vercel, Supabase, Resend) keep data for their own retention periods.
+- **Provider copies.** Backups kept by Supabase, and logs and records kept by Vercel, Supabase, Resend and Beehiiv, follow each provider's own retention practices.
+  - We have not confirmed those periods. The project is on Supabase's **Free plan**, so it has no project backups we can download or restore ourselves.
+  - The Privacy Policy therefore promises no expiry date.
 
 ## 6. Single-rating deletion
 

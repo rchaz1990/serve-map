@@ -1,4 +1,5 @@
 import Navbar from '@/app/components/Navbar'
+import { legalEffectiveLabel } from '@/lib/legal'
 
 const SECTIONS = [
   {
@@ -86,7 +87,7 @@ const SECTIONS = [
       },
       {
         subtitle: 'What we keep after deletion',
-        text: 'Slate keeps a record of Slate Points awarded to worker profiles that cannot be edited or deleted. For a deleted worker profile it still holds the points amounts, dates and the email address the profile used; it is not public. Deleted data can also remain in our database provider\'s backups until they expire, and in our service providers\' records (for example, email delivery logs) for as long as they keep them.',
+        text: 'Slate keeps a record of Slate Points awarded to worker profiles that cannot be edited or deleted. For a deleted worker profile it still holds the points amounts, dates and the email address the profile used; it is not public. If a guest\'s rating is deleted, the Slate Points the worker earned from it stay in the worker\'s balance. Copies of deleted data may also remain for a time in backups kept by our database provider and in records kept by our service providers (hosting, database, email delivery and newsletter), under those providers\' own retention practices, which we do not control.',
       },
       {
         subtitle: 'Deleting a single rating',
@@ -134,7 +135,7 @@ const SECTIONS = [
     body: [
       {
         subtitle: '',
-        text: 'We may update this Privacy Policy from time to time. When we do we will update the date above. For material changes we will ask you to agree again before you next create a profile, submit a rating, follow someone, or use your server or bartender dashboard, and may also email you.',
+        text: 'We may update this Privacy Policy from time to time. When we do we will update the effective date above. For material changes we will ask you to agree again before you next create a profile, submit a rating, follow someone, or use your server or bartender dashboard, and may also email you.',
       },
     ],
   },
@@ -164,7 +165,7 @@ export default function PrivacyPage() {
           <h1 className="mb-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
             Privacy Policy
           </h1>
-          <p className="text-sm" style={{ color: '#606060' }}>Updated October 2026</p>
+          <p className="text-sm" style={{ color: '#606060' }} data-testid="legal-effective">{legalEffectiveLabel()}</p>
         </div>
 
         <div className="space-y-12">

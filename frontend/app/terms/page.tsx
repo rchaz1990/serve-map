@@ -1,4 +1,5 @@
 import Navbar from '@/app/components/Navbar'
+import { legalEffectiveLabel } from '@/lib/legal'
 
 const SECTIONS = [
   {
@@ -151,7 +152,7 @@ export default function TermsPage() {
           <h1 className="mb-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
             Terms of Service
           </h1>
-          <p className="text-sm" style={{ color: '#606060' }}>Updated October 2026</p>
+          <p className="text-sm" style={{ color: '#606060' }} data-testid="legal-effective">{legalEffectiveLabel()}</p>
         </div>
 
         <div className="space-y-12">

@@ -132,6 +132,20 @@ async function optedInFollower(w) {
     check('P14 unclaimed profile (no sign-in account): no shift can start and no follower email is sent', ul.status >= 400 && un.status === 403, { ul, un })
   }
 
+  // ── 4b. New ratings only for workers who accepted (server-enforced) ──
+  const rateApi = (a, w, extra = {}) => api('/api/submit-rating', a.token, { serverId: w.serverId, score: 5, legalAccepted: LEGAL_VERSION, ...extra })
+  const status = async w => (await (await fetch(APP + '/api/rating-status?server=' + w.serverId)).json()).accepting
+  const wClosed = await worker('closed', VENUE)
+  {
+    const g = await account('rater')
+    const r = await rateApi(g, wClosed)
+    check('P32 rating a worker who has not accepted is refused on the server (403), nothing stored; status says closed',
+      r.status === 403 && r.json?.code === 'worker_not_accepting' && sql(`select count(*) from ratings where server_id = '${wClosed.serverId}'`) === '0' && await status(wClosed) === false, r)
+    await api('/api/legal/accept', wClosed.token, { version: LEGAL_VERSION, context: 'worker' })
+    const r2 = await rateApi(g, wClosed)
+    check('P33 once the worker accepts: status open and the rating posts', r2.status === 200 && await status(wClosed) === true && sql(`select count(*) from ratings where server_id = '${wClosed.serverId}'`) === '1', r2)
+  }
+
   // ── 5. Dashboard agreement step ──
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-proxy-server'] })
   async function signedIn(a) {
@@ -164,6 +178,18 @@ async function optedInFollower(w) {
     await p2.context().close()
   }
 
+  {
+    const wNot = await worker('pagenotice', VENUE)
+    const ctx = await browser.newContext()
+    await ctx.route('**/*', r => new URL(r.request().url()).hostname === 'localhost' ? r.continue() : r.abort())
+    const page = await ctx.newPage()
+    await page.goto(APP + `/rate?server=${wNot.serverId}`, { waitUntil: 'networkidle', timeout: 120000 }); await page.waitForTimeout(1500)
+    await page.click('[aria-label="5 stars"]').catch(() => {})
+    check('P34 rate page: tells the guest this server is not taking ratings and Submit stays disabled',
+      await page.isVisible('[data-testid="ratings-closed"]') && await page.locator('button:has-text("Submit")').isDisabled())
+    await ctx.close()
+  }
+
   // ── 6. Public copy ──
   {
     const ctx = await browser.newContext(); const page = await ctx.newPage()
@@ -179,7 +205,49 @@ async function optedInFollower(w) {
       /Your coordinates are used only for that check and are not stored/.test(terms) && /before you next use your dashboard/.test(terms) && /ask us to delete a rating you wrote/.test(terms))
     await ctx.close()
   }
+  // ── 6b. One policy version; effective date from it ──
+  {
+    const m39 = fs.readFileSync(path.join(__dirname, '../../supabase-sql/security/39_participant_data_policy.sql'), 'utf8').match(/select '([^']+)'::text/)[1]
+    const ctx = await browser.newContext(); const page = await ctx.newPage()
+    const label = async p => { await page.goto(APP + p, { waitUntil: 'networkidle', timeout: 120000 }); return (await page.textContent('[data-testid="legal-effective"]')) || '' }
+    const tl = await label('/terms'), pl = await label('/privacy'), privacy = (await page.textContent('body')) || ''
+    check('P35 one version: app LEGAL_VERSION = migration 39 current_legal_version(); Terms and Privacy show the same effective date from it',
+      m39 === LEGAL_VERSION && tl === pl && /^Effective /.test(tl), { m39, LEGAL_VERSION, tl, pl })
+    check('P36 Privacy: points from a deleted guest rating stay with the worker; backups/provider records described without a promised expiry',
+      /stay in the worker.s balance/.test(privacy) && /own retention practices, which we do not control/.test(privacy) && !/until they expire/.test(privacy))
+    await ctx.close()
+  }
   await browser.close()
+
+  // ── 6c. Migration 40: profiles without an account are hidden until claimed ──
+  {
+    if (sql(`select count(*) from pg_policy where polname = 'servers_hide_unclaimed'`) === '0') {
+      // Local data has many account-less test profiles; check the guard, then apply 40 with it set to the local count.
+      const localN = sql(`select count(*) from servers s where s.wallet_address !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' and not exists (select 1 from auth.users u where lower(u.email) = lower(s.email))`)
+      const m40 = fs.readFileSync(path.join(__dirname, '../../supabase-sql/security/40_hide_unclaimed_profiles.sql'), 'utf8')
+      const guard = sqlFile(m40)
+      check('P37 migration 40 stops (changes nothing) when the number of account-less profiles is not exactly 2', localN === '2' || (!guard.ok && /expected 2 profiles/.test(guard.out) && sql(`select count(*) from information_schema.columns where table_name = 'servers' and column_name = 'hidden_until_claimed'`) === '0'), guard.out)
+      const applied = sqlFile(m40.replace('if n <> 2 then', `if n <> ${localN} then`))
+      check('P38 migration 40 applies', applied.ok, applied.out)
+    }
+    const hid = sql(`insert into servers (name, email, wallet_address, hidden_until_claimed) values ('Hidden ${run}', 'hidden-${run}@example.com', 'legacy-h-${run}', true) returning id`).split('\n')[0]
+    sql(`insert into server_restaurants (server_id, restaurant_name, restaurant_address) values ('${hid}', '${VENUE}', '1 Policy St')`)
+    const g = await account('viewer')
+    const get = (p, t) => rest('GET', p, t, undefined, 'return=representation')
+    const anonS = await get(`servers?select=id&id=eq.${hid}`, null)
+    const authS = await get(`servers?select=id&id=eq.${hid}`, g.token)
+    const anonSR = await get(`server_restaurants?select=server_id&server_id=eq.${hid}`, null)
+    const others = await get(`servers?select=id&id=eq.${wClosed.serverId}`, null)
+    check('P39 hidden profile and its workplaces are invisible to anon and signed-in users; other profiles unaffected',
+      anonS.text === '[]' && authS.text === '[]' && anonSR.text === '[]' && others.text.includes(wClosed.serverId), { anonS, authS, anonSR })
+    const r = await rateApi(g, { serverId: hid })
+    check('P40 hidden profile cannot receive a rating', r.status === 403 || r.status === 404, r)
+    const claimant = await account('claimant')
+    sql(`update servers set wallet_address = '${claimant.id}' where id = '${hid}'`)
+    const after = await get(`servers?select=id&id=eq.${hid}`, null)
+    check('P41 once claimed (linked to an account) it reappears; ratings still wait for the worker agreement',
+      after.text.includes(hid) && (await rateApi(g, { serverId: hid })).status === 403, after)
+  }
 
   // ── 7. Manual deletion scripts ──
   const preview = fs.readFileSync(path.join(MANUAL, 'participant_deletion_preview.sql'), 'utf8')
