@@ -14,7 +14,7 @@ const SECTIONS = [
       },
       {
         subtitle: 'Ratings and reviews',
-        text: 'When you rate a server or bartender, your score, any written comment, and any tags you choose are stored by Slate and shown on that person\'s public profile until you or they ask us to delete them. Your name and email address are not shown with your rating. Each rating is stored with a random account identifier that others using Slate can see; it does not show your name or email.',
+        text: 'When you rate a server or bartender, your score, any written comment, and any tags you choose are stored by Slate and shown on that person\'s public profile until you or they ask us to delete them. Your name and email address are not shown with your rating. Inside Slate, each rating is linked to your account (by your email address, which is not shown) so we can limit abuse and delete it if you ask. Some older ratings also carry a random account identifier that others using Slate can see; it does not show your name or email.',
       },
       {
         subtitle: 'Usage data',
