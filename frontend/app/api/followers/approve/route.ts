@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { hasAcceptedLegal } from '@/lib/legal-server'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,12 +17,16 @@ async function getServerForRequest(request: Request) {
     .select('id')
     .eq('wallet_address', user.id)
     .maybeSingle()
-  return data ?? null
+  return data ? { ...data, termsOk: hasAcceptedLegal(user, 'worker') } : null
 }
 
 export async function POST(request: Request) {
   const server = await getServerForRequest(request)
   if (!server) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Approving a pending follow gives the worker a new follower: needs the current agreement.
+  if (!server.termsOk) {
+    return NextResponse.json({ error: 'Accept the current Terms and Privacy Policy first.', code: 'worker_terms_required' }, { status: 403 })
+  }
 
   const { followId } = await request.json()
   if (!followId) return NextResponse.json({ error: 'Missing followId' }, { status: 400 })

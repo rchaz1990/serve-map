@@ -19,11 +19,14 @@ const lastEmail = async e => (await fetch(GW + '/__last_email?email=' + encodeUR
 async function account(tag) {
   const e = email(tag)
   const s = await (await fetch(GW + '/__create_user', { method: 'POST', body: JSON.stringify({ email: e, password: 'pass123456' }) })).json()
-  return { email: e, id: s.user.id }
+  return { email: e, id: s.user.id, token: s.access_token }
 }
+const LEGAL_VERSION = fs.readFileSync(require('path').join(__dirname, '../../lib/legal.ts'), 'utf8').match(/LEGAL_VERSION = '([^']+)'/)[1]
 async function worker(tag) {
   const a = await account(tag)
   const id = sql(`insert into servers (name, email, wallet_address) values ('Riley ${tag}', '${a.email}', '${a.id}') returning id`).split('\n')[0]
+  // Rated workers have accepted the current Terms as workers (required to receive ratings).
+  await fetch(APP + '/api/legal/accept', { method: 'POST', headers: { authorization: `Bearer ${a.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ version: LEGAL_VERSION, context: 'worker' }) })
   return { ...a, serverId: id }
 }
 const ratingsBy = e => sql(`select count(*) from ratings where lower(guest_email) = lower('${e}')`)

@@ -35,3 +35,18 @@ export async function recordLegalAcceptance(
   }
   return 'recorded'
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Whether the worker who owns a profile (servers.wallet_address = their account id) has
+ * acknowledged the current version as a worker. A profile not tied to a sign-in account
+ * (unclaimed) never passes. Used to gate shift emails; the database gates shift starts
+ * the same way (migration 39, worker_terms_ok).
+ */
+export async function workerTermsOnFile(admin: SupabaseClient, walletAddress: string | null | undefined): Promise<boolean> {
+  if (!walletAddress || !UUID_RE.test(walletAddress)) return false
+  const { data, error } = await admin.auth.admin.getUserById(walletAddress)
+  if (error || !data?.user) return false
+  return hasAcceptedLegal(data.user, 'worker')
+}

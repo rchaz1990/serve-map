@@ -9,6 +9,8 @@ import { MotionSection } from '@/app/components/motion'
 import { authJsonHeaders } from '@/lib/auth-fetch'
 import { supabase } from '@/lib/supabase'
 import { geocodeAddress } from '@/lib/geocode'
+import { workerTermsOnFile } from '@/lib/legal-client'
+import WorkerTermsGate from '@/app/components/WorkerTermsGate'
 
 const QR_DURATION_MS = 8 * 60 * 60 * 1000 // 8 hours
 
@@ -1106,6 +1108,8 @@ export default function DashboardPage() {
     comment: string | null
   }[]>([])
   const [profileLoading, setProfileLoading] = useState(true)
+  // Existing workers must agree to the current Terms/Privacy before using the dashboard.
+  const [workerTermsNeeded, setWorkerTermsNeeded] = useState(false)
 
   // /jobs and ?section=jobs land here — scroll to Jobs / Venues once profile loads.
   useEffect(() => {
@@ -1223,6 +1227,7 @@ export default function DashboardPage() {
       setProfileOpenToOpportunities(row.open_to_opportunities ?? false)
       setProfileFollowApproval(row.follow_approval ?? 'approval')
       setProfileVisibility(row.profile_visibility ?? 'public')
+      setWorkerTermsNeeded(!(await workerTermsOnFile().catch(() => false)))
       setProfileLoading(false)
     }
 
@@ -1385,7 +1390,9 @@ export default function DashboardPage() {
       }),
     })).catch(() => {})
 
-    const insertShift = async (gpsVerified: boolean, distance: number | null, userLat: number | null, userLng: number | null) => {
+    // The location check runs on this device. Only its result (and the distance) is
+    // saved; the device's coordinates never leave the phone.
+    const insertShift = async (gpsVerified: boolean, distance: number | null) => {
       const { data, error } = await supabase.from('shifts').insert({
         server_id: serverId,
         restaurant_name: restaurantName,
@@ -1394,15 +1401,13 @@ export default function DashboardPage() {
         activated_by: 'server',
         gps_verified: gpsVerified,
         distance_meters: distance,
-        user_lat: userLat,
-        user_lng: userLng,
       }).select('id').single()
       if (error) console.error('[supabase] shift start:', error)
       else setShiftDbId(data.id)
     }
 
     if (!navigator.geolocation) {
-      insertShift(false, null, null, null)
+      insertShift(false, null)
       return
     }
 
@@ -1422,16 +1427,31 @@ export default function DashboardPage() {
               Math.cos(userLat * Math.PI / 180) * Math.cos(rLat * Math.PI / 180) *
               Math.sin(dLon / 2) * Math.sin(dLon / 2)
             const distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
-            insertShift(distance <= 500, distance, userLat, userLng)
+            insertShift(distance <= 500, distance)
           } else {
-            insertShift(false, null, userLat, userLng)
+            insertShift(false, null)
           }
         } catch {
-          insertShift(false, null, userLat, userLng)
+          insertShift(false, null)
         }
       },
-      () => { insertShift(false, null, null, null) },
+      () => { insertShift(false, null) },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
+  }
+
+  if (!profileLoading && serverProfile && workerTermsNeeded) {
+    return (
+      <div className="slate-page">
+        <Navbar />
+        <div className="slate-rule" />
+        <main className="slate-main mx-auto max-w-2xl px-8 py-12">
+          <WorkerTermsGate
+            onAccepted={() => setWorkerTermsNeeded(false)}
+            onSignOut={async () => { await supabase.auth.signOut(); router.push('/') }}
+          />
+        </main>
+      </div>
     )
   }
 

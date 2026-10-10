@@ -40,6 +40,8 @@ const profiles = id => sql(`select count(*) from servers where wallet_address = 
 async function worker(tag) {
   const a = await account(tag)
   const id = sql(`insert into servers (name, email, wallet_address) values ('Rated ${tag}', '${a.email}', '${a.id}') returning id`).split('\n')[0]
+  // Rated workers have accepted the current Terms as workers (required to receive ratings).
+  await fetch(APP + '/api/legal/accept', { method: 'POST', headers: { authorization: `Bearer ${a.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ version: LEGAL_VERSION, context: 'worker' }) })
   return { ...a, serverId: id }
 }
 
@@ -102,7 +104,7 @@ async function worker(tag) {
     const created = sql(`select count(*) from auth.users where email = '${e}'`)
     const disclosure = (await page.textContent('[data-testid="shift-disclosure"]').catch(() => '')) || ''
     check('L8b sign-up explains that starting a shift is public and may email followers, and the follow-approval setting',
-      /anyone can\s+see which venue you.re working at/.test(disclosure) && /email your\s+followers/.test(disclosure) && /follow approval/.test(await text(page)), disclosure)
+      /anyone can\s+see which venue you.re working at/.test(disclosure) && /Slate may email followers who\s+explicitly chose to receive shift emails\./.test(disclosure) && /follow approval/.test(await text(page)), disclosure)
     check('L8 sign-up UI: box unticked by default, Terms + Privacy links, Claim disabled, no account created yet',
       disabledBefore && unticked && links && created === '0', { disabledBefore, unticked, links, created })
     await box.check()
@@ -196,8 +198,9 @@ async function worker(tag) {
     const pay = await visible('/pay'), wp = await visible('/whitepaper'), forServers = await visible('/for-servers')
     check('L14 Terms: no "on the Solana blockchain and are permanent"; has agreement + location sections',
       !/written to the Solana blockchain/i.test(terms) && /Agreeing to These Terms/.test(terms) && /Location Checks/.test(terms) && /no guarantee/i.test(terms))
-    check('L15 Privacy: discloses stored coordinates and visible distance; no "never stored"',
-      /store your coordinates and your distance from the venue/.test(privacy) && /not proof/.test(privacy) && !/never stored/i.test(privacy))
+    check('L15 Privacy: coordinates used temporarily, not stored; distance internal; older records disclosed; no "never stored"',
+      /We do not store your coordinates/.test(privacy) && /which only Slate can see/.test(privacy) && /recorded before this change may still include coordinates/.test(privacy)
+        && /not proof/.test(privacy) && !/never stored/i.test(privacy))
     check('L16 Home: no "Building on Solana", no 1:1 conversion, $SERVE "may never launch"',
       !/Building on Solana/.test(home) && !/1:1/.test(home) && /may never launch/.test(home))
     check('L17 /pay: no balance, USD conversion or bank payout', /Not available/.test(pay) && !/≈ \$/.test(pay) && !/business days/.test(pay))

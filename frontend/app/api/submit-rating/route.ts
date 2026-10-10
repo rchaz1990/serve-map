@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { recordLegalAcceptance } from '@/lib/legal-server'
+import { recordLegalAcceptance, workerTermsOnFile } from '@/lib/legal-server'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
 
   const { data: server, error: serverErr } = await supabaseAdmin
     .from('servers')
-    .select('id')
+    .select('id, wallet_address')
     .eq('id', serverId)
     .maybeSingle()
   if (serverErr) {
@@ -104,6 +104,14 @@ export async function POST(request: Request) {
   }
   if (!server) {
     return NextResponse.json({ error: 'Server not found.' }, { status: 404 })
+  }
+  // Only workers who have accepted the current Terms/Privacy as a worker can receive new
+  // ratings (limited-test policy). Unclaimed profiles never can. Existing ratings stay.
+  if (!(await workerTermsOnFile(supabaseAdmin, server.wallet_address as string | null))) {
+    return NextResponse.json(
+      { error: 'This server isn\'t taking ratings on Slate right now.', code: 'worker_not_accepting' },
+      { status: 403 },
+    )
   }
 
   const { data: follow, error: followErr } = await supabaseAdmin

@@ -6,6 +6,7 @@ import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import { authJsonHeaders } from '@/lib/auth-fetch'
 import LegalConsent from '@/app/components/LegalConsent'
+import WorkerDisclosure from '@/app/components/WorkerDisclosure'
 import { LEGAL_VERSION } from '@/lib/legal'
 import { supabase } from '@/lib/supabase'
 import { isTestDevice } from '@/lib/funnel'
@@ -664,20 +665,7 @@ export default function ServerSignupPage() {
             {/* Acknowledgment (final step, before the account is created) */}
             {step === 2 && (
               <div className="mt-6 rounded-xl border border-white/10 px-4 py-4">
-                <p className="mb-3 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
-                  Before you claim your profile: your name, photo, workplaces, ratings, comments, followers and Slate
-                  Points are public on Slate.
-                </p>
-                <p className="mb-3 text-xs leading-relaxed" style={{ color: '#A0A0A0' }} data-testid="shift-disclosure">
-                  <strong className="text-white">Starting a shift is public.</strong> When you start a shift, anyone can
-                  see which venue you&apos;re working at and that you&apos;re on shift now, and Slate may email your
-                  followers to tell them. If you share your location, we store it with that shift.
-                </p>
-                <p className="mb-3 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
-                  <strong className="text-white">Choose who follows you.</strong> Anyone can follow you unless you turn on
-                  follow approval in your dashboard settings; then you approve each follower first. Slate Points have no
-                  cash value. Ratings are stored by Slate, not on a blockchain.
-                </p>
+                <WorkerDisclosure />
                 <LegalConsent checked={legalAccepted} onChange={setLegalAccepted}>
                   I&apos;m 18 or older, and I&apos;ve read and agree to Slate&apos;s
                 </LegalConsent>
