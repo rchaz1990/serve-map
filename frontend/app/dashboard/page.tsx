@@ -11,6 +11,8 @@ import { supabase } from '@/lib/supabase'
 import { geocodeAddress } from '@/lib/geocode'
 import { workerTermsOnFile } from '@/lib/legal-client'
 import WorkerTermsGate from '@/app/components/WorkerTermsGate'
+import ParticipantCard from '@/app/components/ParticipantCard'
+import { fetchParticipation } from '@/lib/participant'
 
 const QR_DURATION_MS = 8 * 60 * 60 * 1000 // 8 hours
 
@@ -1110,6 +1112,8 @@ export default function DashboardPage() {
   const [profileLoading, setProfileLoading] = useState(true)
   // Existing workers must agree to the current Terms/Privacy before using the dashboard.
   const [workerTermsNeeded, setWorkerTermsNeeded] = useState(false)
+  // Early test: whether this worker has accepted the worker participant agreement (null = loading).
+  const [workerParticipating, setWorkerParticipating] = useState<boolean | null>(null)
 
   // /jobs and ?section=jobs land here — scroll to Jobs / Venues once profile loads.
   useEffect(() => {
@@ -1228,6 +1232,7 @@ export default function DashboardPage() {
       setProfileFollowApproval(row.follow_approval ?? 'approval')
       setProfileVisibility(row.profile_visibility ?? 'public')
       setWorkerTermsNeeded(!(await workerTermsOnFile().catch(() => false)))
+      setWorkerParticipating((await fetchParticipation())?.worker.agreed ?? false)
       setProfileLoading(false)
     }
 
@@ -1462,6 +1467,13 @@ export default function DashboardPage() {
 
       <main className="slate-main mx-auto max-w-5xl px-8 py-12 lg:px-16">
 
+        {/* ── Early-test worker agreement (profile hidden until accepted) ── */}
+        {!profileLoading && serverProfile && workerParticipating === false && (
+          <div className="mb-10 max-w-xl">
+            <ParticipantCard role="worker" onAgreed={() => setWorkerParticipating(true)} />
+          </div>
+        )}
+
         {/* ── Header (server name + greeting) ─────────────────────────── */}
         {profileLoading ? (
           <div className="mb-10">
@@ -1627,6 +1639,8 @@ export default function DashboardPage() {
                   setShiftDbId(null)
                   setShowRestaurantPicker(false)
                 } else {
+                  // Early test: no shift starts until the worker agreement is accepted.
+                  if (workerParticipating !== true) return
                   // Show restaurant picker (or skip if auto-selected and only one)
                   if (restaurants.length <= 1 && selectedRestaurant) {
                     handleStartShift(selectedRestaurant)
@@ -1635,8 +1649,9 @@ export default function DashboardPage() {
                   }
                 }
               }}
+              disabled={!isOnShift && workerParticipating !== true}
               className={[
-                'slate-btn slate-btn-lg shrink-0',
+                'slate-btn slate-btn-lg shrink-0 disabled:opacity-30',
                 isOnShift ? 'slate-btn-ghost' : 'slate-btn-primary',
               ].join(' ')}
             >

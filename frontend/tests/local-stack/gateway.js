@@ -32,7 +32,11 @@ fs.writeFileSync(KEYS_OUT, JSON.stringify({ anon: ANON, service: SERVICE }))
 const users = {} // email -> {id,email,password,user_metadata,app_metadata,created_at,confirmed_at}
 // Email confirmation simulation: POST /__config {confirm:true|false}. Sent emails are
 // recorded (token_hash links) and readable via GET /__last_email?email=…
-const config = { confirm: false }
+// autoParticipant (default true): new accounts start with the early-test guest and worker
+// participant agreements on file (a fixture for suites about other features);
+// participant.test.js turns it off to exercise the real agreement flow.
+const config = { confirm: false, autoParticipant: true }
+const PARTICIPANT_VERSION = (() => { try { return fs.readFileSync(require('path').join(__dirname, '../../lib/participant-documents.ts'), 'utf8').match(/PARTICIPANT_VERSION = '([^']+)'/)[1] } catch { return null } })()
 const outbox = {} // email -> { type, token_hash }
 const tokens_ = {} // token_hash -> { email, type }
 const codes_ = {} // PKCE auth code -> { email, challenge, method }
@@ -47,14 +51,26 @@ let resendMode = 'ok'
 function psql(sql, vars) {
   const args = ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-qAt']
   for (const [k, v] of Object.entries(vars)) args.push('-v', `${k}=${v}`)
-  return execFileSync('psql', [...args, '-c', sql], { encoding: 'utf8' })
+  // stdin (not -c), so psql substitutes :'var' safely
+  return execFileSync('psql', args, { input: sql + ';\n', encoding: 'utf8' })
+}
+// Supabase reads account metadata from auth.users; database functions may change it
+// (record_participant_event), so re-read raw_app_meta_data before answering.
+function syncMeta(u) {
+  try {
+    const out = psql("select coalesce(raw_app_meta_data::text, '') from auth.users where id = :'id'", { id: u.id }).trim()
+    if (out) u.app_metadata = JSON.parse(out)
+  } catch {}
+  return u
 }
 function userObj(u) {
+  syncMeta(u)
   const now = new Date().toISOString()
   return { id: u.id, aud: 'authenticated', role: 'authenticated', email: u.email, email_confirmed_at: u.confirmed_at || null, confirmed_at: u.confirmed_at || null,
     user_metadata: u.user_metadata, app_metadata: u.app_metadata, identities: [], created_at: u.created_at || now, updated_at: now }
 }
 function session(u) {
+  syncMeta(u)
   const exp = Math.floor(Date.now() / 1000) + 3600
   const at = sign({ sub: u.id, email: u.email, role: 'authenticated', aud: 'authenticated', exp,
     app_metadata: u.app_metadata, user_metadata: u.user_metadata })
@@ -65,14 +81,19 @@ function session(u) {
 function createUser(email, password, meta, provider = 'email', createdAt, confirmed = true) {
   const created = createdAt || new Date().toISOString()
   // Auto-confirmed accounts are confirmed the moment they are created, like Supabase.
-  const u = { id: crypto.randomUUID(), email, password, user_metadata: meta || {}, app_metadata: { provider, providers: [provider] },
+  const app = { provider, providers: [provider] }
+  if (config.autoParticipant && PARTICIPANT_VERSION) {
+    Object.assign(app, { participant_guest_version: PARTICIPANT_VERSION, participant_guest_at: created,
+      participant_worker_version: PARTICIPANT_VERSION, participant_worker_at: created })
+  }
+  const u = { id: crypto.randomUUID(), email, password, user_metadata: meta || {}, app_metadata: app,
     created_at: created, confirmed_at: confirmed ? created : null }
   users[email.toLowerCase()] = u
   // psql variables are quoted by psql itself (:'x'), so values cannot inject SQL.
   execFileSync('psql', ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-q',
     '-v', `id=${u.id}`, '-v', `email=${email}`, '-v', `created=${created}`, '-v', `confirmed=${u.confirmed_at || ''}`,
-    '-v', `umeta=${JSON.stringify(u.user_metadata || {})}`],
-    { input: "insert into auth.users (id, email, created_at, email_confirmed_at, raw_user_meta_data) values (:'id', :'email', :'created', nullif(:'confirmed','')::timestamptz, (:'umeta')::jsonb);\n" })
+    '-v', `umeta=${JSON.stringify(u.user_metadata || {})}`, '-v', `ameta=${JSON.stringify(u.app_metadata)}`],
+    { input: "insert into auth.users (id, email, created_at, email_confirmed_at, raw_user_meta_data, raw_app_meta_data) values (:'id', :'email', :'created', nullif(:'confirmed','')::timestamptz, (:'umeta')::jsonb, (:'ameta')::jsonb);\n" })
   return u
 }
 function confirmUser(u) {
@@ -215,6 +236,7 @@ http.createServer((req, res) => {
       if (!c || c.role !== 'service_role') return send(403, { code: 403, msg: 'not admin' })
       const u = Object.values(users).find(x => x.id === adminMatch[1])
       if (!u) return send(404, { code: 404, msg: 'User not found' })
+      syncMeta(u)
       if (json?.app_metadata) u.app_metadata = { ...u.app_metadata, ...json.app_metadata }
       // Mirror into auth.users like Supabase (raw_app_meta_data), for database triggers.
       execFileSync('psql', ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-q',

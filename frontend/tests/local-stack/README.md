@@ -94,3 +94,12 @@ node scope-lock.test.js http://localhost:3104 keys.json   # 23 checks: follows/v
 feature (via `early-test.js`) instead of failing; `follow.test.js` and `vibe.test.js` skip entirely. They run
 unchanged again when the feature is re-enabled. Test fixtures that seed historical rows into paused tables
 use `session_replication_role = replica` (local setup only).
+
+## Early-test participant agreements (`participant.test.js`)
+Needs 43 + 43b + 44 applied (applies 44b itself after the pre-44b checks). Restart `gateway.js` after
+updating it: it now re-reads account metadata from `auth.users` (as Supabase does) and has an
+`autoParticipant` fixture (default on: new accounts start with both participant agreements, so suites about
+other features keep working). This suite turns it off for its own accounts and restores it.
+```bash
+node participant.test.js http://localhost:3104 keys.json   # 27 checks: one version 2026-10-13, verbatim sheets/cards, renewed Terms/Privacy, hidden non-participating workers (API, embeds, routes, pages, venue lists; owner still sees; nothing deleted), dashboard worker card, real guest flow (QR → rate → sign up → card → agree → rate; "Not now" records nothing), immediate withdrawal with old tokens (route + database), shift ended, re-agreement, end-of-test election, append-only records, rollback order
+```

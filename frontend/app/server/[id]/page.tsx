@@ -238,7 +238,7 @@ export default function ServerProfilePage() {
     <div style={{ minHeight: '100vh', background: '#000' }}>
       <Navbar />
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', gap: '32px' }}>
-        <p style={{ color: '#333', fontSize: '15px' }}>This profile doesn&apos;t exist yet.</p>
+        <p style={{ color: '#333', fontSize: '15px' }}>This profile isn&apos;t available right now.</p>
         <a href="/live" style={{ color: 'white', borderBottom: '1px solid #333', paddingBottom: '4px', textDecoration: 'none', fontSize: '13px', letterSpacing: '2px', textTransform: 'uppercase' }}>
           See what&apos;s live tonight
         </a>

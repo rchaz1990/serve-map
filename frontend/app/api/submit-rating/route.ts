@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { recordLegalAcceptance, workerTermsOnFile } from '@/lib/legal-server'
 import { viewerMayUseProfile } from '@/lib/test-profiles'
+import { participantOk, workerParticipating } from '@/lib/participant-server'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -77,6 +78,14 @@ export async function POST(request: Request) {
   if (legal === 'error') {
     return NextResponse.json({ error: 'We could not save your agreement. Please try again.' }, { status: 503 })
   }
+  // Early test: the guest must have accepted the current guest participant agreement
+  // (separate from the Terms/Privacy). Read from the account record, so a withdrawal
+  // takes effect immediately even with an older sign-in token. The database checks it too.
+  const guestOk = await participantOk(supabaseAdmin, user.id, 'guest')
+  if (guestOk === 'error') return NextResponse.json({ error: 'Could not submit rating.' }, { status: 503 })
+  if (!guestOk) {
+    return NextResponse.json({ error: 'Please agree to take part in Slate\'s early test before rating.', code: 'participant_required' }, { status: 403 })
+  }
 
   if (typeof serverId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(serverId)) {
     return NextResponse.json({ error: 'Server not found.' }, { status: 400 })
@@ -112,7 +121,10 @@ export async function POST(request: Request) {
   if (access === 'hidden') return NextResponse.json({ error: 'Server not found.' }, { status: 404 })
   // Only workers who have accepted the current Terms/Privacy as a worker can receive new
   // ratings (limited-test policy). Unclaimed profiles never can. Existing ratings stay.
-  if (!(await workerTermsOnFile(supabaseAdmin, server.wallet_address as string | null))) {
+  // Early test: the worker must also have accepted the current worker participant agreement.
+  const workerIn = await workerParticipating(supabaseAdmin, serverId)
+  if (workerIn === 'error') return NextResponse.json({ error: 'Could not submit rating.' }, { status: 503 })
+  if (!workerIn || !(await workerTermsOnFile(supabaseAdmin, server.wallet_address as string | null))) {
     return NextResponse.json(
       { error: 'This server isn\'t taking ratings on Slate right now.', code: 'worker_not_accepting' },
       { status: 403 },
@@ -154,6 +166,13 @@ export async function POST(request: Request) {
     }
     if (limit === 'self') {
       return NextResponse.json({ error: 'You can\'t rate your own profile.' }, { status: 403 })
+    }
+    // Migration 44b: the database refuses ratings without both participant agreements.
+    if (/participant_required/.test(error.message)) {
+      return NextResponse.json({ error: 'Please agree to take part in Slate\'s early test before rating.', code: 'participant_required' }, { status: 403 })
+    }
+    if (/worker_not_participating/.test(error.message)) {
+      return NextResponse.json({ error: 'This server isn\'t taking ratings on Slate right now.', code: 'worker_not_accepting' }, { status: 403 })
     }
     if (limit === 'test_mix') {
       // Migration 42: test accounts and real profiles never rate each other.
