@@ -273,7 +273,11 @@ async function optedInFollower(w) {
   {
     const out = (args) => { try { return { ok: true, out: execFileSync('node', [path.join(__dirname, '../../scripts/legal-version.mjs'), ...args], { encoding: 'utf8', stdio: 'pipe' }) } } catch (e) { return { ok: false, out: String(e.stderr || e.stdout) } } }
     const c = out(['check']), rel = out(['check', '--release'])
-    check('P50 version tooling: app and migration 39 agree; release check refuses until a publication date is set', c.ok && !rel.ok && /NOT READY/.test(rel.out), { c, rel })
+    // Before publication the version is a placeholder (e.g. '2026-10') and the release check must refuse;
+    // once the publication date is set (YYYY-MM-DD) it must pass.
+    const published = /^\d{4}-\d{2}-\d{2}$/.test(LEGAL_VERSION)
+    check(`P50 version tooling: app and migration 39 agree; release check ${published ? 'passes with the publication date' : 'refuses until a publication date is set'}`,
+      c.ok && (published ? rel.ok && new RegExp(`both ${LEGAL_VERSION}`).test(rel.out) : !rel.ok && /NOT READY/.test(rel.out)), { c, rel, LEGAL_VERSION })
     // "set" on a scratch copy: both files get the same exact date; migration 39 otherwise unchanged.
     const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'lv-'))
     for (const f of ['scripts/legal-version.mjs', 'lib/legal.ts', 'supabase-sql/security/39_participant_data_policy.sql']) {
