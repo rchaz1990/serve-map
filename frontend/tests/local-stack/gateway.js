@@ -136,6 +136,10 @@ http.createServer((req, res) => {
       const u = Object.values(users).find(x => x.id === adminMatch[1])
       if (!u) return send(404, { code: 404, msg: 'User not found' })
       if (json?.app_metadata) u.app_metadata = { ...u.app_metadata, ...json.app_metadata }
+      // Mirror into auth.users like Supabase (raw_app_meta_data), for database triggers.
+      execFileSync('psql', ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-q',
+        '-v', `id=${u.id}`, '-v', `meta=${JSON.stringify(u.app_metadata)}`],
+        { input: "update auth.users set raw_app_meta_data = (:'meta')::jsonb where id = :'id';\n" })
       return send(200, userObj(u))
     }
 

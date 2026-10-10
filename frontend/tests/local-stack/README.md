@@ -52,3 +52,11 @@ node consent.test.js http://localhost:3104 keys.json   # 22 checks: hidden defau
 ```bash
 node legal.test.js http://localhost:3104 keys.json   # 30 checks: acknowledgment (worker sign-up, guest sign-up, rating, follow), follow-after-rating, shift disclosure, corrected copy, /whitepaper 404
 ```
+
+## Follow emails (`follow.test.js`)
+Apply `38_follow_email_consent.sql` (after 36/37), start the app with `RESEND_BASE_URL=http://localhost:54400`, then:
+```bash
+node follow.test.js http://localhost:3104 keys.json   # 13 checks: no third-party enrolment, explicit opt-in only
+```
+Note: `vibe.test.js` check "4th eligible report" fails during the first UTC hour of a day (its seeded
+reports then fall inside the 1-hour flag window). Test artifact, not a product change.

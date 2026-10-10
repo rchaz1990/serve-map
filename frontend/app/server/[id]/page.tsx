@@ -159,6 +159,8 @@ export default function ServerProfilePage() {
         follower_email: followerEmail,
         server_id: profileId,
         follower_type: localStorage.getItem('slateUserType') ?? 'guest',
+        // Confirmed in FollowConsent ("Follow and email me"): opt in to shift emails.
+        notify_email: true,
       }).select('status').single()
       if (!followError) {
         const status = inserted?.status === 'approved' ? 'approved' : 'pending'
