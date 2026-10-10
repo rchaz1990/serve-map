@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { postAuthPath } from '@/lib/auth-flows'
+import { OAUTH_NEXT_COOKIE, safeInternalPath } from '@/lib/auth-redirect'
 import { recoveryMarkerCookie } from '@/lib/recovery-marker'
 
 // Email links that carry a token_hash (Supabase email templates pointing here):
@@ -55,7 +56,11 @@ export async function GET(request: Request) {
       return redirect(url.origin, '/reset-password', cookieOps)
     }
 
-    return redirect(url.origin, await postAuthPath(supabase, data.user, null), cookieOps)
+    // Return to where sign-up started (e.g. the worker's rating page), when this is the
+    // same browser. The hint is an internal path only and is cleared here.
+    const nextHint = safeInternalPath(cookieStore.get(OAUTH_NEXT_COOKIE)?.value)
+    cookieOps.push({ name: OAUTH_NEXT_COOKIE, value: '', options: { path: '/', maxAge: 0 } })
+    return redirect(url.origin, await postAuthPath(supabase, data.user, nextHint), cookieOps)
   } catch (err) {
     console.error('[auth/confirm] unexpected error:', err instanceof Error ? err.message : err)
     return redirect(url.origin, '/login?error=link_invalid', cookieOps)
