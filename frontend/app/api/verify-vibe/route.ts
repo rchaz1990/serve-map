@@ -13,6 +13,9 @@ import { getRequestUser, supabaseAdmin } from '@/lib/server-auth'
 // 500 m of the venue position the page looked up. Both positions come from the
 // browser, so this is a consistency signal, NOT proof the person was there —
 // a determined user can fake device location.
+//
+// The phone's coordinates are used only for that distance check, in this request. They
+// are not stored or logged: the report keeps the distance and whether the check passed.
 
 const VIBES = ['CHILL', 'LIVE', 'PACKED'] as const
 const SEATS = ['Plenty', 'A few', 'None'] as const
@@ -82,8 +85,9 @@ export async function POST(request: Request) {
     p_vibe: vibe,
     p_bar_seats: barSeats,
     p_wait_time: waitTime,
-    p_user_lat: userLat,
-    p_user_lng: userLng,
+    // Raw coordinates are not retained (limited-test data policy).
+    p_user_lat: null,
+    p_user_lng: null,
     p_distance_meters: distance,
     p_location_consistent: locationConsistent,
     p_new_account: !(ageHours >= NEW_ACCOUNT_HOURS),

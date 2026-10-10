@@ -1385,7 +1385,9 @@ export default function DashboardPage() {
       }),
     })).catch(() => {})
 
-    const insertShift = async (gpsVerified: boolean, distance: number | null, userLat: number | null, userLng: number | null) => {
+    // The location check runs on this device. Only its result (and the distance) is
+    // saved; the device's coordinates never leave the phone.
+    const insertShift = async (gpsVerified: boolean, distance: number | null) => {
       const { data, error } = await supabase.from('shifts').insert({
         server_id: serverId,
         restaurant_name: restaurantName,
@@ -1394,15 +1396,13 @@ export default function DashboardPage() {
         activated_by: 'server',
         gps_verified: gpsVerified,
         distance_meters: distance,
-        user_lat: userLat,
-        user_lng: userLng,
       }).select('id').single()
       if (error) console.error('[supabase] shift start:', error)
       else setShiftDbId(data.id)
     }
 
     if (!navigator.geolocation) {
-      insertShift(false, null, null, null)
+      insertShift(false, null)
       return
     }
 
@@ -1422,15 +1422,15 @@ export default function DashboardPage() {
               Math.cos(userLat * Math.PI / 180) * Math.cos(rLat * Math.PI / 180) *
               Math.sin(dLon / 2) * Math.sin(dLon / 2)
             const distance = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
-            insertShift(distance <= 500, distance, userLat, userLng)
+            insertShift(distance <= 500, distance)
           } else {
-            insertShift(false, null, userLat, userLng)
+            insertShift(false, null)
           }
         } catch {
-          insertShift(false, null, userLat, userLng)
+          insertShift(false, null)
         }
       },
-      () => { insertShift(false, null, null, null) },
+      () => { insertShift(false, null) },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     )
   }
