@@ -6,6 +6,7 @@ const { execFileSync } = require('child_process')
 const fs = require('fs')
 const [APP, KEYS] = process.argv.slice(2)
 const GW = 'http://localhost:54400'
+const LEGAL_VERSION = fs.readFileSync(require('path').join(__dirname, '../../lib/legal.ts'), 'utf8').match(/LEGAL_VERSION = '([^']+)'/)[1]
 const DB = process.env.STACK_DB || 'slate_stack'
 const { anon: ANON } = JSON.parse(fs.readFileSync(KEYS, 'utf8'))
 // Runs as the database owner = what Slate does in the SQL Editor.
@@ -37,7 +38,7 @@ async function worker(tag, venue, address) {
   const id = sql(`insert into servers (name, email, wallet_address, open_to_opportunities) values ('Worker ${tag}', '${a.email}', '${a.id}', true) returning id`).split('\n')[0]
   sql(`insert into server_restaurants (server_id, restaurant_name, restaurant_address) values ('${id}', '${venue}', '${address}')`)
   // Workers in this suite have agreed to the current Terms as workers (migration 39 gates shift starts).
-  await api('/api/legal/accept', a.token, { version: '2026-10', context: 'worker' })
+  await api('/api/legal/accept', a.token, { version: LEGAL_VERSION, context: 'worker' })
   return { ...a, serverId: id }
 }
 const VENUE = `Twin Bistro ${run}`

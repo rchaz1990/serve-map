@@ -19,6 +19,8 @@ async function account(tag) {
 async function worker(tag) {
   const a = await account(tag)
   const id = sql(`insert into servers (name, email, wallet_address) values ('Worker ${tag}', '${a.user.email}', '${a.user.id}') returning id`).split('\n')[0]
+  // Rated workers have accepted the current Terms as workers (required to receive ratings).
+  await fetch(APP + '/api/legal/accept', { method: 'POST', headers: { authorization: `Bearer ${a.access_token}`, 'content-type': 'application/json' }, body: JSON.stringify({ version: LEGAL_VERSION, context: 'worker' }) })
   return { ...a, serverId: id }
 }
 async function rate(token, body) {

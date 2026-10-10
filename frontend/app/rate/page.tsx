@@ -80,6 +80,7 @@ function RateForm() {
   const [rating, setRating] = useState(0)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [comment, setComment] = useState('')
+  const [ratingsClosed, setRatingsClosed] = useState(false)
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -137,6 +138,11 @@ function RateForm() {
       }
 
       setServerData(server as ServerRow)
+      // Server-enforced in /api/submit-rating; checked here so nobody fills in a rating
+      // that can't be posted.
+      fetch(`/api/rating-status?server=${encodeURIComponent(serverId)}`)
+        .then(r => r.json()).then(j => setRatingsClosed(j?.accepting !== true))
+        .catch(() => setRatingsClosed(false))
 
       // Check if the current guest is already following
       const { data: { session } } = await supabase.auth.getSession()
@@ -543,6 +549,14 @@ function RateForm() {
           </div>
         )}
 
+        {ratingsClosed && (
+          <div className="mb-6 rounded-xl border border-white/15 px-4 py-3" data-testid="ratings-closed">
+            <p className="text-xs" style={{ color: '#A0A0A0' }}>
+              {serverFirstName === 'your server' ? 'This server' : serverFirstName} isn&apos;t taking ratings on Slate right now.
+            </p>
+          </div>
+        )}
+
         {/* ── Error ───────────────────────────────────────────────────── */}
         {error && (
           <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
@@ -566,7 +580,7 @@ function RateForm() {
         <div className="flex flex-col gap-3">
           <button
             onClick={handleSubmitRating}
-            disabled={rating === 0 || loading}
+            disabled={rating === 0 || loading || ratingsClosed}
             className="slate-btn slate-btn-primary slate-btn-lg w-full disabled:opacity-25"
           >
             {loading ? (

@@ -9,7 +9,7 @@ const path = require('path')
 const [APP, KEYS] = process.argv.slice(2)
 const GW = 'http://localhost:54400'
 const DB = process.env.STACK_DB || 'slate_stack'
-const LEGAL_VERSION = '2026-10'
+const LEGAL_VERSION = fs.readFileSync(path.join(__dirname, '../../lib/legal.ts'), 'utf8').match(/LEGAL_VERSION = '([^']+)'/)[1]
 const { anon: ANON } = JSON.parse(fs.readFileSync(KEYS, 'utf8'))
 const PSQL = ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB]
 const sql = q => execFileSync('psql', [...PSQL, '-qAt', '-c', q], { encoding: 'utf8' }).trim()
