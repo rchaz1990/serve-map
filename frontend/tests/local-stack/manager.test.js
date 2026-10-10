@@ -36,6 +36,8 @@ async function worker(tag, venue, address) {
   const a = await account(tag)
   const id = sql(`insert into servers (name, email, wallet_address, open_to_opportunities) values ('Worker ${tag}', '${a.email}', '${a.id}', true) returning id`).split('\n')[0]
   sql(`insert into server_restaurants (server_id, restaurant_name, restaurant_address) values ('${id}', '${venue}', '${address}')`)
+  // Workers in this suite have agreed to the current Terms as workers (migration 39 gates shift starts).
+  await api('/api/legal/accept', a.token, { version: '2026-10', context: 'worker' })
   return { ...a, serverId: id }
 }
 const VENUE = `Twin Bistro ${run}`

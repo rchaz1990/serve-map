@@ -66,3 +66,9 @@ Run on the integrated stack (36 + 37 + 38 applied); pass the app log path as the
 ```bash
 node rating-draft.test.js http://localhost:3104 keys.json <app.log>   # 22 checks: draft kept through sign-up/sign-in/confirmation (incl. link opened on another device)/Google, never auto-submitted or auto-consented, no leaks
 ```
+## Limited-test data policy (`participation.test.js`)
+Apply `39_participant_data_policy.sql` (after 36/37/38). Restart `gateway.js` (admin GET user). Then:
+```bash
+node participation.test.js http://localhost:3104 keys.json   # 31 checks: no stored coordinates, internal distance, worker agreement gate (DB + emails + dashboard), copy, manual deletion + cleanup scripts
+```
+Note: P31 clears every stored coordinate in the local database (local only).
