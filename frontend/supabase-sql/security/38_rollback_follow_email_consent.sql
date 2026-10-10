@@ -6,6 +6,10 @@ begin;
 drop trigger if exists follows_account_email on public.follows;
 drop function if exists public.follows_from_account();
 drop function if exists public.notification_recipients(uuid);
+drop function if exists public.follower_list(uuid, text);
+-- restore the original table-level SELECT for signed-in users
+revoke select on public.follows from authenticated;
+grant select on public.follows to authenticated;
 revoke insert (notify_email) on public.follows from authenticated;
 alter table public.follows
   drop column if exists notify_email,

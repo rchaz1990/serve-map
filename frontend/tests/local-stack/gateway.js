@@ -56,7 +56,8 @@ function createUser(email, password, meta, provider = 'email', createdAt) {
   users[email.toLowerCase()] = u
   // psql variables are quoted by psql itself (:'x'), so values cannot inject SQL.
   execFileSync('psql', ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1', '-q',
-    '-v', `id=${u.id}`, '-v', `email=${email}`], { input: "insert into auth.users (id, email) values (:'id', :'email');\n" })
+    '-v', `id=${u.id}`, '-v', `email=${email}`, '-v', `umeta=${JSON.stringify(u.user_metadata || {})}`],
+    { input: "insert into auth.users (id, email, raw_user_meta_data) values (:'id', :'email', (:'umeta')::jsonb);\n" })
   return u
 }
 

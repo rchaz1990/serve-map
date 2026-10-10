@@ -16,6 +16,10 @@
 --      Clients cannot write email_opt_in_at.
 --   4. notification_recipients(server) returns the current account email of approved,
 --      opted-in followers only. Server-only. notify-followers uses it.
+--   5. Workers no longer receive followers' email addresses: app users lose SELECT on
+--      follows.follower_email (all other columns stay readable under the existing RLS),
+--      and follower_list(server, status) (server-only) returns a display label —
+--      first name + last initial from the account, or "Guest ····<4 chars>" — instead.
 --
 -- Existing follows are NOT changed. They have no email_opt_in_at, so after the matching
 -- code deploys they stop receiving shift emails until the follower confirms again.
@@ -101,6 +105,38 @@ $$;
 revoke all on function public.notification_recipients(uuid) from public, anon, authenticated;
 grant execute on function public.notification_recipients(uuid) to service_role;
 
+-- 5. Follower emails are not readable by app users (workers read their followers via
+--    follower_list through the server). Table-level SELECT must become column-level.
+revoke select on public.follows from anon, authenticated;
+grant select (id, created_at, follower_id, follower_type, server_id, status, notify_email, email_opt_in_at)
+  on public.follows to authenticated;
+
+create or replace function public.follower_list(p_server_id uuid, p_status text)
+returns table (id uuid, follower_label text, created_at timestamptz)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select f.id,
+         coalesce(
+           nullif(btrim(
+             split_part(btrim(u.raw_user_meta_data ->> 'full_name'), ' ', 1) ||
+             case when btrim(u.raw_user_meta_data ->> 'full_name') like '% %'
+                  then ' ' || left(regexp_replace(btrim(u.raw_user_meta_data ->> 'full_name'), '^.* ', ''), 1) || '.'
+                  else '' end
+           ), ''),
+           'Guest ····' || right(f.follower_id, 4)
+         ) as follower_label,
+         f.created_at
+  from public.follows f
+  left join auth.users u on u.id::text = f.follower_id
+  where f.server_id = p_server_id and f.status = p_status
+  order by f.created_at desc
+$$;
+revoke all on function public.follower_list(uuid, text) from public, anon, authenticated;
+grant execute on function public.follower_list(uuid, text) to service_role;
+
 commit;
 
 -- Verify after running (read-only):
@@ -109,3 +145,5 @@ commit;
 --   select has_column_privilege('authenticated','public.follows','email_opt_in_at','INSERT');         -- false
 --   select has_column_privilege('authenticated','public.follows','notify_email','INSERT');            -- true
 --   select count(*) from public.follows where email_opt_in_at is not null;                            -- 0
+--   select has_column_privilege('authenticated','public.follows','follower_email','SELECT');          -- false
+--   select has_function_privilege('authenticated','public.follower_list(uuid,text)','execute');      -- false

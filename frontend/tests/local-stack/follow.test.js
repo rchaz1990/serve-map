@@ -18,9 +18,9 @@ const email = tag => `${run}-${++n}-${tag}@example.com`
 let pass = 0, fail = 0
 function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : JSON.stringify(detail ?? '').slice(0, 300)) }
 
-async function account(tag) {
+async function account(tag, opts = {}) {
   const e = email(tag)
-  const s = await (await fetch(GW + '/__create_user', { method: 'POST', body: JSON.stringify({ email: e, password: 'pass123456' }) })).json()
+  const s = await (await fetch(GW + '/__create_user', { method: 'POST', body: JSON.stringify({ email: e, password: 'pass123456', ...opts }) })).json()
   return { email: e, id: s.user.id, token: s.access_token }
 }
 async function api(p, token, body) {
@@ -95,6 +95,33 @@ const row = (a, w) => sql(`select follower_email || '|' || coalesce(email_opt_in
   await follow(p1, W2, { notify_email: true })
   await api('/api/notify-followers', W2.token, { serverId: W2.serverId, restaurantName: W2.venue, type: 'shift_started' })
   check('F12 pending (not yet approved) follower is not emailed', row(p1, W2).endsWith('|pending') && await sentTo(p1.email.toLowerCase()) === 0)
+
+  // ── Workers never receive follower email addresses ──
+  const named = await account('named', { data: { full_name: 'Gia Rossi' } }); await acknowledge(named)
+  await follow(named, W, { notify_email: true })
+  const direct = await fetch(GW + `/rest/v1/follows?select=follower_email&server_id=eq.${W.serverId}`, { headers: { apikey: ANON, authorization: `Bearer ${W.token}` } })
+  const allowed = await fetch(GW + `/rest/v1/follows?select=id,status&server_id=eq.${W.serverId}`, { headers: { apikey: ANON, authorization: `Bearer ${W.token}` } })
+  check('F14 worker cannot read follower email addresses directly (other follow columns still readable)', direct.status >= 400 && allowed.status === 200, [direct.status, allowed.status])
+  const listRes = await fetch(APP + '/api/followers/approved', { headers: { authorization: `Bearer ${W.token}` } })
+  const list = await listRes.json()
+  const body = JSON.stringify(list)
+  check('F15 followers list shows "first name + initial" or "Guest ····xxxx", and no email address anywhere',
+    listRes.status === 200 && !body.includes('@') && list.followers.some(f => f.follower_label === 'Gia R.')
+      && list.followers.some(f => /^Guest ····.{4}$/.test(f.follower_label)) && list.followers.every(f => !('follower_email' in f)), body.slice(0, 300))
+  const pend = await (await fetch(APP + '/api/followers/pending', { headers: { authorization: `Bearer ${W2.token}` } })).json()
+  check('F16 pending list (approval mode) also has no email address', !JSON.stringify(pend).includes('@') && pend.followers.length === 1, pend)
+
+  // ── New Google account (no agreement yet): every consent-gated action is refused ──
+  const goog = await account('google', { provider: 'google', data: { full_name: 'Gus Google' } })
+  const target = await worker('w4', `Google Bar ${run}`)
+  const gRate = await api('/api/submit-rating', goog.token, { serverId: target.serverId, score: 5 })
+  const gFollow = await follow(goog, target, { notify_email: true })
+  const gWorker = await api('/api/signup-server', goog.token, { name: 'Gus Google', restaurant: 'Somewhere', role: 'Server' })
+  const gAccept = await api('/api/legal/accept', goog.token, {})
+  check('F17 new Google user: rating refused without agreement', gRate.status === 400 && gRate.json?.code === 'legal_required', gRate)
+  check('F18 new Google user: follow refused without agreement', gFollow.status >= 400 && /terms_not_accepted/.test(gFollow.text), gFollow)
+  check('F19 new Google user: worker profile refused without agreement; agreement can\'t be recorded without the ticked version',
+    gWorker.status === 400 && gAccept.status === 400, { gWorker, gAccept })
 
   // ── UI: profile follow by a guest with nothing on file ──
   const W3 = await worker('w3', `UI Bar ${run}`)
