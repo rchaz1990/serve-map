@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import ParticipantCard from '@/app/components/ParticipantCard'
-import { PARTICIPANT_COPY, fetchParticipation, recordParticipation, type ParticipationStatus } from '@/lib/participant'
+import { EARLY_TEST_REVIEW_DATE, PARTICIPANT_COPY, fetchParticipation, recordParticipation, type ParticipationStatus } from '@/lib/participant'
 import type { ParticipantRole } from '@/lib/participant-documents'
 
 const fmt = (iso: string | null) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
@@ -77,6 +77,9 @@ export default function EarlyTestStatus() {
           <span>
             {PARTICIPANT_COPY.remainLabel}
             <span className="mt-1 block text-xs" style={{ color: '#A0A0A0' }}>{PARTICIPANT_COPY.remainHelp}</span>
+            {EARLY_TEST_REVIEW_DATE && (
+              <span data-testid="review-date" className="mt-1 block text-xs text-white">Review date: {fmt(`${EARLY_TEST_REVIEW_DATE}T12:00:00Z`)}</span>
+            )}
           </span>
         </label>
       )}

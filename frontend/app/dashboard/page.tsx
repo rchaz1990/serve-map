@@ -12,7 +12,7 @@ import { geocodeAddress } from '@/lib/geocode'
 import { workerTermsOnFile } from '@/lib/legal-client'
 import WorkerTermsGate from '@/app/components/WorkerTermsGate'
 import ParticipantCard from '@/app/components/ParticipantCard'
-import { fetchParticipation } from '@/lib/participant'
+import { PARTICIPANT_COPY, fetchParticipation } from '@/lib/participant'
 
 const QR_DURATION_MS = 8 * 60 * 60 * 1000 // 8 hours
 
@@ -1470,6 +1470,7 @@ export default function DashboardPage() {
         {/* ── Early-test worker agreement (profile hidden until accepted) ── */}
         {!profileLoading && serverProfile && workerParticipating === false && (
           <div className="mb-10 max-w-xl">
+            <p data-testid="hidden-own-profile" className="mb-4 text-sm text-white">{PARTICIPANT_COPY.hiddenOwn}</p>
             <ParticipantCard role="worker" onAgreed={() => setWorkerParticipating(true)} />
           </div>
         )}

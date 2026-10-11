@@ -79,20 +79,24 @@ Nothing here authorizes a merge, a production migration, a deployment, worker no
 
 The process is `docs/PARTICIPANT_DATA_DELETION.md`. It is manual, each run needs founder approval, and nothing is automatic.
 
-## UI copy not supplied by Vera (drafted by Atlas; needs Vera's review)
+## UI copy and Privacy wording — Vera's copy/privacy review (2026-10-11), applied in PR #55
 
-| Situation | Message |
+| Situation | Final wording |
 |---|---|
-| Guest taps "Not now" | "You haven't joined the early test. You can keep browsing, but rating stays off until you agree." |
-| Worker taps "Not now" | "You haven't joined the early test. Your profile stays hidden, and new ratings and shifts are off until you agree." |
-| Guest withdrew | "You've stopped taking part in the early test. You can't submit new ratings. Ratings you already submitted stay public unless you ask us to delete them at team@slatenow.xyz." |
-| Worker withdrew | "You've stopped taking part in the early test. New ratings and shifts are blocked and your public profile is hidden. Your account and history are kept. You can take part again by accepting the current worker agreement." |
-| Remain option | "Keep my Slate account after the early test" — "Thirty days after the test ends, Slate plans to delete early-test accounts and their content unless you choose to stay. You can change this until then." |
-| Unavailable profile | "This profile isn't available right now." |
+| Guest taps "Not now" | "You haven’t joined the early test. You can keep browsing, but rating and other early-test actions stay off until you agree." |
+| Worker taps "Not now" | "You haven’t joined the early test. Your public profile remains hidden, and new ratings and shifts stay off until you accept the current worker agreement. Your account and existing history are preserved." |
+| Guest withdrew | "You’ve stopped taking part in the early test. You can’t submit new ratings or take other early-test actions. Ratings you already submitted remain public unless you separately ask us to delete them at team@slatenow.xyz." |
+| Worker withdrew | "You’ve stopped taking part in the early test. New ratings and shifts are blocked and your public profile is hidden. Your account and existing history are kept. You can take part again by accepting the current worker agreement." |
+| Remain option (label) | "Keep my Slate account after the early test" |
+| Remain option (help) | "Thirty days after the test ends, Slate will review early-test accounts and associated content. Slate plans to delete them unless you choose to remain. Some records may be retained when necessary for legal, security, audit or provider-backup purposes. You can change your choice until the review date." **The review date is shown only once `EARLY_TEST_REVIEW_DATE` is set** (lib/participant.ts; currently unset). |
+| Hidden profile, public pages | "This profile is not publicly available right now." (the same message for unknown ids, so the reason isn't revealed) |
+| Hidden profile, worker's own dashboard | "This profile is temporarily hidden because the worker has not accepted Slate’s current participation agreement." |
+| Consent card buttons | "Agree and continue" / "Not now" ("Not now" records nothing) |
 
-**Privacy Policy changes (needs Vera's and legal review):**
-- Ratings: replace "Some older ratings also carry a random account identifier that others using Slate can see; it does not show your name or email." with "Slate does not show a public account identifier with your ratings, so others can't use one to link your ratings together."
-- Usage data: replace "We record pages visited and QR code scans (with an anonymous browser identifier) to understand how Slate is used and to improve it." with "We record which pages are visited (the page address only, not who visited) to understand how Slate is used and to improve it. During our early test, Slate does not record QR code scans."
+**Privacy Policy (wording still needs professional legal review):**
+- Ratings and reviews (approved): "Slate does not show a public account identifier with your ratings, so others can't use one to link your ratings together."
+- Usage data (Vera's text): "We may record the pages you visit, including the page address, together with limited technical information needed to operate and secure Slate. We use this information to understand how Slate is used and to improve it. During our early test, Slate does not record QR code scans."
+- Points after a deleted rating: already stated under "What we keep after deletion", and in the Terms (Slate Points).
 
 ## Stop criteria and evidence (Appendix F)
 These are operational. The product supports them with:

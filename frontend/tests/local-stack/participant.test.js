@@ -157,7 +157,7 @@ const hiddenEverywhere = v => v.servers === '[]' && v.server_restaurants === '[]
       await p.goto(APP + '/privacy', { waitUntil: 'networkidle' })
       const priv = await body(p)
       check('E3 Privacy: no visible rating identifier; no QR-scan recording during the test; old sentences gone; effective date from the new version',
-        /does not show a public account identifier with your ratings/.test(priv) && /During our early test, Slate does not record QR code scans\./.test(priv)
+        /does not show a public account identifier with your ratings/.test(priv) && /We may record the pages you visit, including the page address, together with limited technical information needed to operate and secure Slate\. We use this information to understand how Slate is used and to improve it\. During our early test, Slate does not record QR code scans\./.test(priv)
           && !/Some older ratings also carry/.test(priv) && !/QR code scans \(with an anonymous browser identifier\)/.test(priv) && /October 13, 2026/.test(priv))
       await p.context().close()
     }
@@ -197,9 +197,10 @@ const hiddenEverywhere = v => v.servers === '[]' && v.server_restaurants === '[]
       await p.goto(APP + `/restaurant/${encodeURIComponent(VENUE)}`, { waitUntil: 'networkidle', timeout: 120000 }); await p.waitForTimeout(2000); texts.venue = await body(p)
       await p.goto(APP + `/venue/${encodeURIComponent(VENUE)}`, { waitUntil: 'networkidle', timeout: 120000 }); await p.waitForTimeout(2000); texts.live = await body(p)
       await p.context().close()
-      const un = /This profile isn.t available right now\./
-      check('E4c pages: profile, QR and rate pages say "This profile isn\'t available right now."; venue staff and on-shift lists omit the hidden worker but show the participating one',
-        un.test(texts.profile) && un.test(texts.scan) && un.test(texts.rate) && !texts.venue.includes(W.name) && texts.venue.includes(WP.name) && !texts.live.includes(W.name) && texts.live.includes(WP.name),
+      const un = /This profile is not publicly available right now\./
+      const reason = /participation agreement|has not accepted/i
+      check('E4c pages: profile, QR and rate pages say "This profile is not publicly available right now." without revealing why; venue staff and on-shift lists omit the hidden worker but show the participating one',
+        un.test(texts.profile) && un.test(texts.scan) && un.test(texts.rate) && !reason.test(texts.profile + texts.scan + texts.rate) && !texts.venue.includes(W.name) && texts.venue.includes(WP.name) && !texts.live.includes(W.name) && texts.live.includes(WP.name),
         Object.fromEntries(Object.entries(texts).map(([k, v]) => [k, v.slice(0, 120)])))
       check('E4d nothing deleted or changed while hidden (profile, workplaces, shifts, ratings row counts)', rowsW() === before, { before, now: rowsW() })
     }
@@ -209,6 +210,7 @@ const hiddenEverywhere = v => v.servers === '[]' && v.server_restaurants === '[]
       const p = await page(W)
       await p.goto(APP + '/dashboard', { waitUntil: 'networkidle', timeout: 120000 }); await p.waitForTimeout(3000)
       const card = await p.isVisible('[data-testid="participant-card-worker"]')
+      const ownMsg = (await p.textContent('[data-testid="hidden-own-profile"]').catch(() => '')) || ''
       const startDisabled = await p.locator('button:has-text("Start Shift")').isDisabled().catch(() => null)
       const cardText = (await p.textContent('[data-testid="participant-card-worker"]').catch(() => '')) || ''
       const agreeBtn = p.locator('[data-testid="participant-card-worker"] button:has-text("Agree and continue")')
@@ -218,8 +220,8 @@ const hiddenEverywhere = v => v.servers === '[]' && v.server_restaurants === '[]
       const gone = !(await p.isVisible('[data-testid="participant-card-worker"]'))
       const startEnabled = !(await p.locator('button:has-text("Start Shift")').isDisabled().catch(() => true))
       await p.context().close()
-      check('E5a dashboard: worker card (Vera\'s wording) shown, Start Shift disabled, Agree disabled until ticked, nothing recorded before',
-        card && startDisabled === true && disabledUntilTicked && evBefore === '' && /This test is voluntary and for workers 18 or older\./.test(cardText)
+      check('E5a dashboard: owner sees why the profile is hidden; worker card (Vera\'s wording) shown, Start Shift disabled, Agree disabled until ticked, nothing recorded before',
+        card && /This profile is temporarily hidden because the worker has not accepted Slate.s current participation agreement\./.test(ownMsg) && startDisabled === true && disabledUntilTicked && evBefore === '' && /This test is voluntary and for workers 18 or older\./.test(cardText)
           && /I am 18 or older, I have read the Slate Early Product Test worker information sheet, and I agree to participate\./.test(cardText), { card, startDisabled, disabledUntilTicked, evBefore })
       const v = await visibleTo(W, null)
       check('E5b after agreeing: card gone, Start Shift enabled, logged; profile, workplaces, shift and the old rating visible again; rows unchanged',
@@ -254,7 +256,7 @@ const hiddenEverywhere = v => v.servers === '[]' && v.server_restaurants === '[]
       check('E7a after sign-up the guest returns to the rating with the card (Vera\'s wording), Submit disabled; "Not now" shows the message and records nothing; no QR scan recorded',
         onRate && card && submitDisabled && /This test is voluntary and for people 18 or older\./.test(cardText)
           && /I am 18 or older, I have read the Slate Early Product Test guest information sheet, and I agree to participate\./.test(cardText)
-          && /rating stays off until you agree/.test(declined) && events(NG) === '' && sql('select count(*) from qr_scans') === scans0, { onRate, card, submitDisabled, declined, url: p.url() })
+          && /You haven.t joined the early test\. You can keep browsing, but rating and other early-test actions stay off until you agree\./.test(declined) && events(NG) === '' && sql('select count(*) from qr_scans') === scans0, { onRate, card, submitDisabled, declined, url: p.url() })
       await p.check('[data-testid="participant-card-guest"] [data-testid="participant-checkbox"]')
       await p.click('[data-testid="participant-card-guest"] button:has-text("Agree and continue")'); await p.waitForTimeout(2000)
       const legalBox = p.locator('[data-testid="legal-consent"] input[type="checkbox"]')
@@ -277,7 +279,7 @@ const hiddenEverywhere = v => v.servers === '[]' && v.server_restaurants === '[]
       const db = await rpcRate(GP)(WP2)
       const m = meta(GP)
       check('E8a guest "Stop taking part" (/account): message shown; logged with time; with a token from before, the route AND the database refuse new ratings at once',
-        /You.ve stopped taking part in the early test\. You can.t submit new ratings\./.test(msg) && !m.participant_guest_version && !!m.participant_guest_withdrawn_at
+        /You.ve stopped taking part in the early test\. You can.t submit new ratings or take other early-test actions\. Ratings you already submitted remain public unless you separately ask us to delete them at team@slatenow\.xyz\./.test(msg) && !m.participant_guest_version && !!m.participant_guest_withdrawn_at
           && events(GP).endsWith('guest:withdraw:-') && r.status === 403 && r.json?.code === 'participant_required' && db.status >= 400 && /participant_required/.test(db.text), { msg, r, db: db.status })
       check('E8b withdrawal keeps the guest\'s existing rating public (not deleted)', (await rest('GET', `ratings?select=id&server_id=eq.${WP.serverId}`, null)).text !== '[]' && sql(`select count(*) from ratings where guest_email = '${GP.email}'`) === '1')
 
@@ -316,8 +318,9 @@ const hiddenEverywhere = v => v.servers === '[]' && v.server_restaurants === '[]
       await p.click('[data-testid="remain-checkbox"]'); await p.waitForTimeout(2500)
       const uiChecked = await p.isChecked('[data-testid="remain-checkbox"]')
       await p.context().close()
-      check('E10 election: default is not remaining; on/off each logged with a time; account record updated; non-participants refused; /account checkbox works',
-        st0.json?.remain === null && y.json?.remain === true && no.json?.remain === false && nv.status === 400 && /Keep my Slate account after the early test/.test(label) && uiChecked
+      check('E10 election: Vera\'s help text, no review date shown until one is set; default is not remaining; on/off each logged with a time; account record updated; non-participants refused; /account checkbox works',
+        st0.json?.remain === null && y.json?.remain === true && no.json?.remain === false && nv.status === 400 && /Keep my Slate account after the early test/.test(label)
+          && /Thirty days after the test ends, Slate will review early-test accounts and associated content\. Slate plans to delete them unless you choose to remain\. Some records may be retained when necessary for legal, security, audit or provider-backup purposes\. You can change your choice until the review date\./.test(label) && !/Review date:/.test(label) && uiChecked
           && meta(GP).participant_remain === true && !!meta(GP).participant_remain_at && /account:remain_yes:-,account:remain_no:-,account:remain_yes:-$/.test(events(GP)), { st0: st0.json?.remain, y: y.json?.remain, no: no.json?.remain, nv: nv.status, ev: events(GP) })
       check('E10b no automatic deletion exists: no scheduled job or function deletes participants', sql(`select count(*) from pg_proc where proname ilike '%delete%participant%' or proname ilike '%purge%'`) === '0')
     }

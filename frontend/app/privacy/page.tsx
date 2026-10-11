@@ -19,7 +19,7 @@ const SECTIONS = [
       },
       {
         subtitle: 'Usage data',
-        text: 'We record which pages are visited (the page address only, not who visited) to understand how Slate is used and to improve it. During our early test, Slate does not record QR code scans.',
+        text: 'We may record the pages you visit, including the page address, together with limited technical information needed to operate and secure Slate. We use this information to understand how Slate is used and to improve it. During our early test, Slate does not record QR code scans.',
       },
     ],
   },
