@@ -6,6 +6,7 @@ const { chromium } = require('playwright')
 const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
+const { PAUSED } = require('./early-test')
 const [APP, KEYS] = process.argv.slice(2)
 const GW = 'http://localhost:54400'
 const DB = process.env.STACK_DB || 'slate_stack'
@@ -47,6 +48,8 @@ const follow = (a, w, extra = {}) => rest('POST', 'follows', a.token, { follower
 const row = (a, w) => sql(`select follower_email || '|' || coalesce(email_opt_in_at::text, 'NULL') || '|' || status from follows where follower_id = '${a.id}' and server_id = '${w.serverId}'`)
 
 ;(async () => {
+  // Early test: follow emails are paused (lib/early-test.ts). This suite runs again when they are re-enabled.
+  if (PAUSED.follows) { console.log('SKIP whole suite (follow emails: paused for the early test)'); console.log('\n0 passed, 0 failed, suite skipped (paused feature)'); process.exit(0) }
   const W = await worker('w', `Notify Bar ${run}`)
 
   // ── Third-party enrolment ──

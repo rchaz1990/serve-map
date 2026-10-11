@@ -5,6 +5,7 @@ const { chromium } = require('playwright')
 const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
+const { PAUSED, skip, skippedCount } = require('./early-test')
 const [APP, KEYS] = process.argv.slice(2)
 const GW = 'http://localhost:54400'
 const DB = process.env.STACK_DB || 'slate_stack'
@@ -17,7 +18,9 @@ const run = `t${Date.now()}`
 let n = 0
 const email = tag => `${run}-${++n}-${tag}@example.com`
 let pass = 0, fail = 0
-function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : JSON.stringify(detail ?? '').slice(0, 300)) }
+// Early test: checks of paused features are skipped (and printed), not failed (./early-test.js).
+const PAUSED_CHECKS = { G7: 'follows', G10: 'shiftEmails', G17: 'qrScanTracking', G18: 'follows', G19: 'shiftEmails' }
+function check(name, ok, detail) { const f = PAUSED_CHECKS[name.split(' ')[0]]; if (f && PAUSED[f]) return skip(name, f); ok ? pass++ : fail++; console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : JSON.stringify(detail ?? '').slice(0, 300)) }
 
 async function account(tag, { tester = false } = {}) {
   const e = email(tag)
@@ -180,6 +183,6 @@ const rate = (a, w) => api('/api/submit-rating', a.token, { serverId: w.serverId
     check('G22 with no test profiles and an empty list, rollback removes everything 42 added; re-apply works', rb.ok && gone && re.ok, { rb: rb.out, re: re.out })
   }
 
-  console.log(`\n${pass} passed, ${fail} failed`)
+  console.log(`\n${pass} passed, ${fail} failed${skippedCount() ? `, ${skippedCount()} skipped (paused features)` : ''}`)
   process.exit(fail ? 1 : 0)
 })().catch(e => { console.error('ERROR', e); process.exit(1) })

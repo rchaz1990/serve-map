@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { PAUSED } from '@/lib/early-test'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,6 +28,10 @@ export async function POST(request: Request) {
   const path = (body as { path?: unknown })?.path
   if (!isValidPath(path)) {
     return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
+  }
+  // Early test: QR-scan pages are never recorded (see lib/early-test.ts).
+  if (PAUSED.qrScanTracking && (path === '/scan' || path.startsWith('/scan/'))) {
+    return new NextResponse(null, { status: 204 })
   }
 
   const { error } = await supabaseAdmin.from('page_views').insert({ path })

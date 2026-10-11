@@ -14,7 +14,9 @@ const NOTICES: Record<string, string> = {
   password_updated: 'Password updated. Sign in with your new password.',
 }
 const ERRORS: Record<string, string> = {
-  link_invalid: 'That link has expired or was already used. Sign in, or request a new link.',
+  // A used confirmation link usually means the email is already confirmed (e.g. a mail
+  // scanner or a second tap opened it first), so point people to sign in.
+  link_invalid: 'This link has already been used or has expired. If you already confirmed your email, sign in below.',
   auth_failed: 'Sign in didn\'t complete. Please try again.',
 }
 

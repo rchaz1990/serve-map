@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getRequestUser, supabaseAdmin } from '@/lib/server-auth'
+import { PAUSED, PAUSED_MESSAGE } from '@/lib/early-test'
 
 // Records a guest's vibe report for a venue and, when it qualifies, a small
 // guest $SERVE reward (display balance only; nothing is paid out). At most 3
@@ -43,6 +44,10 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T | nul
 }
 
 export async function POST(request: Request) {
+  // Early test: vibe reports are paused (the database refuses them too, migration 43).
+  if (PAUSED.vibeReports) {
+    return NextResponse.json({ success: false, error: PAUSED_MESSAGE, code: 'feature_paused' }, { status: 403 })
+  }
   const user = await getRequestUser(request)
   if (!user || !user.email) {
     return NextResponse.json(

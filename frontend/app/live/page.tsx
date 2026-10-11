@@ -8,6 +8,7 @@ import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
 import { authJsonHeaders } from '@/lib/auth-fetch'
 import { geocodeAddress } from '@/lib/geocode'
+import { PAUSED, PAUSED_MESSAGE } from '@/lib/early-test'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -415,8 +416,11 @@ function VenueCard({
             </>
           )}
 
-          {/* I'm here button */}
-          {!submitted && (
+          {/* I'm here button — vibe reports are paused for the early test */}
+          {PAUSED.vibeReports && (
+            <p data-testid="vibe-paused" className="text-xs" style={{ color: '#606060' }}>{PAUSED_MESSAGE}</p>
+          )}
+          {!submitted && !PAUSED.vibeReports && (
             <button
               onClick={handleImHere}
               className="w-full rounded-full border py-2.5 text-xs font-semibold transition-colors"
@@ -780,7 +784,7 @@ export default function LivePage() {
       <Navbar />
       <div className="slate-rule" />
 
-      <VenueSearch />
+      {!PAUSED.vibeReports && <VenueSearch />}
 
       <main>
         {/* ── Header ────────────────────────────────────────────────────── */}
