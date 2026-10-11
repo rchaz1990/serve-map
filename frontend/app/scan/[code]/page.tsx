@@ -13,7 +13,6 @@ import { PARTICIPANT_COPY } from '@/lib/participant'
 export default function ScanPage() {
   const params = useParams()
   const router = useRouter()
-  console.log('Scan page loaded with code:', params.code)
 
   const serverId = params.code as string
   const [server, setServer] = useState<any>(null)
@@ -63,15 +62,11 @@ export default function ScanPage() {
     setError('')
     setServer(null)
 
-    console.log('Loading server for ID:', serverId)
-
     const { data: server, error } = await supabase
       .from('servers')
       .select('id, name, role, photo_url, average_rating, total_ratings, follower_count, server_restaurants(*)')
       .eq('id', serverId)
       .maybeSingle()
-
-    console.log('Server lookup result:', server, error)
 
     if (error) {
       console.error('Supabase error:', error)
