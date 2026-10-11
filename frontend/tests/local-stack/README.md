@@ -83,3 +83,8 @@ node test-profile.test.js http://localhost:3104 keys.json   # 22 checks: hidden 
 ```bash
 node returning-guest.test.js http://localhost:3104 keys.json   # 13 checks: already-rated guest can follow without another rating attempt (consent panel, opt-in, pending/closed/already-following), 24h limit kept, relationship check scoped and test-profile aware
 ```
+
+## Mobile notification bell (`mobile-bell.test.js`)
+```bash
+node mobile-bell.test.js http://localhost:3104 keys.json   # 7 checks: phone viewport bell for signed-in users (unread count, tap target, list fits, mark read, close), none when logged out, desktop unchanged
+```
