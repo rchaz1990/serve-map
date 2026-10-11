@@ -1,10 +1,38 @@
 import { NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
+
+// Shortest secret the route will accept. Anything shorter (or missing/empty)
+// means the route is misconfigured, so every request is rejected.
+const MIN_SECRET_LENGTH = 32
+
+// Returns the caller's credential. The Authorization header is preferred;
+// the legacy ?key= query parameter is kept temporarily for compatibility.
+function providedCredential(request: Request): string | null {
+  const auth = request.headers.get('authorization')
+  if (auth !== null) {
+    const match = /^Bearer (.+)$/.exec(auth)
+    return match ? match[1] : null
+  }
+  return new URL(request.url).searchParams.get('key')
+}
+
+// Fails closed: false unless a configured secret of valid length exactly
+// matches the provided credential (constant-time comparison).
+function isAuthorized(request: Request): boolean {
+  const expected = process.env.CRON_SECRET_KEY
+  if (typeof expected !== 'string' || expected.length < MIN_SECRET_LENGTH) return false
+
+  const provided = providedCredential(request)
+  if (!provided) return false
+
+  const a = Buffer.from(provided, 'utf8')
+  const b = Buffer.from(expected, 'utf8')
+  if (a.length !== b.length) return false
+  return timingSafeEqual(a, b)
+}
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const key = searchParams.get('key')
-
-  if (key !== process.env.CRON_SECRET_KEY) {
+  if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
