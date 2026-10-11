@@ -12,7 +12,7 @@ Nothing here authorizes a merge, a production migration, a deployment, worker no
   - review 30 days after the test ends;
   - correct the Privacy Policy and issue a new legal version;
   - Vera's stop criteria, with team@slatenow.xyz as the contact;
-  - target date 2026-10-13;
+  - target date 2026-10-13 (moved to 2026-10-11 by founder decision on 2026-10-11);
   - minimal consent records kept 12 months after deletion (provisional);
   - the founder declares the end of the test;
   - the review covers participants only;
@@ -20,25 +20,26 @@ Nothing here authorizes a merge, a production migration, a deployment, worker no
 - Scope: scan a worker's QR code → sign up → agree → rate. Follow, shift emails, vibe reports and venue comments are paused.
 
 ## Version and date
-- **Proposed version and publication date: `2026-10-13`.** One value is used for:
+- **Version and publication date: `2026-10-11`** (founder decision 2026-10-11; originally proposed as `2026-10-13`). One value is used for:
   - the Terms/Privacy version (`LEGAL_VERSION` and `current_legal_version()`);
   - the guest participant agreement;
   - the worker participant agreement.
 - If release slips, `node scripts/legal-version.mjs set YYYY-MM-DD` changes all of them together, and `check --release` fails on any mismatch.
-- The sheets show "Version: 2026-10-13".
+- The sheets show "Version: 2026-10-11".
+- Migration 44 went live with `current_participant_version()` = `2026-10-13`; `44_patch_participant_version_2026-10-11.sql` aligns it before the PR-B app is deployed.
 
 ## Acceptance criteria for Vera's nine requirements
 
 | # | Requirement (Vera) | Acceptance criteria | Where | Test evidence |
 |---|---|---|---|---|
-| 1 | One exact version and publication date | The app constants (`LEGAL_VERSION`, `PARTICIPANT_VERSION`) and the database functions (`current_legal_version()`, `current_participant_version()`) all equal `2026-10-13`. The version script fails on any mismatch. Both sheets show the version. | PR-B | version script `check --release`; test E1 |
+| 1 | One exact version and publication date | The app constants (`LEGAL_VERSION`, `PARTICIPANT_VERSION`) and the database functions (`current_legal_version()`, `current_participant_version()`) all equal `2026-10-11`. The version script fails on any mismatch. Both sheets show the version. | PR-B | version script `check --release`; test E1 |
 | 2 | "Profile may be hidden" means everything hidden consistently | For a worker who has not accepted the current worker participant agreement (never agreed, or withdrew), anyone else (logged out, other users, testers) gets nothing back for the profile row, workplaces, shifts or ratings, whether through the API directly or through embedded queries. `/server/<id>`, `/scan/<id>` and `/rate?server=<id>` show "not available". `rating-status`, `rating-relationship` and `track-scan` answer "not found". Venue staff lists, Explore and `/live` leave the worker out. The owner still sees their own dashboard. No row is deleted or changed (before and after counts equal). After the worker agrees, all of it reappears unchanged. | PR-B (44b) | test E4–E7 |
 | 3 | End-of-test choice to remain, for guests and workers | `/account` shows participants "Keep my Slate account after the early test" (on/off) until the review. Each change is logged with a timestamp. The default is **not** to remain; silence means not remaining. Email to team@slatenow.xyz from the account address is the alternative; staff record it with the documented admin step (same log). **No automatic deletion is implemented**; the review needs a separately approved procedure. | PR-B | test E10 |
 | 4 | Scope of "associated content", with exceptions | Documented below ("Associated content"). This PR deletes nothing. | docs | review |
 | 5 | Withdrawal blocks future actions immediately, in the UI and on the server | On `/account`, "Stop taking part" (guest and worker separately) records the withdrawal time and a log entry. **Immediately**, even with a sign-in token issued before withdrawal: the rating route refuses, the database refuses a direct rating insert, a worker's shift start is refused, the worker's active shift ends, and the worker's profile is hidden. The UI shows the withdrawn state. Agreeing again restores participation. | PR-B | test E8–E9 |
 | 6 | Participant inbox monitored during the test | Operational: founder confirms who monitors team@slatenow.xyz, how often, and the escalation path. **Not code.** | founder | open (blocker before invitations) |
 | 7 | Sign-up without recording a QR scan before agreement | Opening `/scan/<id>` (logged out or signed in), signing up and rating creates **no** `qr_scans` row. `page_views` records no `/scan/...` path. `/api/track-scan` stores nothing during the test. | PR-A | test S9–S10 |
-| 8 | Correct the Privacy Policy's rating-identifier wording; new legal version; renewed acknowledgment | The Privacy wording no longer says ratings carry a visible identifier; the identifier is actually not public (PR-A). The QR-scan sentence matches requirement 7. Legal version `2026-10-13`. Accounts on `2026-10-10` must acknowledge again: guests before rating; workers before shifts or receiving ratings. **Wording needs Vera's and legal review (requirement 9).** | PR-A (identifier private), PR-B (wording and version) | test S1–S5, E2–E3 |
+| 8 | Correct the Privacy Policy's rating-identifier wording; new legal version; renewed acknowledgment | The Privacy wording no longer says ratings carry a visible identifier; the identifier is actually not public (PR-A). The QR-scan sentence matches requirement 7. Legal version `2026-10-11`. Accounts on `2026-10-10` must acknowledge again: guests before rating; workers before shifts or receiving ratings. **Wording needs Vera's and legal review (requirement 9).** | PR-A (identifier private), PR-B (wording and version) | test S1–S5, E2–E3 |
 | 9 | Professional legal review before strangers are invited | Operational. **Not code.** | founder | open (blocker before invitations) |
 
 ## Scope lock (PR-A) criteria
@@ -79,20 +80,26 @@ Nothing here authorizes a merge, a production migration, a deployment, worker no
 
 The process is `docs/PARTICIPANT_DATA_DELETION.md`. It is manual, each run needs founder approval, and nothing is automatic.
 
-## UI copy not supplied by Vera (drafted by Atlas; needs Vera's review)
+## UI copy and Privacy wording — Vera's copy/privacy review (2026-10-11), applied in PR #55
 
-| Situation | Message |
+| Situation | Final wording |
 |---|---|
-| Guest taps "Not now" | "You haven't joined the early test. You can keep browsing, but rating stays off until you agree." |
-| Worker taps "Not now" | "You haven't joined the early test. Your profile stays hidden, and new ratings and shifts are off until you agree." |
-| Guest withdrew | "You've stopped taking part in the early test. You can't submit new ratings. Ratings you already submitted stay public unless you ask us to delete them at team@slatenow.xyz." |
-| Worker withdrew | "You've stopped taking part in the early test. New ratings and shifts are blocked and your public profile is hidden. Your account and history are kept. You can take part again by accepting the current worker agreement." |
-| Remain option | "Keep my Slate account after the early test" — "Thirty days after the test ends, Slate plans to delete early-test accounts and their content unless you choose to stay. You can change this until then." |
-| Unavailable profile | "This profile isn't available right now." |
+| Guest taps "Not now" | "You haven’t joined the early test. You can keep browsing, but rating and other early-test actions stay off until you agree." |
+| Worker taps "Not now" | "You haven’t joined the early test. Your public profile remains hidden, and new ratings and shifts stay off until you accept the current worker agreement. Your account and existing history are preserved." |
+| Guest withdrew | "You’ve stopped taking part in the early test. You can’t submit new ratings or take other early-test actions. Ratings you already submitted remain public unless you separately ask us to delete them at team@slatenow.xyz." |
+| Worker withdrew | "You’ve stopped taking part in the early test. New ratings and shifts are blocked and your public profile is hidden. Your account and existing history are kept. You can take part again by accepting the current worker agreement." |
+| Remain option (label) | "Keep my Slate account after the early test" |
+| Remain option (help) | "Thirty days after the test ends, Slate will review early-test accounts and associated content. Slate plans to delete them unless you choose to remain. Some records may be retained when necessary for legal, security, audit or provider-backup purposes. You can change your choice until the review date." **The review date is shown only once `EARLY_TEST_REVIEW_DATE` is set** (lib/participant.ts; currently unset). |
+| Hidden profile, public pages | "This profile is not publicly available right now." (the same message for unknown ids, so the reason isn't revealed) |
+| Hidden profile, worker's own dashboard | "This profile is temporarily hidden because the worker has not accepted Slate’s current participation agreement." |
+| Worker consent card (optional sentence adopted) | Adds, as its last paragraph: "You can request deletion or ask questions at team@slatenow.xyz." |
+| Consent card buttons | "Agree and continue" / "Not now" ("Not now" records nothing) |
 
-**Privacy Policy changes (needs Vera's and legal review):**
-- Ratings: replace "Some older ratings also carry a random account identifier that others using Slate can see; it does not show your name or email." with "Slate does not show a public account identifier with your ratings, so others can't use one to link your ratings together."
-- Usage data: replace "We record pages visited and QR code scans (with an anonymous browser identifier) to understand how Slate is used and to improve it." with "We record which pages are visited (the page address only, not who visited) to understand how Slate is used and to improve it. During our early test, Slate does not record QR code scans."
+**Privacy Policy (wording still needs professional legal review):**
+- Ratings and reviews (approved): "Slate does not show a public account identifier with your ratings, so others can't use one to link your ratings together."
+- Usage data (Vera, revised 2026-10-11): "Slate’s application may record the pages you visit, including the page address, to operate and improve the service. During this early test, Slate’s application does not record QR-code scans or /scan/ page visits as application analytics. Our hosting, database, authentication and security providers may independently retain technical logs, such as IP address, referrer or request information, under their own retention practices. These logs are not controlled entirely by Slate."
+- Provider categories (narrow fix): "Service providers" and "What we keep after deletion" now both name hosting and security, database and authentication, email delivery, maps and newsletter (Vercel, Supabase, Resend, Google Maps Platform, Beehiiv in the code).
+- Points after a deleted rating: already stated under "What we keep after deletion", and in the Terms (Slate Points).
 
 ## Stop criteria and evidence (Appendix F)
 These are operational. The product supports them with:
@@ -114,7 +121,7 @@ Evidence-preservation mechanics were not supplied by Vera and remain open.
 
 # Appendices: Vera's documents, verbatim
 
-The version placeholder `[set exact release date]` is replaced by `2026-10-13` in the app; the text is otherwise unchanged.
+The version placeholder `[set exact release date]` is replaced by `2026-10-11` in the app; the text is otherwise unchanged.
 
 ## Appendix A: Guest information sheet (verbatim)
 
@@ -324,3 +331,20 @@ Minimum stop criteria:
 
 Stop the test immediately, preserve evidence, do not attempt an unapproved fix, and notify the founder through the designated contact path.
 
+
+---
+
+# Proposed production sequence (each step needs separate founder approval; nothing here authorizes it)
+
+| Step | What | Why this order |
+|---|---|---|
+| A1 | Run `43_scope_lock.sql` | Database first: blocks paused features for every role; adds `my_ratings()`; drops shift distance. The current app keeps working (paused buttons just error). |
+| A2 | Deploy the PR-A app | Hides paused controls; "My Ratings" uses `my_ratings()`; no QR-scan tracking. |
+| A3 | Run `43b_rating_identifier_private.sql` | Only after A2 (the old app filtered "My Ratings" by `guest_id`). |
+| B1 | Run `44_participant_agreements.sql` | Additive: log, checks, recorder. Blocks nothing. Must precede B2 (the app calls these functions and fails closed without them). |
+| B1a | Run `44_patch_participant_version_2026-10-11.sql` | Aligns the live participant version with the app (`2026-10-11`). Must precede B2: otherwise every agreement fails with `version_mismatch` (fails closed). |
+| B2 | Run `legal-version.mjs check --release` (or `set` to the actual date), then deploy the PR-B app | Shows the cards, records agreements, enforces in routes. Between B2 and B3 the database still expects legal version 2026-10-10, so workers who re-acknowledge (2026-10-11) cannot start shifts until B3 (fails closed, minutes). |
+| B3 | Run `44b_participant_enforcement.sql` | Database enforcement, visibility rules, legal version 2026-10-11. |
+| Verify | Read-only production checks with test accounts only | E- and S-criteria above. |
+
+Rollback is strictly in reverse: 44b → app → 44 (keeps the log) → 43b → app → 43. Every rollback refuses to run out of order.

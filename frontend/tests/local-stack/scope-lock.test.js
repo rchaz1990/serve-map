@@ -146,10 +146,25 @@ const refused = r => r.status >= 400
     const venueVibe = await p.isVisible('button:has-text("I\'m here right now")')
     const venuePaused = await p.isVisible('[data-testid="vibe-paused"]') && await p.isVisible('[data-testid="comments-paused"]')
     const venuePost = await p.isVisible('button:has-text("Post")')
+    // Restaurant page: its vibe section (and the old "report the vibe" button) only renders when
+    // the venue has a recent report, so seed one directly (bypassing the 43 trigger, test only).
+    sql(`set session_replication_role = replica; insert into vibe_reports (restaurant_name, vibe, created_at) values ('${VENUE}', 'LIVE', now())`)
+    const restaurantChecks = {}
+    for (const [who, pg] of [['signedOut', await page(null)], ['signedIn', p]]) {
+      await pg.goto(APP + `/restaurant/${encodeURIComponent(VENUE)}`, { waitUntil: 'networkidle', timeout: 120000 }); await pg.waitForTimeout(2000)
+      restaurantChecks[who] = {
+        reportButton: await pg.isVisible('button:has-text("report the vibe")'),
+        paused: await pg.isVisible('[data-testid="vibe-paused"]'),
+        signInPrompt: /Sign in to report the vibe/.test((await pg.textContent('body')) || ''),
+      }
+    }
+    const restaurantOk = Object.values(restaurantChecks).every(c => !c.reportButton && c.paused && !c.signInPrompt)
     check('S6e UI: no Follow on the QR page (PR #51 button hidden; "rated recently" kept) or the profile page',
       !scanFollow && recent && !profileFollow, { scanFollow, recent, profileFollow })
     check('S6f UI: no vibe report forms on /live or the venue page, no comment form; "Not available during the early test" shown',
       !liveImHere && !liveSearch && !venueVibe && !venuePost && venuePaused, { liveImHere, liveSearch, venueVibe, venuePost, venuePaused })
+    check('S6g UI: the restaurant page shows no "report the vibe" button (signed out or in) and no sign-in prompt for it; "Not available during the early test" shown',
+      restaurantOk, restaurantChecks)
     await p.context().close()
   }
 

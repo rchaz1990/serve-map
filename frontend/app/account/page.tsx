@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
+import EarlyTestStatus from '@/app/components/EarlyTestStatus'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -182,6 +183,14 @@ export default function AccountPage() {
               {serveBalance} <span className="font-normal slate-muted">Slate Points</span>
             </p>
           )}
+        </MotionSection>
+
+        <div className="slate-rule" />
+
+        {/* ── Early test: participation, withdrawal, end-of-test election ─── */}
+        <MotionSection className="py-12">
+          <p className="slate-eyebrow mb-6">Early test</p>
+          <EarlyTestStatus />
         </MotionSection>
 
         <div className="slate-rule" />

@@ -4,6 +4,8 @@ import { useState, useEffect, Suspense } from 'react'
 import LegalConsent from '@/app/components/LegalConsent'
 import FollowConsent from '@/app/components/FollowConsent'
 import { PAUSED } from '@/lib/early-test'
+import ParticipantCard from '@/app/components/ParticipantCard'
+import { PARTICIPANT_COPY, fetchParticipation } from '@/lib/participant'
 import { LEGAL_VERSION } from '@/lib/legal'
 import { legalOnFile as fetchLegalOnFile } from '@/lib/legal-client'
 import { saveRatingDraft, loadRatingDraft, clearRatingDraft } from '@/lib/rating-draft'
@@ -135,7 +137,7 @@ function RateForm() {
 
       if (!server) {
         console.error('No server found for ID:', serverId)
-        setError('Server not found. Please scan the QR code again.')
+        setError(PARTICIPANT_COPY.unavailable)
         return
       }
 
@@ -211,11 +213,16 @@ function RateForm() {
   // server). Already-acknowledged accounts don't see the checkbox again.
   const [legalAccepted, setLegalAccepted] = useState(false)
   const [legalOnFile, setLegalOnFile] = useState(false)
+  // Early test: signed-in guests must also accept the guest participant agreement (its own
+  // card, separate from the Terms/Privacy checkbox) before a rating can be posted.
+  const [participantNeeded, setParticipantNeeded] = useState(false)
   useEffect(() => {
     // Fresh from the server: an agreement recorded at sign-up moments ago counts.
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { setLegalOnFile(false); return }
       setLegalOnFile(await fetchLegalOnFile().catch(() => false))
+      const p = await fetchParticipation()
+      setParticipantNeeded(!p?.guest.agreed)
     })
   }, [])
 
@@ -247,6 +254,10 @@ function RateForm() {
 
       if (!legalOnFile && !legalAccepted) {
         setError('Please confirm you agree to the Terms of Service and Privacy Policy.')
+        return
+      }
+      if (participantNeeded) {
+        setError('Please agree to take part in Slate\'s early test before rating.')
         return
       }
 
@@ -282,8 +293,11 @@ function RateForm() {
 
       const body = await res.json().catch(() => null) as {
         error?: string
+        code?: string
         reward?: { starReward: number; commentBonus: number; followBonus: number; total: number }
       } | null
+      // Withdrawn (or never agreed) since the page loaded: show the agreement card again.
+      if (body?.code === 'participant_required') setParticipantNeeded(true)
       if (!res.ok || !body?.reward) {
         setError(body?.error || 'Failed to submit rating. Please try again.')
         return
@@ -572,6 +586,13 @@ function RateForm() {
           </div>
         )}
 
+        {/* ── Early-test participant agreement (separate card) ─────────── */}
+        {participantNeeded && (
+          <div className="mb-6">
+            <ParticipantCard role="guest" onAgreed={() => { setParticipantNeeded(false); setError('') }} />
+          </div>
+        )}
+
         {/* ── Acknowledgment (first rating per Terms/Privacy version) ─── */}
         {!legalOnFile && (
           <div className="mb-6">
@@ -588,7 +609,7 @@ function RateForm() {
         <div className="flex flex-col gap-3">
           <button
             onClick={handleSubmitRating}
-            disabled={rating === 0 || loading || ratingsClosed}
+            disabled={rating === 0 || loading || ratingsClosed || participantNeeded}
             className="slate-btn slate-btn-primary slate-btn-lg w-full disabled:opacity-25"
           >
             {loading ? (
