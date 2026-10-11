@@ -12,7 +12,7 @@ Nothing here authorizes a merge, a production migration, a deployment, worker no
   - review 30 days after the test ends;
   - correct the Privacy Policy and issue a new legal version;
   - Vera's stop criteria, with team@slatenow.xyz as the contact;
-  - target date 2026-10-13;
+  - target date 2026-10-13 (moved to 2026-10-11 by founder decision on 2026-10-11);
   - minimal consent records kept 12 months after deletion (provisional);
   - the founder declares the end of the test;
   - the review covers participants only;
@@ -20,25 +20,26 @@ Nothing here authorizes a merge, a production migration, a deployment, worker no
 - Scope: scan a worker's QR code → sign up → agree → rate. Follow, shift emails, vibe reports and venue comments are paused.
 
 ## Version and date
-- **Proposed version and publication date: `2026-10-13`.** One value is used for:
+- **Version and publication date: `2026-10-11`** (founder decision 2026-10-11; originally proposed as `2026-10-13`). One value is used for:
   - the Terms/Privacy version (`LEGAL_VERSION` and `current_legal_version()`);
   - the guest participant agreement;
   - the worker participant agreement.
 - If release slips, `node scripts/legal-version.mjs set YYYY-MM-DD` changes all of them together, and `check --release` fails on any mismatch.
-- The sheets show "Version: 2026-10-13".
+- The sheets show "Version: 2026-10-11".
+- Migration 44 went live with `current_participant_version()` = `2026-10-13`; `44_patch_participant_version_2026-10-11.sql` aligns it before the PR-B app is deployed.
 
 ## Acceptance criteria for Vera's nine requirements
 
 | # | Requirement (Vera) | Acceptance criteria | Where | Test evidence |
 |---|---|---|---|---|
-| 1 | One exact version and publication date | The app constants (`LEGAL_VERSION`, `PARTICIPANT_VERSION`) and the database functions (`current_legal_version()`, `current_participant_version()`) all equal `2026-10-13`. The version script fails on any mismatch. Both sheets show the version. | PR-B | version script `check --release`; test E1 |
+| 1 | One exact version and publication date | The app constants (`LEGAL_VERSION`, `PARTICIPANT_VERSION`) and the database functions (`current_legal_version()`, `current_participant_version()`) all equal `2026-10-11`. The version script fails on any mismatch. Both sheets show the version. | PR-B | version script `check --release`; test E1 |
 | 2 | "Profile may be hidden" means everything hidden consistently | For a worker who has not accepted the current worker participant agreement (never agreed, or withdrew), anyone else (logged out, other users, testers) gets nothing back for the profile row, workplaces, shifts or ratings, whether through the API directly or through embedded queries. `/server/<id>`, `/scan/<id>` and `/rate?server=<id>` show "not available". `rating-status`, `rating-relationship` and `track-scan` answer "not found". Venue staff lists, Explore and `/live` leave the worker out. The owner still sees their own dashboard. No row is deleted or changed (before and after counts equal). After the worker agrees, all of it reappears unchanged. | PR-B (44b) | test E4–E7 |
 | 3 | End-of-test choice to remain, for guests and workers | `/account` shows participants "Keep my Slate account after the early test" (on/off) until the review. Each change is logged with a timestamp. The default is **not** to remain; silence means not remaining. Email to team@slatenow.xyz from the account address is the alternative; staff record it with the documented admin step (same log). **No automatic deletion is implemented**; the review needs a separately approved procedure. | PR-B | test E10 |
 | 4 | Scope of "associated content", with exceptions | Documented below ("Associated content"). This PR deletes nothing. | docs | review |
 | 5 | Withdrawal blocks future actions immediately, in the UI and on the server | On `/account`, "Stop taking part" (guest and worker separately) records the withdrawal time and a log entry. **Immediately**, even with a sign-in token issued before withdrawal: the rating route refuses, the database refuses a direct rating insert, a worker's shift start is refused, the worker's active shift ends, and the worker's profile is hidden. The UI shows the withdrawn state. Agreeing again restores participation. | PR-B | test E8–E9 |
 | 6 | Participant inbox monitored during the test | Operational: founder confirms who monitors team@slatenow.xyz, how often, and the escalation path. **Not code.** | founder | open (blocker before invitations) |
 | 7 | Sign-up without recording a QR scan before agreement | Opening `/scan/<id>` (logged out or signed in), signing up and rating creates **no** `qr_scans` row. `page_views` records no `/scan/...` path. `/api/track-scan` stores nothing during the test. | PR-A | test S9–S10 |
-| 8 | Correct the Privacy Policy's rating-identifier wording; new legal version; renewed acknowledgment | The Privacy wording no longer says ratings carry a visible identifier; the identifier is actually not public (PR-A). The QR-scan sentence matches requirement 7. Legal version `2026-10-13`. Accounts on `2026-10-10` must acknowledge again: guests before rating; workers before shifts or receiving ratings. **Wording needs Vera's and legal review (requirement 9).** | PR-A (identifier private), PR-B (wording and version) | test S1–S5, E2–E3 |
+| 8 | Correct the Privacy Policy's rating-identifier wording; new legal version; renewed acknowledgment | The Privacy wording no longer says ratings carry a visible identifier; the identifier is actually not public (PR-A). The QR-scan sentence matches requirement 7. Legal version `2026-10-11`. Accounts on `2026-10-10` must acknowledge again: guests before rating; workers before shifts or receiving ratings. **Wording needs Vera's and legal review (requirement 9).** | PR-A (identifier private), PR-B (wording and version) | test S1–S5, E2–E3 |
 | 9 | Professional legal review before strangers are invited | Operational. **Not code.** | founder | open (blocker before invitations) |
 
 ## Scope lock (PR-A) criteria
@@ -120,7 +121,7 @@ Evidence-preservation mechanics were not supplied by Vera and remain open.
 
 # Appendices: Vera's documents, verbatim
 
-The version placeholder `[set exact release date]` is replaced by `2026-10-13` in the app; the text is otherwise unchanged.
+The version placeholder `[set exact release date]` is replaced by `2026-10-11` in the app; the text is otherwise unchanged.
 
 ## Appendix A: Guest information sheet (verbatim)
 
@@ -341,8 +342,9 @@ Stop the test immediately, preserve evidence, do not attempt an unapproved fix, 
 | A2 | Deploy the PR-A app | Hides paused controls; "My Ratings" uses `my_ratings()`; no QR-scan tracking. |
 | A3 | Run `43b_rating_identifier_private.sql` | Only after A2 (the old app filtered "My Ratings" by `guest_id`). |
 | B1 | Run `44_participant_agreements.sql` | Additive: log, checks, recorder. Blocks nothing. Must precede B2 (the app calls these functions and fails closed without them). |
-| B2 | Run `legal-version.mjs check --release` (or `set` to the actual date), then deploy the PR-B app | Shows the cards, records agreements, enforces in routes. Between B2 and B3 the database still expects legal version 2026-10-10, so workers who re-acknowledge (2026-10-13) cannot start shifts until B3 (fails closed, minutes). |
-| B3 | Run `44b_participant_enforcement.sql` | Database enforcement, visibility rules, legal version 2026-10-13. |
+| B1a | Run `44_patch_participant_version_2026-10-11.sql` | Aligns the live participant version with the app (`2026-10-11`). Must precede B2: otherwise every agreement fails with `version_mismatch` (fails closed). |
+| B2 | Run `legal-version.mjs check --release` (or `set` to the actual date), then deploy the PR-B app | Shows the cards, records agreements, enforces in routes. Between B2 and B3 the database still expects legal version 2026-10-10, so workers who re-acknowledge (2026-10-11) cannot start shifts until B3 (fails closed, minutes). |
+| B3 | Run `44b_participant_enforcement.sql` | Database enforcement, visibility rules, legal version 2026-10-11. |
 | Verify | Read-only production checks with test accounts only | E- and S-criteria above. |
 
 Rollback is strictly in reverse: 44b → app → 44 (keeps the log) → 43b → app → 43. Every rollback refuses to run out of order.

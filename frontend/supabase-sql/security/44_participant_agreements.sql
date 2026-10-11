@@ -9,7 +9,7 @@
 --      No app-user access; even the service role can only insert and read (no update/delete).
 --      No foreign key to accounts, so minimal consent records survive account deletion
 --      (kept 12 months after deletion, provisional; purging is a separate approved procedure).
---   2. current_participant_version() = '2026-10-13' (one date with the legal version).
+--   2. current_participant_version() = '2026-10-11' (one date with the legal version).
 --   3. participant_ok(account, role) / worker_participant_ok(server) / server_visible_in_test(server):
 --      true/false only, read the account record directly (never the sign-in token), so a
 --      withdrawal takes effect immediately.
@@ -72,7 +72,7 @@ create or replace function public.current_participant_version()
 returns text
 language sql
 immutable
-as $$ select '2026-10-13'::text $$;
+as $$ select '2026-10-11'::text $$;
 
 -- 3. Checks (true/false only)
 create or replace function public.participant_ok(p_user uuid, p_role text)
@@ -184,7 +184,7 @@ commit;
 notify pgrst, 'reload schema';
 
 -- Verify after running (read-only):
---   select public.current_participant_version();                                                   -- 2026-10-13
+--   select public.current_participant_version();                                                   -- 2026-10-11
 --   select has_table_privilege('authenticated','public.participant_consent_events','SELECT');        -- false
 --   select has_function_privilege('authenticated','public.record_participant_event(uuid,text,text,text)','EXECUTE'); -- false
 --   select count(*) from public.participant_consent_events;                                          -- 0

@@ -147,8 +147,8 @@ const hiddenEverywhere = v => v.servers === '[]' && v.server_restaurants === '[]
       const p = await page(null)
       await p.goto(APP + '/early-test', { waitUntil: 'networkidle', timeout: 120000 })
       const t = await body(p)
-      check('E1 one version 2026-10-13 everywhere: app Terms/Privacy + both agreements, database legal + participant; both sheets show it',
-        PV === '2026-10-13' && LEGAL_VERSION === PV && rel.ok && db === `${PV}|${PV}` && (t.match(/Version: 2026-10-13/g) || []).length === 2, { rel, db, PV, LEGAL_VERSION })
+      check('E1 one version 2026-10-11 everywhere: app Terms/Privacy + both agreements, database legal + participant; both sheets show it',
+        PV === '2026-10-11' && LEGAL_VERSION === PV && rel.ok && db === `${PV}|${PV}` && (t.match(/Version: 2026-10-11/g) || []).length === 2, { rel, db, PV, LEGAL_VERSION })
       check('E1b /early-test shows Vera\'s guest and worker sheets verbatim (spot-checked sentences)',
         /Slate Early Product Test — Guest Information/.test(t) && /Following, shift emails, vibe reports and venue comments are not part of this first test\./.test(t)
           && /Slate will not display a public account identifier that links your ratings together\./.test(t)
@@ -160,7 +160,7 @@ const hiddenEverywhere = v => v.servers === '[]' && v.server_restaurants === '[]
         /does not show a public account identifier with your ratings/.test(priv) && /Slate.s application may record the pages you visit, including the page address, to operate and improve the service\. During this early test, Slate.s application does not record QR-code scans or \/scan\/ page visits as application analytics\. Our hosting, database, authentication and security providers may independently retain technical logs, such as IP address, referrer or request information, under their own retention practices\. These logs are not controlled entirely by Slate\./.test(priv)
           && /hosting and security, database and authentication, email delivery, maps, and our newsletter/.test(priv)
           && /\(hosting and security, database and authentication, email delivery, maps and newsletter\) under those providers. own retention practices, which we do not control/.test(priv)
-          && !/Some older ratings also carry/.test(priv) && !/QR code scans \(with an anonymous browser identifier\)/.test(priv) && /October 13, 2026/.test(priv))
+          && !/Some older ratings also carry/.test(priv) && !/QR code scans \(with an anonymous browser identifier\)/.test(priv) && /October 11, 2026/.test(priv))
       await p.context().close()
     }
 

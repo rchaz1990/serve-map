@@ -290,7 +290,9 @@ async function optedInFollower(w) {
     }
     let setOk = true; try { execFileSync('node', [path.join(tmp, 'scripts/legal-version.mjs'), 'set', '2031-01-15'], { stdio: 'pipe' }); execFileSync('node', [path.join(tmp, 'scripts/legal-version.mjs'), 'check', '--release'], { stdio: 'pipe' }) } catch { setOk = false }
     const orig = f => fs.readFileSync(path.join(__dirname, '../..', f), 'utf8'), now = f => fs.readFileSync(path.join(tmp, f), 'utf8')
-    const onlyDate = f => now(f) === orig(f).split(LEGAL_VERSION).join('2031-01-15')
+    // Only the version values change (quoted constants and the sheets' "**Version:**" lines);
+    // the same date elsewhere, e.g. in a review-note comment, must stay as it is.
+    const onlyDate = f => now(f) === orig(f).split(`'${LEGAL_VERSION}'`).join(`'2031-01-15'`).split(`**Version:** ${LEGAL_VERSION}`).join('**Version:** 2031-01-15')
     check('P50b "set" writes the same exact date everywhere (app, both sheets, 44, 44b) and nothing else; 44b keeps its 2026-10-10 pre-check',
       setOk && onlyDate('lib/legal.ts') && onlyDate('lib/participant-documents.ts') && now('supabase-sql/security/44_participant_agreements.sql') === orig('supabase-sql/security/44_participant_agreements.sql').replace(`select '${LEGAL_VERSION}'::text $$;`, () => `select '2031-01-15'::text $$;`)
         && now('supabase-sql/security/44b_participant_enforcement.sql') === orig('supabase-sql/security/44b_participant_enforcement.sql').replace(`select '${LEGAL_VERSION}'::text $$;`, () => `select '2031-01-15'::text $$;`)

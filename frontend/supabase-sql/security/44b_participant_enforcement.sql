@@ -2,7 +2,7 @@
 --     NOT YET RUN IN PRODUCTION — needs founder approval. Deletes nothing; changes no rows.
 --
 -- What it does (see docs/EARLY_TEST_ACCEPTANCE_CRITERIA.md, requirements 1, 2, 5, 8):
---   1. Legal version 2026-10-13 (corrected Privacy Policy): current_legal_version() → '2026-10-13'.
+--   1. Legal version 2026-10-11 (corrected Privacy Policy): current_legal_version() → '2026-10-11'.
 --      Everyone on 2026-10-10 must acknowledge again (guests before rating; workers before
 --      shifts or receiving ratings — worker_terms_ok() compares against this version).
 --   2. New ratings need BOTH the rater's guest agreement and the worker's worker agreement
@@ -37,7 +37,7 @@ create or replace function public.current_legal_version()
 returns text
 language sql
 immutable
-as $$ select '2026-10-13'::text $$;
+as $$ select '2026-10-11'::text $$;
 
 -- 2. Ratings: guest and worker must both participate
 create or replace function public.ratings_require_participants()
@@ -90,6 +90,6 @@ commit;
 notify pgrst, 'reload schema';
 
 -- Verify after running (read-only):
---   select public.current_legal_version(), public.current_participant_version();      -- 2026-10-13 | 2026-10-13
+--   select public.current_legal_version(), public.current_participant_version();      -- 2026-10-11 | 2026-10-11
 --   set role anon; select count(*) from public.servers; reset role;                     -- participating workers only
 --   select count(*) from public.servers; select count(*) from public.ratings;          -- unchanged (nothing deleted)

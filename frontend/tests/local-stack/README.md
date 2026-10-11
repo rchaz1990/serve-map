@@ -101,5 +101,5 @@ updating it: it now re-reads account metadata from `auth.users` (as Supabase doe
 `autoParticipant` fixture (default on: new accounts start with both participant agreements, so suites about
 other features keep working). This suite turns it off for its own accounts and restores it.
 ```bash
-node participant.test.js http://localhost:3104 keys.json   # 27 checks: one version 2026-10-13, verbatim sheets/cards, renewed Terms/Privacy, hidden non-participating workers (API, embeds, routes, pages, venue lists; owner still sees; nothing deleted), dashboard worker card, real guest flow (QR → rate → sign up → card → agree → rate; "Not now" records nothing), immediate withdrawal with old tokens (route + database), shift ended, re-agreement, end-of-test election, append-only records, rollback order
+node participant.test.js http://localhost:3104 keys.json   # 27 checks: one version 2026-10-11, verbatim sheets/cards, renewed Terms/Privacy, hidden non-participating workers (API, embeds, routes, pages, venue lists; owner still sees; nothing deleted), dashboard worker card, real guest flow (QR → rate → sign up → card → agree → rate; "Not now" records nothing), immediate withdrawal with old tokens (route + database), shift ended, re-agreement, end-of-test election, append-only records, rollback order
 ```
