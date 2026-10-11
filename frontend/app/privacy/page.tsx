@@ -19,7 +19,7 @@ const SECTIONS = [
       },
       {
         subtitle: 'Usage data',
-        text: 'We may record the pages you visit, including the page address, together with limited technical information needed to operate and secure Slate. We use this information to understand how Slate is used and to improve it. During our early test, Slate does not record QR code scans.',
+        text: 'Slate\u2019s application may record the pages you visit, including the page address, to operate and improve the service. During this early test, Slate\u2019s application does not record QR-code scans or /scan/ page visits as application analytics. Our hosting, database, authentication and security providers may independently retain technical logs, such as IP address, referrer or request information, under their own retention practices. These logs are not controlled entirely by Slate.',
       },
     ],
   },
@@ -66,7 +66,7 @@ const SECTIONS = [
       },
       {
         subtitle: 'Service providers',
-        text: 'We work with a small number of service providers — hosting and database, email delivery, maps, and our newsletter — who access data only as necessary to provide their services.',
+        text: 'We work with a small number of service providers — hosting and security, database and authentication, email delivery, maps, and our newsletter — who access data only as necessary to provide their services.',
       },
       {
         subtitle: 'Legal requirements',
@@ -87,7 +87,7 @@ const SECTIONS = [
       },
       {
         subtitle: 'What we keep after deletion',
-        text: 'Slate keeps a record of Slate Points awarded to worker profiles (amounts and dates) that cannot be edited or deleted, and is not public. When a worker profile is deleted, we remove the email address from that record. During our early test, if a guest\'s rating is deleted, the Slate Points the worker already earned from it are not taken back: they stay in the worker\'s balance and in that record. Some copies or logs of deleted data may remain with our service providers (hosting, database, email delivery and newsletter) under those providers\' own retention practices, which we do not control.',
+        text: 'Slate keeps a record of Slate Points awarded to worker profiles (amounts and dates) that cannot be edited or deleted, and is not public. When a worker profile is deleted, we remove the email address from that record. During our early test, if a guest\'s rating is deleted, the Slate Points the worker already earned from it are not taken back: they stay in the worker\'s balance and in that record. Some copies or logs of deleted data may remain with our service providers (hosting and security, database and authentication, email delivery, maps and newsletter) under those providers\' own retention practices, which we do not control.',
       },
       {
         subtitle: 'Deleting a single rating',

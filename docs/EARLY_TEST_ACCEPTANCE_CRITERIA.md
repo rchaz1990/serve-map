@@ -91,11 +91,13 @@ The process is `docs/PARTICIPANT_DATA_DELETION.md`. It is manual, each run needs
 | Remain option (help) | "Thirty days after the test ends, Slate will review early-test accounts and associated content. Slate plans to delete them unless you choose to remain. Some records may be retained when necessary for legal, security, audit or provider-backup purposes. You can change your choice until the review date." **The review date is shown only once `EARLY_TEST_REVIEW_DATE` is set** (lib/participant.ts; currently unset). |
 | Hidden profile, public pages | "This profile is not publicly available right now." (the same message for unknown ids, so the reason isn't revealed) |
 | Hidden profile, worker's own dashboard | "This profile is temporarily hidden because the worker has not accepted Slate’s current participation agreement." |
+| Worker consent card (optional sentence adopted) | Adds, as its last paragraph: "You can request deletion or ask questions at team@slatenow.xyz." |
 | Consent card buttons | "Agree and continue" / "Not now" ("Not now" records nothing) |
 
 **Privacy Policy (wording still needs professional legal review):**
 - Ratings and reviews (approved): "Slate does not show a public account identifier with your ratings, so others can't use one to link your ratings together."
-- Usage data (Vera's text): "We may record the pages you visit, including the page address, together with limited technical information needed to operate and secure Slate. We use this information to understand how Slate is used and to improve it. During our early test, Slate does not record QR code scans."
+- Usage data (Vera, revised 2026-10-11): "Slate’s application may record the pages you visit, including the page address, to operate and improve the service. During this early test, Slate’s application does not record QR-code scans or /scan/ page visits as application analytics. Our hosting, database, authentication and security providers may independently retain technical logs, such as IP address, referrer or request information, under their own retention practices. These logs are not controlled entirely by Slate."
+- Provider categories (narrow fix): "Service providers" and "What we keep after deletion" now both name hosting and security, database and authentication, email delivery, maps and newsletter (Vercel, Supabase, Resend, Google Maps Platform, Beehiiv in the code).
 - Points after a deleted rating: already stated under "What we keep after deletion", and in the Terms (Slate Points).
 
 ## Stop criteria and evidence (Appendix F)

@@ -2,6 +2,8 @@
 // (provided by the founder, 2026-10-10). Generated; do not edit the wording here. Any change
 // needs Vera's review, professional legal review, and a new PARTICIPANT_VERSION (everyone is
 // asked again). The only substitution is the version placeholder → PARTICIPANT_VERSION.
+// Addition (Vera, 2026-10-11, optional sentence adopted): the worker card's last paragraph,
+// "You can request deletion or ask questions at team@slatenow.xyz."
 
 export const PARTICIPANT_VERSION = '2026-10-13'
 
@@ -28,7 +30,8 @@ export const CONSENT_CARDS: Record<ParticipantRole, { title: string; paragraphs:
   "paragraphs": [
     "This test is voluntary and for workers 18 or older. Your profile, ratings, comments, workplaces, follower count, Slate Points and current shift venue may be publicly visible.",
     "Ratings are stored by Slate, not on a blockchain. Slate Points have no cash value, and $SERVE has not been issued.",
-    "If you withdraw, future test activity is blocked and your profile may be hidden. Your account and historical data are preserved, and your profile may become visible again if you accept the current worker agreement."
+    "If you withdraw, future test activity is blocked and your profile may be hidden. Your account and historical data are preserved, and your profile may become visible again if you accept the current worker agreement.",
+    "You can request deletion or ask questions at team@slatenow.xyz."
   ],
   "link": "Read the full worker information sheet",
   "checkbox": "I am 18 or older, I have read the Slate Early Product Test worker information sheet, and I agree to participate."

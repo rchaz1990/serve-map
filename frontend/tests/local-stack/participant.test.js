@@ -156,8 +156,10 @@ const hiddenEverywhere = v => v.servers === '[]' && v.server_restaurants === '[]
           && /Raw coordinates are not intended to be stored\./.test(t))
       await p.goto(APP + '/privacy', { waitUntil: 'networkidle' })
       const priv = await body(p)
-      check('E3 Privacy: no visible rating identifier; no QR-scan recording during the test; old sentences gone; effective date from the new version',
-        /does not show a public account identifier with your ratings/.test(priv) && /We may record the pages you visit, including the page address, together with limited technical information needed to operate and secure Slate\. We use this information to understand how Slate is used and to improve it\. During our early test, Slate does not record QR code scans\./.test(priv)
+      check('E3 Privacy: no visible rating identifier; usage data + provider logs (Vera 2026-10-11); provider categories in both sections; old sentences gone; effective date from the new version',
+        /does not show a public account identifier with your ratings/.test(priv) && /Slate.s application may record the pages you visit, including the page address, to operate and improve the service\. During this early test, Slate.s application does not record QR-code scans or \/scan\/ page visits as application analytics\. Our hosting, database, authentication and security providers may independently retain technical logs, such as IP address, referrer or request information, under their own retention practices\. These logs are not controlled entirely by Slate\./.test(priv)
+          && /hosting and security, database and authentication, email delivery, maps, and our newsletter/.test(priv)
+          && /\(hosting and security, database and authentication, email delivery, maps and newsletter\) under those providers. own retention practices, which we do not control/.test(priv)
           && !/Some older ratings also carry/.test(priv) && !/QR code scans \(with an anonymous browser identifier\)/.test(priv) && /October 13, 2026/.test(priv))
       await p.context().close()
     }
@@ -222,7 +224,8 @@ const hiddenEverywhere = v => v.servers === '[]' && v.server_restaurants === '[]
       await p.context().close()
       check('E5a dashboard: owner sees why the profile is hidden; worker card (Vera\'s wording) shown, Start Shift disabled, Agree disabled until ticked, nothing recorded before',
         card && /This profile is temporarily hidden because the worker has not accepted Slate.s current participation agreement\./.test(ownMsg) && startDisabled === true && disabledUntilTicked && evBefore === '' && /This test is voluntary and for workers 18 or older\./.test(cardText)
-          && /I am 18 or older, I have read the Slate Early Product Test worker information sheet, and I agree to participate\./.test(cardText), { card, startDisabled, disabledUntilTicked, evBefore })
+          && /I am 18 or older, I have read the Slate Early Product Test worker information sheet, and I agree to participate\./.test(cardText)
+          && /You can request deletion or ask questions at team@slatenow\.xyz\./.test(cardText), { card, startDisabled, disabledUntilTicked, evBefore })
       const v = await visibleTo(W, null)
       check('E5b after agreeing: card gone, Start Shift enabled, logged; profile, workplaces, shift and the old rating visible again; rows unchanged',
         gone && startEnabled && events(W) === `worker:accept:${PV}` && v.servers.includes(W.serverId) && v.ratings.includes(W.serverId) && v.shifts.includes(W.serverId) && rowsW() === before, { gone, startEnabled, ev: events(W), v })
