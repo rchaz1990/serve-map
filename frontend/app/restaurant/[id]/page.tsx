@@ -5,6 +5,7 @@ import { useParams, usePathname, useRouter } from 'next/navigation'
 import Navbar from '@/app/components/Navbar'
 import { MotionSection } from '@/app/components/motion'
 import { supabase } from '@/lib/supabase'
+import { PAUSED, PAUSED_MESSAGE } from '@/lib/early-test'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -377,12 +378,17 @@ export default function RestaurantProfilePage() {
                 </div>
               </div>
 
-              <button
-                onClick={() => loggedIn ? router.push('/live') : router.push('/login?message=' + encodeURIComponent('Sign in to report the vibe'))}
-                className="slate-btn slate-btn-ghost"
-              >
-                I&apos;m here — report the vibe →
-              </button>
+              {/* Vibe reports are paused for the early test (lib/early-test.ts). */}
+              {PAUSED.vibeReports ? (
+                <p data-testid="vibe-paused" className="text-xs" style={{ color: '#606060' }}>{PAUSED_MESSAGE}</p>
+              ) : (
+                <button
+                  onClick={() => loggedIn ? router.push('/live') : router.push('/login?message=' + encodeURIComponent('Sign in to report the vibe'))}
+                  className="slate-btn slate-btn-ghost"
+                >
+                  I&apos;m here — report the vibe →
+                </button>
+              )}
             </MotionSection>
 
             <div className="slate-rule" />
