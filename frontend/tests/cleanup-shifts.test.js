@@ -14,27 +14,41 @@ const ts = require(path.join(DEPS, 'node_modules/typescript'))
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://proj.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'
 
-// Supabase recorder: counts update calls and can be told to fail.
+// In-memory shifts table that applies the route's update and filters.
+const HOUR = 3600000
+let shifts = []
 const calls = []
 let failNext = false
 const fakeSupabase = {
   createClient: () => ({
     from(table) {
-      const call = { table, update: null, filters: [] }
+      const call = { table, update: null, opts: null, filters: [] }
       calls.push(call)
       const q = {
-        update(v) { call.update = v; return q },
+        update(v, opts) { call.update = v; call.opts = opts; return q },
         eq(c, v) { call.filters.push(['eq', c, v]); return q },
         lt(c, v) {
           call.filters.push(['lt', c, v])
-          const err = failNext ? { message: 'boom' } : null
-          failNext = false
-          return Promise.resolve({ error: err })
+          if (failNext) { failNext = false; return Promise.resolve({ error: { message: 'boom' }, count: null }) }
+          const hit = shifts.filter(r => call.filters.every(([op, col, val]) => (op === 'eq' ? r[col] === val : r[col] < val)))
+          for (const r of hit) Object.assign(r, call.update)
+          return Promise.resolve({ error: null, count: call.opts && call.opts.count === 'exact' ? hit.length : null })
         },
       }
       return q
     },
   }),
+}
+const iso = msAgo => new Date(Date.now() - msAgo).toISOString()
+function seed() {
+  const manualEnd = iso(30 * HOUR)
+  shifts = [
+    { id: 's1', is_active: true, started_at: iso(200 * 24 * HOUR), ended_at: null },   // stale, months old
+    { id: 's2', is_active: true, started_at: iso(13 * HOUR), ended_at: null },         // stale, just over 12h
+    { id: 's3', is_active: true, started_at: iso(11 * HOUR), ended_at: null },         // live shift, under 12h
+    { id: 's4', is_active: false, started_at: iso(40 * HOUR), ended_at: manualEnd },   // ended manually
+  ]
+  return { manualEnd }
 }
 
 const ROUTE = path.join(FRONTEND, 'app/api/cleanup-shifts/route.ts')
@@ -103,19 +117,44 @@ const rejected = r => { assert.strictEqual(r.status, 401); assert.strictEqual(r.
 
   // Valid secret, correct credentials
   await t('correct bearer -> 200 and one cleanup update', async () => {
-    setSecret(GOOD)
+    setSecret(GOOD); seed()
     const r = await call({ auth: `Bearer ${GOOD}` })
     assert.strictEqual(r.status, 200); assert.strictEqual(r.body.success, true); assert.strictEqual(r.dbCalls, 1)
     const c = calls[calls.length - 1]
     assert.strictEqual(c.table, 'shifts')
-    assert.strictEqual(c.update.is_active, false)
+    assert.deepStrictEqual(c.update, { is_active: false }, 'only is_active is updated')
     assert.deepStrictEqual(c.filters[0], ['eq', 'is_active', true])
     assert.strictEqual(c.filters[1][0], 'lt'); assert.strictEqual(c.filters[1][1], 'started_at')
     const cutoffHours = (Date.now() - Date.parse(c.filters[1][2])) / 3600000
     assert.ok(cutoffHours > 11.99 && cutoffHours < 12.01, 'cutoff is 12 hours ago')
   })
+  await t('cleanup leaves ended_at unchanged and reports an accurate count', async () => {
+    setSecret(GOOD); const { manualEnd } = seed()
+    const r = await call({ auth: `Bearer ${GOOD}` })
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.body.closed, 2)
+    const by = Object.fromEntries(shifts.map(x => [x.id, x]))
+    assert.strictEqual(by.s1.is_active, false); assert.strictEqual(by.s1.ended_at, null)
+    assert.strictEqual(by.s2.is_active, false); assert.strictEqual(by.s2.ended_at, null)
+    assert.strictEqual(by.s3.is_active, true, 'shift under 12h stays active'); assert.strictEqual(by.s3.ended_at, null)
+    assert.strictEqual(by.s4.ended_at, manualEnd, 'manually ended shift keeps its real end time')
+  })
+  await t('second run closes nothing and reports 0', async () => {
+    setSecret(GOOD); seed()
+    await call({ auth: `Bearer ${GOOD}` })
+    const r = await call({ auth: `Bearer ${GOOD}` })
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.body.closed, 0)
+  })
+  await t('logs only the count, never shift IDs', async () => {
+    setSecret(GOOD); seed()
+    const logged = []; const orig = console.log
+    console.log = (...a) => logged.push(a.join(' '))
+    try { await call({ auth: `Bearer ${GOOD}` }) } finally { console.log = orig }
+    assert.ok(logged.some(l => /closed 2 stale shift/.test(l)), 'count is logged')
+    assert.ok(!logged.some(l => /\bs[1-4]\b/.test(l)), 'no shift IDs logged')
+    assert.ok(!JSON.stringify(logged).includes('s1'))
+  })
   await t('correct legacy ?key= -> 200 (temporary compatibility)', async () => {
-    setSecret(GOOD); const r = await call({ query: GOOD }); assert.strictEqual(r.status, 200); assert.strictEqual(r.dbCalls, 1)
+    setSecret(GOOD); seed(); const r = await call({ query: GOOD }); assert.strictEqual(r.status, 200); assert.strictEqual(r.dbCalls, 1)
   })
   await t('correct bearer, database error -> 500', async () => {
     setSecret(GOOD); failNext = true; const r = await call({ auth: `Bearer ${GOOD}` })

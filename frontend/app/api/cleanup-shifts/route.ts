@@ -46,25 +46,29 @@ export async function GET(request: Request) {
     Date.now() - 12 * 60 * 60 * 1000
   ).toISOString()
 
-  const { error } = await supabase
+  // Stale shifts are closed without an end time: the real end is unknown,
+  // so ended_at stays as it was (null) instead of recording an artificial
+  // multi-hour or multi-month shift. Manual shift endings still set ended_at.
+  const { error, count } = await supabase
     .from('shifts')
-    .update({
-      is_active: false,
-      ended_at: new Date().toISOString(),
-    })
+    .update({ is_active: false }, { count: 'exact' })
     .eq('is_active', true)
     .lt('started_at', twelveHoursAgo)
 
   if (error) {
-    console.error('[cleanup-shifts] update error:', error)
+    console.error('[cleanup-shifts] update error:', error.message)
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 },
     )
   }
 
+  const closed = count ?? 0
+  console.log(`[cleanup-shifts] closed ${closed} stale shift(s)`)
+
   return NextResponse.json({
     success: true,
     message: 'Stale shifts cleaned up',
+    closed,
   })
 }
