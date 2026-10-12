@@ -165,6 +165,18 @@ const refused = r => r.status >= 400
       !liveImHere && !liveSearch && !venueVibe && !venuePost && venuePaused, { liveImHere, liveSearch, venueVibe, venuePost, venuePaused })
     check('S6g UI: the restaurant page shows no "report the vibe" button (signed out or in) and no sign-in prompt for it; "Not available during the early test" shown',
       restaurantOk, restaurantChecks)
+    {
+      // Worker dashboard: the always-mounted shift toast is hidden from assistive tech until shown,
+      // and never claims followers were notified while shift emails are paused.
+      const wp = await page(W)
+      await wp.goto(APP + '/dashboard', { waitUntil: 'networkidle', timeout: 120000 }); await wp.waitForTimeout(2500)
+      const toast = wp.locator('[role="status"]:has-text("Shift started")')
+      const toastInfo = { count: await toast.count(), ariaHidden: await toast.first().getAttribute('aria-hidden').catch(() => null) }
+      const html = await wp.content()
+      check('S7b UI: hidden shift toast is aria-hidden and has no "followers have been notified" line (shift emails paused)',
+        toastInfo.count === 1 && toastInfo.ariaHidden === 'true' && !/followers have been notified/.test(html), toastInfo)
+      await wp.context().close()
+    }
     await p.context().close()
   }
 
