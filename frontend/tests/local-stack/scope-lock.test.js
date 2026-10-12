@@ -166,15 +166,28 @@ const refused = r => r.status >= 400
     check('S6g UI: the restaurant page shows no "report the vibe" button (signed out or in) and no sign-in prompt for it; "Not available during the early test" shown',
       restaurantOk, restaurantChecks)
     {
-      // Worker dashboard: the always-mounted shift toast is hidden from assistive tech until shown,
-      // and never claims followers were notified while shift emails are paused.
+      // Worker dashboard: the shift-start status region holds no text (nothing a screen reader or
+      // DOM reader could pick up) until a shift is actually saved, and never claims followers were
+      // notified while shift emails are paused.
       const wp = await page(W)
       await wp.goto(APP + '/dashboard', { waitUntil: 'networkidle', timeout: 120000 }); await wp.waitForTimeout(2500)
-      const toast = wp.locator('[role="status"]:has-text("Shift started")')
-      const toastInfo = { count: await toast.count(), ariaHidden: await toast.first().getAttribute('aria-hidden').catch(() => null) }
+      const status = wp.locator('[role="status"]')
+      const before = { count: await status.count(), text: ((await status.first().textContent().catch(() => '')) || '').trim(), aria: /Shift started/.test(await wp.locator('body').ariaSnapshot()) }
+      const shifts0 = count(`shifts where server_id = '${W.serverId}' and is_active`)
+      // Start a shift. Location is allowed but the venue can't be geocoded offline, so the check
+      // fails after a few seconds and the shift is then saved without it. The confirmation must
+      // not appear before the row exists.
+      await wp.context().grantPermissions(['geolocation'], { origin: APP }); await wp.context().setGeolocation({ latitude: 40.72, longitude: -73.99 })
+      await wp.click('button:has-text("Start Shift")'); await wp.waitForTimeout(300)
+      const during = { text: ((await status.first().textContent().catch(() => '')) || '').trim(), saved: count(`shifts where server_id = '${W.serverId}' and is_active`) - shifts0 }
+      for (let i = 0; i < 40 && count(`shifts where server_id = '${W.serverId}' and is_active`) === shifts0; i++) await wp.waitForTimeout(500)
+      await wp.waitForTimeout(500)
+      const after = { during, text: ((await status.first().textContent().catch(() => '')) || '').trim(), saved: count(`shifts where server_id = '${W.serverId}' and is_active`) - shifts0 }
       const html = await wp.content()
-      check('S7b UI: hidden shift toast is aria-hidden and has no "followers have been notified" line (shift emails paused)',
-        toastInfo.count === 1 && toastInfo.ariaHidden === 'true' && !/followers have been notified/.test(html), toastInfo)
+      check('S7b UI: shift-start status region is empty before any shift (no hidden "Shift started" text); shows "Shift started" only after the shift is saved; no "followers have been notified" line (shift emails paused)',
+        before.count === 1 && before.text === '' && !before.aria && (after.during.saved === 1 || after.during.text === '') && after.saved === 1 && /^Shift started/.test(after.text) && !/followers have been notified/.test(html), { before, after })
+      // Leave no active shift behind for later checks.
+      sql(`update shifts set is_active = false, ended_at = now() where server_id = '${W.serverId}' and is_active`)
       await wp.context().close()
     }
     await p.context().close()

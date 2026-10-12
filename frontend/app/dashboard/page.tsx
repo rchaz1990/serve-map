@@ -1381,7 +1381,6 @@ export default function DashboardPage() {
 
     // Activate immediately — GPS captured silently in the background
     activate()
-    setShiftToast(true)
     setShowRestaurantPicker(false)
 
     // Notify followers (fire and forget)
@@ -1409,7 +1408,7 @@ export default function DashboardPage() {
         gps_verified: gpsVerified,
       }).select('id').single()
       if (error) console.error('[supabase] shift start:', error)
-      else setShiftDbId(data.id)
+      else { setShiftDbId(data.id); setShiftToast(true) }  // confirm only once the shift is saved
     }
 
     if (!navigator.geolocation) {
@@ -1863,9 +1862,9 @@ export default function DashboardPage() {
       </main>
 
       {/* ── Shift start toast ───────────────────────────────────────── */}
-      {/* Always mounted (for the slide animation), so hide it from assistive tech until shown. */}
+      {/* The status region stays mounted (slide animation; live regions must exist before their
+          text appears) but holds no text until a shift has actually been saved. */}
       <div
-        aria-hidden={!shiftToast}
         role="status"
         className={[
           'fixed right-6 top-6 z-50 max-w-sm rounded-2xl border border-white/15 bg-black px-5 py-4 shadow-2xl transition-all duration-500',
@@ -1873,6 +1872,7 @@ export default function DashboardPage() {
         ].join(' ')}
         style={{ boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 24px 48px rgba(0,0,0,0.8)' }}
       >
+        {shiftToast && (
         <div className="flex items-start gap-3">
           <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white">
             <svg viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth={2.5} className="h-3 w-3">
@@ -1889,8 +1889,9 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
-        {/* Progress bar draining over 4 s */}
-        <div className="mt-3 h-0.5 overflow-hidden rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+        )}
+        {/* Progress bar draining over 4 s (decorative) */}
+        <div aria-hidden="true" className="mt-3 h-0.5 overflow-hidden rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
           <div
             className="h-full rounded-full bg-white/40"
             style={{
