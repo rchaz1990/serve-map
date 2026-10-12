@@ -35,8 +35,13 @@ const users = {} // email -> {id,email,password,user_metadata,app_metadata,creat
 // autoParticipant (default true): new accounts start with the early-test guest and worker
 // participant agreements on file (a fixture for suites about other features);
 // participant.test.js turns it off to exercise the real agreement flow.
-const config = { confirm: false, autoParticipant: true, storageDeleteMode: 'ok' }
-const counts = { rest: 0, storage: 0, auth: 0 } // GET /__counts: requests seen per API
+const config = { confirm: false, autoParticipant: true, storageDeleteMode: 'ok', storageWriteMode: 'ok', storageCdnCache: false }
+const counts = { rest: 0, storage: 0, auth: 0, cdnHits: 0 } // GET /__counts: requests seen per API (+ simulated CDN hits)
+// Simulated CDN (__config {storageCdnCache: true}): like hosted Supabase on the Free plan, the
+// first download of an object is cached and later downloads are served from the cache, even
+// after the object is overwritten or deleted (no automatic invalidation). HEAD is not cached
+// (production showed BYPASS). Turning it off clears the cache.
+const cdn = new Map()
 const PARTICIPANT_VERSION = (() => { try { return fs.readFileSync(require('path').join(__dirname, '../../lib/participant-documents.ts'), 'utf8').match(/PARTICIPANT_VERSION = '([^']+)'/)[1] } catch { return null } })()
 const outbox = {} // email -> { type, token_hash }
 const tokens_ = {} // token_hash -> { email, type }
@@ -151,7 +156,7 @@ http.createServer((req, res) => {
       const u = createUser(json.email, json.password || 'x', json.data, json.provider || 'email', json.created_at)
       return send(200, session(u))
     }
-    if (url.pathname === '/__config') { Object.assign(config, json || {}); return send(200, config) }
+    if (url.pathname === '/__config') { Object.assign(config, json || {}); if (!config.storageCdnCache) cdn.clear(); return send(200, config) }
     if (url.pathname === '/__last_email') return send(200, outbox[(url.searchParams.get('email') || '').toLowerCase()] || null)
 
     if (url.pathname === '/auth/v1/signup' && req.method === 'POST') {
@@ -320,6 +325,8 @@ function storage(req, res, url, body, json, send, cors) {
   m = p.match(/^\/object\/(?!upload\/|info\/)([^/]+)\/(.+)$/)
   if (m && (req.method === 'POST' || req.method === 'PUT')) {
     if (role !== 'service_role') return send(403, { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' })
+    // __config {storageWriteMode: 'error'} simulates a failed server-side upload.
+    if (config.storageWriteMode === 'error') return send(500, { statusCode: '500', error: 'internal', message: 'simulated storage failure' })
     const b = bucketRow(m[1]); const file = objectFile(m[1], m[2])
     if (!b || !file) return send(400, { statusCode: '400', error: 'InvalidKey', message: 'invalid key' })
     const type = String(req.headers['content-type'] || '').split(';')[0].trim()
@@ -341,10 +348,21 @@ function storage(req, res, url, body, json, send, cors) {
     const b = bucketRow(m[1]); const file = objectFile(m[1], m[2])
     if (!b || !file) return send(400, { statusCode: '404', error: 'not_found', message: 'Object not found' })
     if (!b.public && role !== 'service_role') return send(400, { statusCode: '404', error: 'not_found', message: 'Object not found' })
+    const key = `${m[1]}/${m[2]}`
+    if (req.method === 'GET' && config.storageCdnCache && cdn.has(key)) {
+      counts.cdnHits++
+      const hit = cdn.get(key)
+      res.writeHead(200, { 'Content-Type': hit.type, 'cf-cache-status': 'HIT', ...cors })
+      return res.end(hit.bytes)
+    }
     if (!fs.existsSync(file)) return send(400, { statusCode: '404', error: 'not_found', message: 'Object not found' })
     const meta = JSON.parse(psql("select coalesce(metadata,'{}')::text from storage.objects where bucket_id = :'b' and name = :'n'", { b: m[1], n: m[2] }).trim() || '{}')
-    res.writeHead(200, { 'Content-Type': meta.mimetype || 'application/octet-stream', ...cors })
-    return res.end(req.method === 'HEAD' ? undefined : fs.readFileSync(file))
+    const type = meta.mimetype || 'application/octet-stream'
+    if (req.method === 'HEAD') { res.writeHead(200, { 'Content-Type': type, ...cors }); return res.end() }
+    const bytes = fs.readFileSync(file)
+    if (config.storageCdnCache) cdn.set(key, { bytes, type })
+    res.writeHead(200, { 'Content-Type': type, 'cf-cache-status': config.storageCdnCache ? 'MISS' : 'DYNAMIC', ...cors })
+    return res.end(bytes)
   }
   // DELETE /object/<bucket>  {prefixes:[…]}  → remove (service role only)
   m = p.match(/^\/object\/([^/]+)$/)
