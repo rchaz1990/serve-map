@@ -29,6 +29,8 @@ export async function POST(request: Request) {
   if (!isValidPath(path)) {
     return NextResponse.json({ error: 'Invalid path' }, { status: 400 })
   }
+  // Employment verification pages are never recorded.
+  if (path === '/verify' || path.startsWith('/verify/')) return new NextResponse(null, { status: 204 })
   // Early test: QR-scan pages are never recorded (see lib/early-test.ts).
   if (PAUSED.qrScanTracking && (path === '/scan' || path.startsWith('/scan/'))) {
     return new NextResponse(null, { status: 204 })

@@ -103,3 +103,14 @@ other features keep working). This suite turns it off for its own accounts and r
 ```bash
 node participant.test.js http://localhost:3104 keys.json   # 27 checks: one version 2026-10-11, verbatim sheets/cards, renewed Terms/Privacy, hidden non-participating workers (API, embeds, routes, pages, venue lists; owner still sees; nothing deleted), dashboard worker card, real guest flow (QR → rate → sign up → card → agree → rate; "Not now" records nothing), immediate withdrawal with old tokens (route + database), shift ended, re-agreement, end-of-test election, append-only records, rollback order
 ```
+
+## Employment verification (`verification.test.js`) — local only, synthetic documents only
+Needs `storage-schema.sql` (local stand-in for Supabase's storage tables; never run in production) and
+migration 45 (both applied by the test if missing). The gateway now emulates the Storage API subset Slate
+uses (signed uploads, service-role download/exists/delete, bucket size/type limits; `__config
+{storageDeleteMode: 'ok'|'silent'|'error'}` simulates delete failures). Start the app with
+`SLATE_VERIFICATION_LOCAL_TEST=1` and a local-only `CRON_SECRET_KEY`, without `VERCEL`/`VERCEL_ENV`.
+The test starts extra app instances (ports 3105–3107) from the build directory to prove the guard.
+```bash
+node verification.test.js http://localhost:3104 keys.json <appDir> <appLogFile> <cronSecret>   # 37 checks: migration + rollback, production guard (Preview / Vercel dev / no setting → 503), permissions (table, helpers, storage, non-verifier), consent + redaction ack before upload, single-use and expiring links, UI flow with preview and browser re-encoding (PNG text chunk and JPEG EXIF removed), type/signature/size checks, decisions with immediate confirmed deletion, final decisions, withdrawal, separate 18+ attestation only after verification, deletion failure + retry, stale/orphan sweep, no secrets/paths/file names/document text in logs or database, no accounts or participant agreements created
+```

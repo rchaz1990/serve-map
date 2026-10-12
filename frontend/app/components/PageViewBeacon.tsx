@@ -10,6 +10,8 @@ export function PageViewBeacon() {
   useEffect(() => {
     if (!pathname) return
     if (pathname.startsWith('/internal') || pathname.startsWith('/api')) return
+    // Employment verification pages are never recorded.
+    if (pathname === '/verify' || pathname.startsWith('/verify/')) return
     // Early test: a /scan/<worker> page view would amount to a QR-scan record.
     if (PAUSED.qrScanTracking && pathname.startsWith('/scan')) return
 

@@ -1,0 +1,435 @@
+// Employment verification (local only, synthetic documents only).
+// See docs/EMPLOYMENT_VERIFICATION.md. Needs: storage-schema.sql + migration 45 on the local
+// database (applied here if missing), the gateway with its storage stand-in, and the app
+// started with SLATE_VERIFICATION_LOCAL_TEST=1 and a local CRON_SECRET_KEY.
+// usage: NODE_PATH=$(npm root -g) node verification.test.js <appUrl> <keys.json> <appDir> <appLogFile> <cronSecret>
+// The test starts two extra app instances from <appDir> to prove the guard (Preview, and no setting).
+const { chromium } = require('playwright')
+const { execFileSync, spawn } = require('child_process')
+const fs = require('fs')
+const path = require('path')
+const zlib = require('zlib')
+const [APP, KEYS, APP_DIR, APP_LOG, CRON] = process.argv.slice(2)
+const GW = 'http://localhost:54400'
+const DB = process.env.STACK_DB || 'slate_stack'
+const { anon: ANON, service: SERVICE } = JSON.parse(fs.readFileSync(KEYS, 'utf8'))
+const PSQL = ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB]
+const sql = q => execFileSync('psql', [...PSQL, '-qAt', '-c', q], { encoding: 'utf8' }).trim()
+const sqlTry = q => { try { return { ok: true, out: sql(q) } } catch (e) { return { ok: false, out: String(e.stderr || e.message) } } }
+const sqlFile = f => execFileSync('psql', [...PSQL, '-v', 'ON_ERROR_STOP=1', '-q', '-f', f], { encoding: 'utf8', stdio: 'pipe' })
+const SEC = path.join(__dirname, '../../supabase-sql/security')
+const run = `ver${Date.now()}`
+let pass = 0, fail = 0
+function check(name, ok, detail) { ok ? pass++ : fail++; console.log(ok ? 'PASS' : 'FAIL', name, ok ? '' : JSON.stringify(detail ?? '').slice(0, 500)) }
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const issued = { secrets: [], urls: [], paths: [] } // everything that must never appear in logs
+
+async function post(base, p, body, token) {
+  const r = await fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body ?? {}) })
+  const buf = Buffer.from(await r.arrayBuffer())
+  let json = null; try { json = JSON.parse(buf.toString()) } catch {}
+  return { status: r.status, json, buf, type: r.headers.get('content-type'), cache: r.headers.get('cache-control') }
+}
+const api = (p, body, token) => post(APP, p, body, token)
+async function account(tag) {
+  const e = `${run}-${tag}@example.com`
+  const s = await (await fetch(GW + '/__create_user', { method: 'POST', body: JSON.stringify({ email: e, password: 'pass123456' }) })).json()
+  return { email: e, id: s.user.id, token: s.access_token }
+}
+async function rest(method, p, token, body) {
+  const r = await fetch(GW + '/rest/v1/' + p, { method, headers: { apikey: ANON, authorization: `Bearer ${token || ANON}`, 'content-type': 'application/json', prefer: 'return=representation' }, body: body === undefined ? undefined : JSON.stringify(body) })
+  return { status: r.status, text: await r.text() }
+}
+const rec = id => JSON.parse(sql(`select row_to_json(v) from employment_verifications v where id = '${id}'`) || 'null')
+const objExists = name => sql(`select count(*) from storage.objects where bucket_id = 'employment-verification' and name = '${name}'`) === '1'
+const fileExists = name => fs.existsSync(path.join(process.env.STORAGE_DIR || '/var/tmp/slate-storage', 'employment-verification', name))
+const gwConfig = c => fetch(GW + '/__config', { method: 'POST', body: JSON.stringify(c) })
+const CONSENT_VERSION = fs.readFileSync(path.join(__dirname, '../../lib/verification-copy.ts'), 'utf8').match(/VERIFICATION_CONSENT_VERSION = '([^']+)'/)[1]
+
+// Synthetic documents only: fake names, fake venue, fake content.
+function pngWithText(png, text) {
+  const data = Buffer.from(`Comment\0${text}`, 'latin1')
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length)
+  const type = Buffer.from('tEXt')
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(Buffer.concat([type, data])) >>> 0)
+  return Buffer.concat([png.subarray(0, 33), len, type, data, crc, png.subarray(33)])
+}
+function jpegWithExif(jpg, text) {
+  const tiff = Buffer.concat([Buffer.from('II*\0', 'latin1'), Buffer.from([8, 0, 0, 0, 0, 0]), Buffer.from(text, 'latin1')])
+  const payload = Buffer.concat([Buffer.from('Exif\0\0', 'latin1'), tiff])
+  const hdr = Buffer.from([0xff, 0xe1, 0, 0]); hdr.writeUInt16BE(payload.length + 2, 2)
+  return Buffer.concat([jpg.subarray(0, 2), hdr, payload, jpg.subarray(2)])
+}
+
+async function invite(V) {
+  const r = await api('/api/internal/verification/invite', {}, V.token)
+  if (r.json?.secret) issued.secrets.push(r.json.secret)
+  return r.json
+}
+async function uploadUrl(secret, type = 'image/png', size = 1000, extra = {}) {
+  const r = await api('/api/verification/upload-url', { secret, consent: true, consentVersion: CONSENT_VERSION, redactionAck: true, contentType: type, size, ...extra })
+  if (r.json?.receipt) issued.secrets.push(r.json.receipt)
+  if (r.json?.uploadUrl) { issued.urls.push(r.json.uploadUrl); issued.paths.push(new URL(r.json.uploadUrl).pathname.split('/').pop()) }
+  return r
+}
+const put = (url, buf, type) => fetch(url, { method: 'PUT', body: buf, headers: { 'content-type': type, 'x-upsert': 'false' } })
+async function submittedRecord(V, buf, type = 'image/png') {
+  const inv = await invite(V)
+  const u = await uploadUrl(inv.secret, type, buf.length)
+  await put(u.json.uploadUrl, buf, type)
+  const filePath = rec(inv.id).object_path
+  const s = await api('/api/verification/submitted', { secret: u.json.receipt })
+  return { id: inv.id, receipt: u.json.receipt, path: filePath, submitted: s }
+}
+
+function startApp(port, env) {
+  const p = spawn('npx', ['next', 'start', '-p', String(port)], { cwd: APP_DIR, env: { ...process.env, ...env }, stdio: 'ignore', detached: true })
+  return p
+}
+async function waitUp(base) { for (let i = 0; i < 60; i++) { try { await fetch(base + '/'); return true } catch { await sleep(500) } } return false }
+
+;(async () => {
+  // ── Setup (local database only) ───────────────────────────────────────────
+  if (sql(`select to_regclass('storage.objects') is not null`) !== 't') sqlFile(path.join(__dirname, 'storage-schema.sql'))
+  if (sql(`select to_regclass('public.employment_verifications') is not null`) !== 't') sqlFile(path.join(SEC, '45_employment_verification.sql'))
+  {
+    // rollback refuses while a file is stored; succeeds and re-applies cleanly otherwise
+    sql(`insert into storage.objects (bucket_id, name) values ('employment-verification', 'rollback-probe.png')`)
+    let refused = false; try { sqlFile(path.join(SEC, '45_rollback_employment_verification.sql')) } catch (e) { refused = /still stored/.test(String(e.stderr)) }
+    sql(`delete from storage.objects where name = 'rollback-probe.png'`)
+    const hadRows = sql(`select count(*) from employment_verifications`) !== '0'
+    let cycled = 'skipped (records present)'
+    if (!hadRows) { sqlFile(path.join(SEC, '45_rollback_employment_verification.sql')); sqlFile(path.join(SEC, '45_employment_verification.sql')); cycled = sql(`select count(*) from storage.buckets where id = 'employment-verification'`) }
+    check('M1 migration 45: private bucket (4 MB, JPEG/PNG), rollback refuses while a file is stored, rollback + re-apply work',
+      refused && sql(`select public || '|' || file_size_limit || '|' || array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'employment-verification'`) === 'false|4194304|image/jpeg,image/png' && (cycled === '1' || cycled.startsWith('skipped')), { refused, cycled })
+  }
+  execFileSync('sleep', ['1'])
+
+  const V = await account('verifier'), N = await account('normal')
+  sql(`update auth.users set raw_app_meta_data = raw_app_meta_data || '{"slate_verifier": true}' where id = '${V.id}'`)
+  const baseline = { users: sql(`select count(*) from auth.users`), consent: sql(`select count(*) from participant_consent_events`),
+    meta: sql(`select md5(string_agg(id::text || coalesce(raw_app_meta_data::text,''), ',' order by id)) from auth.users where id <> '${V.id}'`) }
+
+  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-proxy-server'] })
+  const page = async () => { const ctx = await browser.newContext(); await ctx.route('**/*', r => new URL(r.request().url()).hostname === 'localhost' ? r.continue() : r.abort()); return ctx.newPage() }
+  let synthPng, synthJpg
+  {
+    const p = await page()
+    await p.setContent(`<div style="font:16px sans-serif;padding:20px;width:500px;background:#fff">SYNTHETIC TEST DOCUMENT — NOT REAL<br>Fake Bistro (fictional) · Week of Jan 1<br>Jane Testperson — Server<br>Mon 5pm–11pm · Wed 5pm–11pm</div>`)
+    synthPng = pngWithText(await p.screenshot({ type: 'png' }), 'SYNTHETIC-META-MARKER')
+    synthJpg = jpegWithExif(await p.screenshot({ type: 'jpeg', quality: 90 }), 'GPSTESTMARK-40.7128N-74.0060W')
+    await p.context().close()
+  }
+
+  // ── G: production guard ───────────────────────────────────────────────────
+  {
+    const routes = ['/api/verification/start', '/api/verification/upload-url', '/api/verification/submitted', '/api/verification/withdraw',
+      '/api/verification/age', '/api/internal/verification/invite', '/api/internal/verification/list', '/api/internal/verification/file',
+      '/api/internal/verification/decision', '/api/verification-sweep']
+    const inv = await invite(V)
+    const before = sql(`select count(*) from employment_verifications`)
+    const results = {}
+    for (const [label, port, env] of [
+      ['preview (VERCEL=1, VERCEL_ENV=preview, local setting ON)', 3105, { VERCEL: '1', VERCEL_ENV: 'preview', SLATE_VERIFICATION_LOCAL_TEST: '1', CRON_SECRET_KEY: CRON }],
+      ['development on Vercel (local setting ON)', 3106, { VERCEL: '1', VERCEL_ENV: 'development', SLATE_VERIFICATION_LOCAL_TEST: '1', CRON_SECRET_KEY: CRON }],
+      ['local without the setting', 3107, { SLATE_VERIFICATION_LOCAL_TEST: '', CRON_SECRET_KEY: CRON }],
+    ]) {
+      const proc = startApp(port, env)
+      const base = `http://localhost:${port}`
+      await waitUp(base)
+      const codes = []
+      for (const r of routes) {
+        const tok = r.includes('internal') ? V.token : r.includes('sweep') ? CRON : undefined
+        codes.push((await post(base, r, { secret: inv.secret, id: inv.id, consent: true, consentVersion: CONSENT_VERSION, redactionAck: true, contentType: 'image/png', size: 10 }, tok)).status)
+      }
+      results[label] = codes
+      try { process.kill(-proc.pid) } catch {}
+    }
+    const allRefused = Object.values(results).every(c => c.every(s => s === 503))
+    check('G1 every verification route (candidate, internal, sweep) refuses with 503 on Preview, on Vercel development, and locally without the setting — even with the local setting ON when on Vercel; nothing changed',
+      allRefused && sql(`select count(*) from employment_verifications`) === before && rec(inv.id).status === 'invited', results)
+    const ok = await api('/api/verification/start', { secret: inv.secret })
+    check('G2 the same request works on the local test instance (setting ON, not on Vercel)', ok.status === 200 && ok.json?.state === 'consent', ok)
+  }
+
+  // ── P: permissions ────────────────────────────────────────────────────────
+  {
+    const r1 = await rest('GET', 'employment_verifications?select=*', null)
+    const r2 = await rest('GET', 'employment_verifications?select=*', N.token)
+    const r3 = await rest('POST', 'employment_verifications', N.token, { status: 'verified' })
+    const r4 = await rest('PATCH', 'employment_verifications?id=not.is.null', N.token, { status: 'withdrawn' })
+    const r5 = await rest('POST', 'rpc/verification_object_exists', N.token, { p_name: 'x' })
+    const r6 = await rest('POST', 'rpc/verification_unreferenced_objects', ANON, { p_older_than: '0' })
+    check('P1 signed-out and signed-in users cannot read, insert, update the records or call the helper functions',
+      [r1, r2, r3, r4, r5, r6].every(r => r.status >= 400), [r1, r2, r3, r4, r5, r6].map(r => r.status))
+    const s = await submittedRecord(V, synthPng)
+    const g = n => fetch(`${GW}/storage/v1/object/employment-verification/${s.path}`, { headers: { apikey: ANON, authorization: `Bearer ${n}` } })
+    const a1 = await g(ANON), a2 = await g(N.token)
+    const sign = await fetch(`${GW}/storage/v1/object/upload/sign/employment-verification/evil.png`, { method: 'POST', headers: { authorization: `Bearer ${N.token}` } })
+    const other = await put(issued.urls[issued.urls.length - 1].replace(/[0-9a-f-]+\.png\?/, 'other.png?'), synthPng, 'image/png')
+    check('P2 storage: signed-out and signed-in users cannot download a file or sign uploads; an upload link works only for its own file name',
+      a1.status >= 400 && a2.status >= 400 && sign.status === 403 && other.status === 400, { a1: a1.status, a2: a2.status, sign: sign.status, other: other.status })
+    const n1 = await api('/api/internal/verification/invite', {}, N.token), n2 = await api('/api/internal/verification/list', {}, N.token)
+    const n3 = await api('/api/internal/verification/file', { id: s.id }, N.token), n4 = await api('/api/internal/verification/decision', { id: s.id, decision: 'verified' }, N.token)
+    const n5 = await api('/api/internal/verification/file', { id: s.id })
+    check('P3 non-verifier (signed in) and signed-out callers get 403 on every internal route; the file is still unread',
+      [n1, n2, n3, n4, n5].every(r => r.status === 403) && rec(s.id).status === 'submitted', [n1, n2, n3, n4, n5].map(r => r.status))
+    const f = await api('/api/internal/verification/file', { id: s.id }, V.token)
+    check('P4 a verifier can view a submitted image through the route only: correct type, no-store, inline, no file name',
+      f.status === 200 && f.type === 'image/png' && /no-store/.test(f.cache || '') && f.buf.subarray(0, 4).toString('hex') === '89504e47', { status: f.status, type: f.type, cache: f.cache })
+    const dec = await api('/api/internal/verification/decision', { id: s.id, decision: 'not_verified', rejection_reason: 'unreadable' }, V.token)
+    check('P5 (cleanup) decision deletes that file', dec.json?.deletion === 'deleted' && !objExists(s.path) && !fileExists(s.path), dec.json)
+  }
+
+  // ── C / T: consent, token expiry and single use ───────────────────────────
+  {
+    const inv = await invite(V)
+    const noConsent = await api('/api/verification/upload-url', { secret: inv.secret, consentVersion: CONSENT_VERSION, redactionAck: true, contentType: 'image/png', size: 10 })
+    const badVersion = await api('/api/verification/upload-url', { secret: inv.secret, consent: true, consentVersion: 'old', redactionAck: true, contentType: 'image/png', size: 10 })
+    const noAck = await api('/api/verification/upload-url', { secret: inv.secret, consent: true, consentVersion: CONSENT_VERSION, contentType: 'image/png', size: 10 })
+    const r = rec(inv.id)
+    check('C1 no upload link without the separate verification consent (current version) and the redaction acknowledgement; nothing recorded',
+      noConsent.json?.error === 'consent_required' && badVersion.json?.error === 'consent_required' && noAck.json?.error === 'redaction_ack_required'
+        && r.status === 'invited' && !r.consent_at && !r.object_path, { noConsent: noConsent.json, badVersion: badVersion.json, noAck: noAck.json })
+    const ok = await uploadUrl(inv.secret)
+    const r2 = rec(inv.id)
+    const reuse = await uploadUrl(inv.secret), restart = await api('/api/verification/start', { secret: inv.secret })
+    check('C2/T2 consent is recorded with its version when the link is issued; the invite secret is single use (second use and start are refused)',
+      ok.status === 200 && r2.status === 'uploading' && !!r2.consent_at && r2.consent_version === CONSENT_VERSION && reuse.status === 400 && restart.json?.state === 'invalid', { reuse: reuse.json, restart: restart.json })
+    const inv2 = await invite(V)
+    sql(`update employment_verifications set secret_expires_at = now() - interval '1 minute' where id = '${inv2.id}'`)
+    const st = await api('/api/verification/start', { secret: inv2.secret }), up = await uploadUrl(inv2.secret)
+    check('T1 an expired invite shows "expired" and cannot issue an upload link', st.json?.state === 'expired' && up.status === 400 && rec(inv2.id).status === 'invited', { st: st.json, up: up.json })
+    const bogus = await api('/api/verification/start', { secret: 'x'.repeat(43) }), shape = await api('/api/verification/start', { secret: '../etc' })
+    check('T3 unknown or malformed secrets are invalid', bogus.json?.state === 'invalid' && shape.json?.state === 'invalid')
+    await api('/api/verification/withdraw', { secret: ok.json.receipt })
+  }
+
+  // ── U: candidate UI end to end (synthetic PNG with a metadata marker) ─────
+  {
+    const inv = await invite(V)
+    const p = await page()
+    await p.goto(`${APP}/verify#${inv.secret}`, { waitUntil: 'networkidle', timeout: 120000 }); await p.waitForTimeout(1000)
+    const fileBefore = await p.isVisible('[data-testid="file-input"]')
+    const text = (await p.textContent('[data-testid="verify-form"]')) || ''
+    await p.check('[data-testid="consent-checkbox"]'); await p.waitForTimeout(300)
+    await p.setInputFiles('[data-testid="file-input"]', { name: 'fake_schedule_jane.png', mimeType: 'image/png', buffer: synthPng })
+    await p.waitForSelector('[data-testid="preview"]', { timeout: 10000 })
+    const sendDisabled = await p.isDisabled('[data-testid="send"]')
+    await p.check('[data-testid="redacted-checkbox"]'); await p.click('[data-testid="send"]')
+    await p.waitForSelector('[data-testid="verify-submitted"]', { timeout: 20000 }).catch(() => {})
+    const submitted = await p.isVisible('[data-testid="verify-submitted"]')
+    const r = rec(inv.id)
+    check('U1 UI: consent first (no file picker before it), full redaction list shown, preview shown, Send disabled until the redaction box is ticked, then submitted',
+      !fileBefore && /Social Security number/.test(text) && /bank information/.test(text) && /date of birth/.test(text) && sendDisabled && submitted && r.status === 'submitted' && !!r.consent_at,
+      { fileBefore, sendDisabled, submitted, status: r.status })
+    const f = await api('/api/internal/verification/file', { id: inv.id }, V.token)
+    check('U2 the stored image was re-encoded in the browser: PNG, metadata text chunk (SYNTHETIC-META-MARKER) gone; the original file name is stored nowhere',
+      f.status === 200 && f.type === 'image/png' && !f.buf.includes('SYNTHETIC-META-MARKER') && !f.buf.includes('tEXt')
+        && !JSON.stringify(rec(inv.id)).includes('fake_schedule') && /^[0-9a-f-]{36}\.png$/.test(r.object_path), { type: f.type, path: r.object_path })
+    issued.paths.push(r.object_path)
+    await p.context().close()
+    // JPEG with an EXIF block (synthetic GPS text)
+    const inv2 = await invite(V)
+    const q = await page()
+    await q.goto(`${APP}/verify#${inv2.secret}`, { waitUntil: 'networkidle', timeout: 120000 }); await q.waitForTimeout(800)
+    await q.check('[data-testid="consent-checkbox"]'); await q.waitForTimeout(300)
+    await q.setInputFiles('[data-testid="file-input"]', { name: 'IMG_0001_fake.jpg', mimeType: 'image/jpeg', buffer: synthJpg })
+    await q.waitForSelector('[data-testid="preview"]', { timeout: 10000 })
+    await q.check('[data-testid="redacted-checkbox"]'); await q.click('[data-testid="send"]')
+    await q.waitForSelector('[data-testid="verify-submitted"]', { timeout: 20000 }).catch(() => {})
+    const f2 = await api('/api/internal/verification/file', { id: inv2.id }, V.token)
+    issued.paths.push(rec(inv2.id).object_path)
+    check('U3 a JPEG with EXIF (synthetic GPS) is re-encoded: still JPEG, no Exif block, no GPS text',
+      f2.status === 200 && f2.type === 'image/jpeg' && !f2.buf.includes('Exif') && !f2.buf.includes('GPSTESTMARK'), { status: f2.status, type: f2.type })
+    await q.context().close()
+    // verifier page
+    const vp = await page()
+    await vp.goto(APP + '/login', { waitUntil: 'networkidle', timeout: 120000 })
+    await vp.fill('input[placeholder="Email address"]', V.email); await vp.fill('input[placeholder="Password"]', 'pass123456')
+    await vp.click('button:has-text("Sign in")'); await vp.waitForTimeout(2500)
+    await vp.goto(APP + '/internal/verification', { waitUntil: 'load', timeout: 120000 }); await vp.waitForTimeout(4000)
+    const listed = ((await vp.textContent('[data-testid="verifier-page"]').catch(() => '')) || '').includes(inv.id.slice(0, 8))
+    const np = await page()
+    await np.goto(APP + '/login', { waitUntil: 'networkidle', timeout: 120000 })
+    await np.fill('input[placeholder="Email address"]', N.email); await np.fill('input[placeholder="Password"]', 'pass123456')
+    await np.click('button:has-text("Sign in")'); await np.waitForTimeout(2500)
+    await np.goto(APP + '/internal/verification', { waitUntil: 'load', timeout: 120000 }); await np.waitForTimeout(4000)
+    const denied = /not available for this account/.test((await np.textContent('body')) || '')
+    check('U4 verifier page lists the submission for the verifier; a normal signed-in account sees "not available"', listed && denied, { listed, denied })
+    await vp.context().close(); await np.context().close()
+    for (const id of [inv.id, inv2.id]) await api('/api/internal/verification/decision', { id, decision: 'not_verified', rejection_reason: 'other' }, V.token)
+  }
+
+  // ── F: file type / signature / size ───────────────────────────────────────
+  {
+    const pdf = Buffer.from('%PDF-1.4\n% synthetic, not a real document\n')
+    const s = await submittedRecord(V, pdf, 'image/png')
+    const r = rec(s.id)
+    check('F1 a PDF disguised as PNG passes the bucket but is caught by the content check: automatically not_verified/unsupported and deleted at once',
+      s.submitted.json?.state === 'rejected_file' && r.status === 'not_verified' && r.rejection_reason === 'unsupported' && !r.reviewer_id
+        && !!r.deleted_at && !r.object_path && !objExists(s.path) && !fileExists(s.path), { submitted: s.submitted.json, r })
+    const inv = await invite(V)
+    const u = await uploadUrl(inv.secret)
+    const wrongType = await put(u.json.uploadUrl, pdf, 'application/pdf')
+    const tooBig = await put(u.json.uploadUrl, Buffer.concat([synthPng, Buffer.alloc(4 * 1024 * 1024)]), 'image/png')
+    const urlTooBig = await uploadUrl((await invite(V)).secret, 'image/png', 5 * 1024 * 1024)
+    const urlPdf = await uploadUrl((await invite(V)).secret, 'application/pdf', 100)
+    check('F2 the bucket refuses other types (415) and files over 4 MB (413); the server refuses to issue links for them',
+      wrongType.status === 415 && tooBig.status === 413 && urlTooBig.json?.error === 'too_large' && urlPdf.json?.error === 'unsupported_type', { wrongType: wrongType.status, tooBig: tooBig.status })
+    const early = await api('/api/verification/submitted', { secret: u.json.receipt })
+    check('F3 "submitted" before any file arrived is refused (not_uploaded); the record stays uploading', early.status === 409 && rec(inv.id).status === 'uploading', early.json)
+    const retry = await uploadUrl(u.json.receipt)
+    check('F4 after a failed upload the receipt can re-issue a link for the same file name only', retry.status === 200 && new URL(retry.json.uploadUrl).pathname.endsWith(rec(inv.id).object_path) && retry.json.receipt === null, retry.json)
+    await put(retry.json.uploadUrl, synthPng, 'image/png')
+    const again = await uploadUrl(u.json.receipt)
+    check('F5 once a file has arrived, no further upload link is issued (no overwrite)', again.status === 409, again.json)
+    await api('/api/verification/withdraw', { secret: u.json.receipt })
+  }
+
+  // ── D: decisions, immediate deletion, fields kept ─────────────────────────
+  let continueSecret = null, verifiedId = null
+  {
+    const s = await submittedRecord(V, synthPng)
+    const missing = await api('/api/internal/verification/decision', { id: s.id, decision: 'verified', role_category: 'server' }, V.token)
+    const d = await api('/api/internal/verification/decision', { id: s.id, decision: 'verified', role_category: 'server', venue: 'Fake Bistro (fictional)', borough: 'manhattan', evidence_type: 'schedule', notes: 'should be ignored' }, V.token)
+    const r = rec(s.id)
+    continueSecret = d.json?.continueSecret; verifiedId = s.id
+    if (continueSecret) issued.secrets.push(continueSecret)
+    check('D1 verified: missing fields refused; then saved with role, venue, borough, evidence type, time and reviewer; image deleted at once and confirmed',
+      missing.status === 400 && d.status === 200 && d.json.deletion === 'deleted' && r.status === 'verified' && r.role_category === 'server' && r.borough === 'manhattan'
+        && r.evidence_type === 'schedule' && r.reviewer_id === V.id && !!r.decided_at && !!r.deleted_at && !r.object_path && !objExists(s.path) && !fileExists(s.path), { d: d.json, r })
+    const cols = sql(`select string_agg(column_name, ',' order by ordinal_position) from information_schema.columns where table_name = 'employment_verifications'`)
+    check('D2 the record has no place for names, contacts, documents, hashes of documents, extracted text or notes',
+      !/name|email|phone|note|text|hash_doc|document|ocr|dob|birth/.test(cols.replace('rejection_reason', '')) && !JSON.stringify(r).includes('should be ignored'), cols)
+    const s2 = await submittedRecord(V, synthPng)
+    const d2 = await api('/api/internal/verification/decision', { id: s2.id, decision: 'not_verified', rejection_reason: 'unredacted_sensitive' }, V.token)
+    const r2 = rec(s2.id)
+    check('D3 sensitive-data rejection: not_verified with only the reason code, image deleted at once, no continuation link',
+      d2.json?.deletion === 'deleted' && r2.status === 'not_verified' && r2.rejection_reason === 'unredacted_sensitive' && !r2.role_category && !r2.venue
+        && !!r2.deleted_at && !objExists(s2.path) && !d2.json.continueSecret, { d2: d2.json, r2 })
+    const twice = await api('/api/internal/verification/decision', { id: s.id, decision: 'not_verified', rejection_reason: 'other' }, V.token)
+    const t1 = sqlTry(`update employment_verifications set venue = 'Changed' where id = '${s.id}'`)
+    const t2 = sqlTry(`update employment_verifications set status = 'submitted' where id = '${s.id}'`)
+    const t3 = sqlTry(`update employment_verifications set age_attested_at = now() where id = '${s2.id}'`)
+    check('D4 decisions are final: a second decision is refused; the database refuses edits, status regression, and an age attestation on a non-verified record',
+      twice.status === 409 && !t1.ok && /decision is final/.test(t1.out) && !t2.ok && /not allowed/.test(t2.out) && !t3.ok, { twice: twice.status, t1: t1.out.slice(0, 80), t2: t2.out.slice(0, 80), t3: t3.out.slice(0, 80) })
+  }
+
+  // ── W: withdrawal ─────────────────────────────────────────────────────────
+  {
+    const inv = await invite(V)
+    const w1 = await api('/api/verification/withdraw', { secret: inv.secret })
+    const s = await submittedRecord(V, synthPng)
+    const w2 = await api('/api/verification/withdraw', { secret: s.receipt })
+    const r = rec(s.id)
+    const w3 = await api('/api/verification/withdraw', { secret: s.receipt })
+    check('W1 withdrawal before upload and after submission; the submitted image is deleted at once; a second withdrawal is refused',
+      w1.json?.state === 'withdrawn' && rec(inv.id).status === 'withdrawn' && w2.json?.deletion === 'deleted' && r.status === 'withdrawn' && !!r.deleted_at && !objExists(s.path) && w3.status === 400, { w1: w1.json, w2: w2.json })
+    const s2 = await submittedRecord(V, synthPng)
+    const dv = await api('/api/internal/verification/decision', { id: s2.id, decision: 'withdrawn' }, V.token)
+    check('W2 a verifier can record a withdrawal the candidate asked for by email; image deleted', dv.json?.status === 'withdrawn' && !objExists(s2.path), dv.json)
+  }
+
+  // ── A: separate 18+ attestation, downstream of verification ───────────────
+  {
+    const st = await api('/api/verification/start', { secret: continueSecret })
+    const p = await page()
+    await p.goto(`${APP}/verify#${continueSecret}`, { waitUntil: 'networkidle', timeout: 120000 }); await p.waitForTimeout(800)
+    const ageText = (await p.textContent('[data-testid="verify-age"]').catch(() => '')) || ''
+    const noTick = await api('/api/verification/age', { secret: continueSecret })
+    const disabled = await p.isDisabled('button:has-text("Continue")')
+    await p.check('[data-testid="age-checkbox"]'); await p.click('button:has-text("Continue")')
+    await p.waitForSelector('[data-testid="verify-done"]', { timeout: 10000 }).catch(() => {})
+    const done = await p.isVisible('[data-testid="verify-done"]')
+    const link = await p.getAttribute('a[href="/early-test"]', 'href').catch(() => null)
+    const r = rec(verifiedId)
+    const again = await api('/api/verification/age', { secret: continueSecret, attest: true })
+    const exact = 'I confirm that I am 18 years of age or older. I am providing this information truthfully, and I understand that I cannot participate if I cannot make this confirmation.'
+    check('A1 after a verified decision only: separate unticked 18+ checkbox with Vera\'s exact wording; refused unless ticked; then recorded as a time only; link is single use; next step is the early-test agreement',
+      st.json?.state === 'age' && ageText.includes(exact) && noTick.json?.error === 'attestation_required' && disabled && done && link === '/early-test'
+        && !!r.age_attested_at && again.status === 400, { st: st.json, disabled, done, link })
+    await p.context().close()
+    const pending = await submittedRecord(V, synthPng)
+    const early = sqlTry(`update employment_verifications set age_attested_at = now() where id = '${pending.id}'`)
+    check('A2 no age attestation is possible before verification (database constraint)', !early.ok, early.out.slice(0, 80))
+    await api('/api/internal/verification/decision', { id: pending.id, decision: 'not_verified', rejection_reason: 'other' }, V.token)
+  }
+
+  // ── DF: deletion failure and retry ────────────────────────────────────────
+  {
+    const s = await submittedRecord(V, synthPng)
+    await gwConfig({ storageDeleteMode: 'silent' })
+    const d = await api('/api/internal/verification/decision', { id: s.id, decision: 'not_verified', rejection_reason: 'role_unclear' }, V.token)
+    const r1 = rec(s.id)
+    const list = await api('/api/internal/verification/list', {}, V.token)
+    const row = list.json?.rows?.find(x => x.id === s.id)
+    await gwConfig({ storageDeleteMode: 'error' })
+    const sw1 = await api('/api/verification-sweep', {}, CRON)
+    const r2 = rec(s.id)
+    await gwConfig({ storageDeleteMode: 'ok' })
+    const sw2 = await api('/api/verification-sweep', {}, CRON)
+    const r3 = rec(s.id)
+    check('DF1 a delete that silently fails is detected (file still there): decision saved, deletion PENDING, path kept, shown as pending; sweep retries (error → still pending; recovered → deleted and confirmed)',
+      d.json?.deletion === 'pending' && r1.status === 'not_verified' && r1.object_path === s.path && !r1.deleted_at && row?.deletion_pending === true
+        && sw1.json?.pending >= 1 && r2.object_path === s.path && !r2.deleted_at && sw2.json?.deleted >= 1 && !r3.object_path && !!r3.deleted_at && !objExists(s.path) && !fileExists(s.path),
+      { d: d.json, sw1: sw1.json, sw2: sw2.json })
+  }
+
+  // ── S: stale-upload cleanup ───────────────────────────────────────────────
+  {
+    const noAuth = await api('/api/verification-sweep', {})
+    const lower = await fetch(APP + '/api/verification-sweep', { method: 'POST', headers: { authorization: `bearer ${CRON}` } })
+    check('S0 sweep needs the cron secret with an exact "Bearer " header', noAuth.status === 401 && lower.status === 401)
+    const inv = await invite(V)
+    sql(`update employment_verifications set secret_expires_at = now() - interval '1 minute' where id = '${inv.id}'`)
+    const s = await submittedRecord(V, synthPng)
+    sql(`update employment_verifications set secret_expires_at = now() - interval '1 minute' where id = '${s.id}'`)
+    // orphan: withdraw before the upload, then upload with the still-valid link
+    const inv3 = await invite(V)
+    const u = await uploadUrl(inv3.secret)
+    await api('/api/verification/withdraw', { secret: u.json.receipt })
+    const late = await put(u.json.uploadUrl, synthPng, 'image/png')
+    const orphan = new URL(u.json.uploadUrl).pathname.split('/').pop()
+    const tooNew = await api('/api/verification-sweep', {}, CRON)
+    const stillThere = objExists(orphan)
+    sql(`update storage.objects set created_at = now() - interval '4 hours' where name = '${orphan}'`)
+    const sw = await api('/api/verification-sweep', {}, CRON)
+    const r1 = rec(inv.id), r2 = rec(s.id)
+    check('S1 sweep: expired invite → expired; unreviewed submission past its deadline → expired and image deleted; a late upload after withdrawal is left alone while recent, then deleted as unreferenced',
+      r1.status === 'expired' && !r1.secret_hash && r2.status === 'expired' && !!r2.deleted_at && !objExists(s.path) && late.status === 200 && stillThere
+        && sw.json?.orphans >= 1 && !objExists(orphan) && !fileExists(orphan), { tooNew: tooNew.json, sw: sw.json })
+    const reviewLate = await api('/api/internal/verification/decision', { id: s.id, decision: 'verified', role_category: 'server', venue: 'Fake Bistro', borough: 'queens', evidence_type: 'schedule' }, V.token)
+    check('S2 a reviewer can no longer act on an expired submission', reviewLate.status === 409, reviewLate.json)
+  }
+
+  // ── L / downstream: privacy of logs and data; participant agreement untouched ──
+  {
+    await sleep(500)
+    const log = fs.readFileSync(APP_LOG, 'utf8')
+    const leaks = []
+    for (const s of issued.secrets) if (s && log.includes(s)) leaks.push('secret')
+    for (const u of issued.urls) if (u && log.includes(new URL(u).searchParams.get('token') || '~')) leaks.push('upload-token')
+    for (const p of issued.paths) if (p && log.includes(p)) leaks.push('path')
+    for (const m of ['fake_schedule', 'IMG_0001', 'SYNTHETIC', 'GPSTESTMARK', 'Jane Testperson', 'Fake Bistro']) if (log.includes(m)) leaks.push(m)
+    const verLines = log.split('\n').filter(l => l.includes('[verification]'))
+    const shapeOk = verLines.every(l => /^\s*\[verification\] [a-z_]+( [0-9a-f-]{36})?\s*$/.test(l))
+    check('L1 the app log contains no secrets, upload tokens, storage paths, file names or document text; verification log lines are only "<code> <record id>"',
+      leaks.length === 0 && shapeOk, { leaks, sample: verLines.slice(0, 3) })
+    const dump = sql(`select coalesce(string_agg(row_to_json(v)::text, ''), '') from employment_verifications v`)
+    const views = sql(`select count(*) from page_views where path like '/verify%'`)
+    const secretsInDb = issued.secrets.some(s => dump.includes(s))
+    check('L2 the database holds no secrets (hashes only), file names or document text; no /verify page views are recorded',
+      !secretsInDb && !/fake_schedule|IMG_0001|SYNTHETIC|GPSTESTMARK|Jane Testperson/.test(dump) && views === '0', { views })
+    const after = { users: sql(`select count(*) from auth.users`), consent: sql(`select count(*) from participant_consent_events`),
+      meta: sql(`select md5(string_agg(id::text || coalesce(raw_app_meta_data::text,''), ',' order by id)) from auth.users where id <> '${V.id}'`) }
+    check('X1 participant agreement stays downstream: the whole verification flow created no accounts, no participant agreements and no participant metadata',
+      after.users === baseline.users && after.consent === baseline.consent && after.meta === baseline.meta, { baseline, after })
+    const leftover = sql(`select count(*) from storage.objects where bucket_id = 'employment-verification' and name not in (select object_path from employment_verifications where object_path is not null)`)
+    check('X2 no unreferenced verification files remain', leftover === '0', leftover)
+  }
+
+  await browser.close()
+  console.log(`\n${pass} passed, ${fail} failed`)
+  process.exit(fail ? 1 : 0)
+})().catch(e => { console.error('ERROR', e); process.exit(1) })
