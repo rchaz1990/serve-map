@@ -126,6 +126,11 @@ async function worker(tag) {
     const box = page.locator('[data-testid="legal-consent"] input[type="checkbox"]')
     check('L10 rating UI: acknowledgment shown, unticked, with Terms + Privacy links', await box.isVisible() && !(await box.isChecked())
       && await page.locator('[data-testid="legal-consent"] a[href="/terms"]').count() === 1)
+    {
+      const attest = ((await page.textContent('[data-testid="legal-consent"]')) || '').replace(/\s+/g, ' ').trim()
+      check('L10c attestation reads "…older, <first name> personally served me…" (space after the name)',
+        attest.startsWith("I'm 18 or older, Rated personally served me, and I agree to Slate's Terms of Service and Privacy Policy."), attest)
+    }
     check('L10b no Follow action on the rating form before the agreed rating', await page.locator('main button:has-text("Follow")').count() === 0)
     await page.click('[aria-label="5 stars"]'); await page.click('button:has-text("Submit")'); await page.waitForTimeout(1000)
     const savedEarly = sql(`select count(*) from ratings where guest_email = '${guest.email}'`)
