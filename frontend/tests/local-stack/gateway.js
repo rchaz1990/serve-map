@@ -35,7 +35,8 @@ const users = {} // email -> {id,email,password,user_metadata,app_metadata,creat
 // autoParticipant (default true): new accounts start with the early-test guest and worker
 // participant agreements on file (a fixture for suites about other features);
 // participant.test.js turns it off to exercise the real agreement flow.
-const config = { confirm: false, autoParticipant: true }
+const config = { confirm: false, autoParticipant: true, storageDeleteMode: 'ok' }
+const counts = { rest: 0, storage: 0, auth: 0 } // GET /__counts: requests seen per API
 const PARTICIPANT_VERSION = (() => { try { return fs.readFileSync(require('path').join(__dirname, '../../lib/participant-documents.ts'), 'utf8').match(/PARTICIPANT_VERSION = '([^']+)'/)[1] } catch { return null } })()
 const outbox = {} // email -> { type, token_hash }
 const tokens_ = {} // token_hash -> { email, type }
@@ -121,6 +122,8 @@ http.createServer((req, res) => {
       res.end(obj === undefined ? '' : JSON.stringify(obj))
     }
     if (req.method === 'OPTIONS') return send(200)
+    if (url.pathname === '/__counts') return send(200, counts)
+    for (const k of ['rest', 'storage', 'auth']) if (url.pathname.startsWith(`/${k}/v1/`)) counts[k]++
     let json = null
     try { json = body.length ? JSON.parse(body) : null } catch {}
 
@@ -245,6 +248,14 @@ http.createServer((req, res) => {
       return send(200, userObj(u))
     }
 
+    // ── Storage stand-in (subset of the Supabase Storage API used by Slate) ────
+    // Files live under STORAGE_DIR; storage.buckets / storage.objects rows are kept in the
+    // local database like Supabase does, and bucket size / type limits are enforced.
+    // Only the service role may sign uploads, read, check or delete (no storage policies
+    // exist for app users on private buckets). __config {storageDeleteMode} simulates a
+    // delete that errors ('error') or silently keeps the file ('silent').
+    if (url.pathname.startsWith('/storage/v1/')) return storage(req, res, url, body, json, send, cors)
+
     if (url.pathname.startsWith('/rest/v1/')) {
       const headers = { ...req.headers, host: `localhost:${PGRST}` }
       delete headers.origin
@@ -262,5 +273,98 @@ http.createServer((req, res) => {
     return send(404, { message: 'gateway: not found' })
   })
 }).listen(Number(PORT), () => console.log('gateway ready', PORT))
+
+const STORAGE_DIR = process.env.STORAGE_DIR || '/var/tmp/slate-storage'
+function storageRole(req) {
+  const c = verify((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
+  return c ? c.role : null
+}
+function bucketRow(id) {
+  const out = psql("select row_to_json(b) from storage.buckets b where id = :'id'", { id }).trim()
+  return out ? JSON.parse(out) : null
+}
+function objectFile(bucket, name) {
+  if (!/^[A-Za-z0-9_-]+$/.test(bucket) || !/^[A-Za-z0-9._/-]+$/.test(name) || name.includes('..')) return null
+  return require('path').join(STORAGE_DIR, bucket, name)
+}
+function storage(req, res, url, body, json, send, cors) {
+  const p = decodeURIComponent(url.pathname.slice('/storage/v1'.length))
+  const role = storageRole(req)
+  // POST /object/upload/sign/<bucket>/<name>  → signed upload URL (service role only)
+  let m = p.match(/^\/object\/upload\/sign\/([^/]+)\/(.+)$/)
+  if (m && req.method === 'POST') {
+    if (role !== 'service_role') return send(403, { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' })
+    if (!bucketRow(m[1])) return send(404, { statusCode: '404', error: 'Bucket not found', message: 'Bucket not found' })
+    const token = sign({ bucket: m[1], name: m[2], exp: Math.floor(Date.now() / 1000) + 7200, upsert: req.headers['x-upsert'] === 'true' })
+    return send(200, { url: `/object/upload/sign/${m[1]}/${m[2]}?token=${token}` })
+  }
+  // PUT /object/upload/sign/<bucket>/<name>?token=…  → upload with the signed token
+  if (m && req.method === 'PUT') {
+    const t = verify(url.searchParams.get('token'))
+    if (!t || t.bucket !== m[1] || t.name !== m[2]) return send(400, { statusCode: '400', error: 'InvalidSignature', message: 'invalid signature' })
+    const b = bucketRow(m[1]); const file = objectFile(m[1], m[2])
+    if (!b || !file) return send(400, { statusCode: '400', error: 'InvalidKey', message: 'invalid key' })
+    const type = String(req.headers['content-type'] || '').split(';')[0].trim()
+    if (type.startsWith('multipart/')) return send(400, { statusCode: '400', error: 'unsupported', message: 'gateway: send the raw body' })
+    if (b.allowed_mime_types && !b.allowed_mime_types.includes(type)) return send(415, { statusCode: '415', error: 'invalid_mime_type', message: `mime type ${type} is not supported` })
+    if (b.file_size_limit && body.length > b.file_size_limit) return send(413, { statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' })
+    const exists = psql("select count(*) from storage.objects where bucket_id = :'b' and name = :'n'", { b: m[1], n: m[2] }).trim() !== '0'
+    if (exists && !t.upsert) return send(409, { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' })
+    fs.mkdirSync(require('path').dirname(file), { recursive: true })
+    fs.writeFileSync(file, body)
+    psql("insert into storage.objects (bucket_id, name, metadata) values (:'b', :'n', (:'meta')::jsonb) on conflict (bucket_id, name) do update set metadata = excluded.metadata",
+      { b: m[1], n: m[2], meta: JSON.stringify({ size: body.length, mimetype: type }) })
+    return send(200, { Key: `${m[1]}/${m[2]}` })
+  }
+  // POST / PUT /object/<bucket>/<name>  → upload / overwrite by the service role
+  m = p.match(/^\/object\/(?!upload\/|info\/)([^/]+)\/(.+)$/)
+  if (m && (req.method === 'POST' || req.method === 'PUT')) {
+    if (role !== 'service_role') return send(403, { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' })
+    const b = bucketRow(m[1]); const file = objectFile(m[1], m[2])
+    if (!b || !file) return send(400, { statusCode: '400', error: 'InvalidKey', message: 'invalid key' })
+    const type = String(req.headers['content-type'] || '').split(';')[0].trim()
+    if (type.startsWith('multipart/')) return send(400, { statusCode: '400', error: 'unsupported', message: 'gateway: send the raw body' })
+    if (b.allowed_mime_types && !b.allowed_mime_types.includes(type)) return send(415, { statusCode: '415', error: 'invalid_mime_type', message: `mime type ${type} is not supported` })
+    if (b.file_size_limit && body.length > b.file_size_limit) return send(413, { statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' })
+    const exists = psql("select count(*) from storage.objects where bucket_id = :'b' and name = :'n'", { b: m[1], n: m[2] }).trim() !== '0'
+    const upsert = req.method === 'PUT' || req.headers['x-upsert'] === 'true'
+    if (exists && !upsert) return send(409, { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' })
+    fs.mkdirSync(require('path').dirname(file), { recursive: true })
+    fs.writeFileSync(file, body)
+    psql("insert into storage.objects (bucket_id, name, metadata) values (:'b', :'n', (:'meta')::jsonb) on conflict (bucket_id, name) do update set metadata = excluded.metadata",
+      { b: m[1], n: m[2], meta: JSON.stringify({ size: body.length, mimetype: type }) })
+    return send(200, { Key: `${m[1]}/${m[2]}` })
+  }
+  // GET / HEAD /object/<bucket>/<name>  → download / exists (service role only: private bucket)
+  m = p.match(/^\/object\/(?!upload\/|info\/)([^/]+)\/(.+)$/)
+  if (m && (req.method === 'GET' || req.method === 'HEAD')) {
+    const b = bucketRow(m[1]); const file = objectFile(m[1], m[2])
+    if (!b || !file) return send(400, { statusCode: '404', error: 'not_found', message: 'Object not found' })
+    if (!b.public && role !== 'service_role') return send(400, { statusCode: '404', error: 'not_found', message: 'Object not found' })
+    if (!fs.existsSync(file)) return send(400, { statusCode: '404', error: 'not_found', message: 'Object not found' })
+    const meta = JSON.parse(psql("select coalesce(metadata,'{}')::text from storage.objects where bucket_id = :'b' and name = :'n'", { b: m[1], n: m[2] }).trim() || '{}')
+    res.writeHead(200, { 'Content-Type': meta.mimetype || 'application/octet-stream', ...cors })
+    return res.end(req.method === 'HEAD' ? undefined : fs.readFileSync(file))
+  }
+  // DELETE /object/<bucket>  {prefixes:[…]}  → remove (service role only)
+  m = p.match(/^\/object\/([^/]+)$/)
+  if (m && req.method === 'DELETE') {
+    if (role !== 'service_role') return send(200, [])
+    if (config.storageDeleteMode === 'error') return send(500, { statusCode: '500', error: 'internal', message: 'simulated storage failure' })
+    const removed = []
+    for (const name of (json?.prefixes || [])) {
+      const file = objectFile(m[1], name)
+      if (!file || !fs.existsSync(file)) continue
+      if (config.storageDeleteMode !== 'silent') {
+        fs.rmSync(file)
+        // Like Supabase's storage server: allowed past the protect_delete triggers.
+        psql("begin; set local storage.allow_delete_query = 'true'; delete from storage.objects where bucket_id = :'b' and name = :'n'; commit", { b: m[1], n: name })
+      }
+      removed.push({ bucket_id: m[1], name })
+    }
+    return send(200, removed)
+  }
+  return send(404, { message: 'gateway storage: not found' })
+}
 
 void psql
