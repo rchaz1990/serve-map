@@ -4,6 +4,7 @@ import { useState } from 'react'
 import LegalConsent from '@/app/components/LegalConsent'
 import WorkerDisclosure from '@/app/components/WorkerDisclosure'
 import { recordWorkerLegal } from '@/lib/legal-client'
+import { PAUSED } from '@/lib/early-test'
 
 // Existing workers (profiles created before the agreement step) must agree to the current
 // Terms/Privacy before using their dashboard, starting shifts or emailing followers.
@@ -26,8 +27,9 @@ export default function WorkerTermsGate({ onAccepted, onSignOut }: { onAccepted:
     <div className="slate-card mb-10 p-7" data-testid="worker-terms-gate">
       <p className="text-sm font-semibold text-white">Before you continue: Slate&apos;s Terms and Privacy Policy</p>
       <p className="mb-4 mt-1 text-xs leading-relaxed" style={{ color: '#A0A0A0' }}>
-        We&apos;ve updated how Slate works and what we store. Please read and agree before you use your profile,
-        start shifts or send updates to your followers. Your profile, ratings and followers stay as they are.
+        We&apos;ve updated how Slate works and what we store. Please read and agree before you use your profile
+        {PAUSED.shiftEmails ? ' or start shifts.' : ', start shifts or send updates to your followers.'} Your
+        profile, ratings and followers stay as they are.
       </p>
       <WorkerDisclosure />
       <LegalConsent checked={ticked} onChange={setTicked}>

@@ -174,13 +174,17 @@ async function optedInFollower(w) {
       gate && !(await box.isChecked()) && await btn.isDisabled(), { gate })
     check('P16 the step explains shifts are public and location is used on the phone only, not stored',
       /anyone can\s+see which venue/.test(disclosure) && /isn.t sent to Slate or stored/.test(disclosure)
-        && /can.t receive new followers or ratings/.test((await page.textContent('[data-testid="worker-terms-gate"]')) || '') && /follower count/.test((await page.textContent('[data-testid="worker-terms-gate"]')) || ''), disclosure)
+        && /can.t receive new ratings or start shifts/.test((await page.textContent('[data-testid="worker-terms-gate"]')) || '') && /follower count/.test((await page.textContent('[data-testid="worker-terms-gate"]')) || ''), disclosure)
     {
       const gateText = ((await page.textContent('[data-testid="worker-terms-gate"]')) || '').replace(/\s+/g, ' ')
-      check('P16b disclosure uses the reviewed wording (public items, followers not listed, follow prerequisite, opted-in emails)',
+      // Round 1 (follows + shift emails paused): Vera's Round 1 wording (2026-10-11), no follow/email promises.
+      check('P16b disclosure uses the reviewed wording: public items, followers not listed; Round 1: following and shift emails paused, participation agreement required',
         gateText.includes('Your name, photo, workplaces, ratings, comments, follower count and Slate Points are public on Slate. Individual followers are not publicly listed.')
-          && gateText.includes('People cannot follow you until you agree to the current Terms and Privacy Policy. After that, anyone can follow you unless you turn on follow approval in your dashboard settings.')
-          && gateText.includes('Slate may email followers who explicitly chose to receive shift emails.'), gateText)
+          && gateText.includes('Shift emails to followers are paused during the early test.')
+          && gateText.includes("Until you accept the current Terms of Service and Privacy Policy and the early-test worker participation agreement, you can't receive new ratings or start shifts. Your existing profile, ratings and followers stay as they are.")
+          && gateText.includes('Following is paused during the early test. No one can start following you during the test; your existing followers stay as they are. Slate Points have no cash value. Ratings are stored by Slate, not on a blockchain.')
+          && gateText.includes('Please read and agree before you use your profile or start shifts. Your profile, ratings and followers stay as they are.')
+          && !/anyone can follow you|Slate may email followers|send updates to your followers/.test(gateText), gateText)
     }
     await box.check(); await btn.click(); await page.waitForTimeout(2500)
     check('P17 after ticking and agreeing: recorded and the dashboard opens', workerVersion(wUI.id) === LEGAL_VERSION && !(await page.isVisible('[data-testid="worker-terms-gate"]')), workerVersion(wUI.id))

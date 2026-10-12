@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase'
 import { geocodeAddress } from '@/lib/geocode'
 import { workerTermsOnFile } from '@/lib/legal-client'
 import WorkerTermsGate from '@/app/components/WorkerTermsGate'
+import { PAUSED } from '@/lib/early-test'
 import ParticipantCard from '@/app/components/ParticipantCard'
 import { PARTICIPANT_COPY, fetchParticipation } from '@/lib/participant'
 
@@ -1715,7 +1716,9 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <p className="mb-4 text-xs leading-relaxed" style={{ color: '#606060' }}>
-                    Show this to guests after great service. They scan to rate and follow you — no app needed.
+                    {PAUSED.follows
+                      ? 'Show this to guests after great service. They scan to rate you — no app needed.'
+                      : 'Show this to guests after great service. They scan to rate and follow you — no app needed.'}
                   </p>
                   <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
                     <span className="flex-1 truncate font-mono text-xs" style={{ color: '#606060' }}>
@@ -1860,7 +1863,10 @@ export default function DashboardPage() {
       </main>
 
       {/* ── Shift start toast ───────────────────────────────────────── */}
+      {/* Always mounted (for the slide animation), so hide it from assistive tech until shown. */}
       <div
+        aria-hidden={!shiftToast}
+        role="status"
         className={[
           'fixed right-6 top-6 z-50 max-w-sm rounded-2xl border border-white/15 bg-black px-5 py-4 shadow-2xl transition-all duration-500',
           shiftToast ? 'translate-x-0 opacity-100' : 'translate-x-8 opacity-0 pointer-events-none',
@@ -1875,9 +1881,12 @@ export default function DashboardPage() {
           </div>
           <div>
             <p className="text-sm font-semibold text-white">Shift started</p>
-            <p className="mt-0.5 text-xs leading-5" style={{ color: '#A0A0A0' }}>
-              ✓ Your followers have been notified you&apos;re on shift.
-            </p>
+            {/* Shift emails are paused for the early test: nobody is notified. */}
+            {!PAUSED.shiftEmails && (
+              <p className="mt-0.5 text-xs leading-5" style={{ color: '#A0A0A0' }}>
+                ✓ Your followers have been notified you&apos;re on shift.
+              </p>
+            )}
           </div>
         </div>
         {/* Progress bar draining over 4 s */}
