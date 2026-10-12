@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import {
-  admin, deleteAndConfirm, hashSecret, hoursFromNow, imageKind, json, logCode, MAX_BYTES, unavailable,
-  UNREVIEWED_DELETE_HOURS, validSecretShape, verificationAllowed, VERIFICATION_BUCKET,
+  admin, deleteAndConfirm, hashSecret, hoursFromNow, imageKind, json, logCode, MAX_BYTES, newObjectPath, removeAndConfirm,
+  unavailable, UNREVIEWED_DELETE_HOURS, validSecretShape, verificationAllowed, VERIFICATION_BUCKET,
 } from '@/lib/verification-server'
 import { sanitizeImage } from '@/lib/verification-image'
 
@@ -12,8 +12,12 @@ const sha = (b: Uint8Array) => createHash('sha256').update(b).digest('hex')
 //  1. downloads the stored file; it must exist, fit the size limit and be a JPEG/PNG by content;
 //  2. decodes and re-encodes it server-side (orientation applied; no EXIF/XMP/ICC/comments/text
 //     chunks/trailing data; pixel and dimension limits);
-//  3. overwrites the stored file with the cleaned bytes and checks the overwrite took.
-// A file that fails any step is rejected automatically and deleted at once (confirmed).
+//  3. stores the cleaned bytes under a NEW random name and checks them there (an overwrite in
+//     place can be read back stale through Supabase's CDN), then deletes the uploaded original
+//     (confirmed) and only then points the record at the cleaned copy.
+// A file that fails any step is rejected automatically and deleted at once (confirmed). If the
+// original's deletion cannot be confirmed, the record keeps the original (deletion pending; the
+// sweep retries) and the cleaned copy is removed, or left unreferenced for the sweep.
 export async function POST(request: Request) {
   if (!verificationAllowed()) return unavailable()
   const body = await request.json().catch(() => null) as { secret?: unknown } | null
@@ -47,21 +51,43 @@ export async function POST(request: Request) {
   const clean = await sanitizeImage(bytes, expected)
   if (!clean.ok) return reject(clean.reason)
 
-  // Overwrite the stored file with the cleaned bytes, then confirm the stored bytes are exactly
-  // the cleaned ones (fail closed otherwise).
+  // Store the cleaned bytes under a new random name (never read before, so no cached copy can
+  // exist), then confirm the stored bytes are exactly the cleaned ones (fail closed otherwise).
+  const cleanPath = newObjectPath(expected)
+  const discardClean = async () => {
+    if (!(await removeAndConfirm(db, cleanPath))) logCode('clean_copy_unconfirmed', v.id) // unreferenced: the sweep removes it
+  }
   const { error: upErr } = await db.storage.from(VERIFICATION_BUCKET)
-    .upload(path, clean.bytes, { upsert: true, contentType: expected, cacheControl: '0' })
-  if (upErr) { logCode('sanitize_write_failed', v.id); return reject('unreadable') }
-  const { data: again } = await db.storage.from(VERIFICATION_BUCKET).download(path)
-  if (!again || sha(new Uint8Array(await again.arrayBuffer())) !== sha(clean.bytes)) {
+    .upload(cleanPath, clean.bytes, { upsert: false, contentType: expected, cacheControl: '0' })
+  if (upErr) { logCode('sanitize_write_failed', v.id); await discardClean(); return reject('unreadable') }
+  const { data: stored } = await db.storage.from(VERIFICATION_BUCKET).download(cleanPath)
+  if (!stored || sha(new Uint8Array(await stored.arrayBuffer())) !== sha(clean.bytes)) {
     logCode('sanitize_verify_failed', v.id)
+    await discardClean()
     return reject('unreadable')
   }
 
-  // The receipt stays valid until the review deadline, so the candidate can still withdraw.
+  // Only now delete the uploaded original. If that cannot be confirmed, reject: the record keeps
+  // the original (deletion pending, retried by the sweep) and the cleaned copy is removed.
+  if (!(await removeAndConfirm(db, path))) {
+    logCode('original_delete_unconfirmed', v.id)
+    await discardClean()
+    return reject('unreadable')
+  }
+
+  // Point the record at the cleaned copy. The receipt stays valid until the review deadline, so
+  // the candidate can still withdraw.
   const { data: ok } = await db.from('employment_verifications')
-    .update({ status: 'submitted', submitted_at: now, secret_expires_at: hoursFromNow(UNREVIEWED_DELETE_HOURS) })
-    .eq('id', v.id).eq('status', 'uploading').select('id')
-  if (!ok?.length) return json({ error: 'invalid' }, 400)
+    .update({ status: 'submitted', submitted_at: now, object_path: cleanPath, secret_expires_at: hoursFromNow(UNREVIEWED_DELETE_HOURS) })
+    .eq('id', v.id).eq('status', 'uploading').eq('object_path', path).select('id')
+  if (!ok?.length) {
+    // Not saved: remove the cleaned copy. If the record changed meanwhile (e.g. withdrawn, which
+    // deletes its own file) answer as before; if it is still uploading, close it out as rejected.
+    logCode('submit_record_failed', v.id)
+    await discardClean()
+    const { data: current } = await db.from('employment_verifications').select('status').eq('id', v.id).maybeSingle()
+    if (current?.status === 'uploading') return reject('unreadable')
+    return json({ error: 'invalid' }, 400)
+  }
   return json({ state: 'submitted' })
 }

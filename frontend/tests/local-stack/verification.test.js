@@ -82,8 +82,14 @@ async function submittedRecord(V, buf, type = 'image/png') {
   await put(u.json.uploadUrl, buf, type)
   const filePath = rec(inv.id).object_path
   const s = await api('/api/verification/submitted', { secret: u.json.receipt })
-  return { id: inv.id, receipt: u.json.receipt, path: filePath, submitted: s }
+  // The cleaned copy is stored under a new random name (null if the file was rejected).
+  const after = rec(inv.id).object_path
+  const clean = after && after !== filePath ? after : null
+  if (clean) issued.paths.push(clean)
+  return { id: inv.id, receipt: u.json.receipt, path: filePath, clean, submitted: s }
 }
+// Both the uploaded original and the cleaned copy are gone (storage record and file).
+const gone = s => [s.path, s.clean].filter(Boolean).every(n => !objExists(n) && !fileExists(n))
 
 function startApp(port, env) {
   const merged = { ...process.env, ...env }
@@ -138,6 +144,10 @@ function makeOrphan(name, bytes) {
       { blocked: blocked.out.slice(0, 80), refused, stillApplied, rolledBack, gone })
   }
   execFileSync('sleep', ['1'])
+  // Run everything with the simulated CDN on: downloads are cached and an overwritten object
+  // is served stale, as hosted Supabase did in production on 2026-10-12.
+  await gwConfig({ storageDeleteMode: 'ok', storageWriteMode: 'ok', storageCdnCache: false })
+  await gwConfig({ storageCdnCache: true })
 
   const V = await account('verifier'), N = await account('normal')
   sql(`update auth.users set raw_app_meta_data = raw_app_meta_data || '{"slate_verifier": true}' where id = '${V.id}'`)
@@ -223,7 +233,7 @@ function makeOrphan(name, bytes) {
     check('P1 signed-out and signed-in users cannot read, insert, update the records or call the helper functions',
       [r1, r2, r3, r4, r5, r6].every(r => r.status >= 400), [r1, r2, r3, r4, r5, r6].map(r => r.status))
     const s = await submittedRecord(V, synthPng)
-    const g = n => fetch(`${GW}/storage/v1/object/employment-verification/${s.path}`, { headers: { apikey: ANON, authorization: `Bearer ${n}` } })
+    const g = n => fetch(`${GW}/storage/v1/object/employment-verification/${s.clean || s.path}`, { headers: { apikey: ANON, authorization: `Bearer ${n}` } })
     const a1 = await g(ANON), a2 = await g(N.token)
     const sign = await fetch(`${GW}/storage/v1/object/upload/sign/employment-verification/evil.png`, { method: 'POST', headers: { authorization: `Bearer ${N.token}` } })
     const other = await put(issued.urls[issued.urls.length - 1].replace(/[0-9a-f-]+\.png\?/, 'other.png?'), synthPng, 'image/png')
@@ -238,7 +248,7 @@ function makeOrphan(name, bytes) {
     check('P4 a verifier can view a submitted image through the route only: correct type, no-store, inline, no file name',
       f.status === 200 && f.type === 'image/png' && /no-store/.test(f.cache || '') && f.buf.subarray(0, 4).toString('hex') === '89504e47', { status: f.status, type: f.type, cache: f.cache })
     const dec = await api('/api/internal/verification/decision', { id: s.id, decision: 'not_verified', rejection_reason: 'unreadable' }, V.token)
-    check('P5 (cleanup) decision deletes that file', dec.json?.deletion === 'deleted' && !objExists(s.path) && !fileExists(s.path), dec.json)
+    check('P5 (cleanup) decision deletes that file', dec.json?.deletion === 'deleted' && gone(s), dec.json)
   }
 
   // ── C / T: consent, token expiry and single use ───────────────────────────
@@ -328,7 +338,7 @@ function makeOrphan(name, bytes) {
     const r = rec(s.id)
     check('F1 a PDF disguised as PNG passes the bucket but is caught by the content check: automatically not_verified/unsupported and deleted at once',
       s.submitted.json?.state === 'rejected_file' && r.status === 'not_verified' && r.rejection_reason === 'unsupported' && !r.reviewer_id
-        && !!r.deleted_at && !r.object_path && !objExists(s.path) && !fileExists(s.path), { submitted: s.submitted.json, r })
+        && !!r.deleted_at && !r.object_path && gone(s), { submitted: s.submitted.json, r })
     const inv = await invite(V)
     const u = await uploadUrl(inv.secret)
     const wrongType = await put(u.json.uploadUrl, pdf, 'application/pdf')
@@ -390,15 +400,65 @@ function makeOrphan(name, bytes) {
     const rd = rec(d.id)
     check('Z4 undecodable file (JPEG signature, garbage body): rejected (unreadable) and deleted, deletion confirmed',
       d.submitted.json?.state === 'rejected_file' && d.submitted.json?.deletion === 'deleted' && rd.status === 'not_verified' && rd.rejection_reason === 'unreadable'
-        && !!rd.deleted_at && !rd.object_path && !objExists(d.path) && !fileExists(d.path), { submitted: d.submitted.json, rd })
+        && !!rd.deleted_at && !rd.object_path && gone(d), { submitted: d.submitted.json, rd })
     // oversized dimensions (small file, 4000 × 200 px)
     const wide = await sharp({ create: { width: 4000, height: 200, channels: 3, background: '#ffffff' } }).png().toBuffer()
     const e = await submittedRecord(V, wide, 'image/png')
     const re = rec(e.id)
     check('Z5 oversized image (4000 px wide; limit 3000) is rejected (unsupported) and deleted, deletion confirmed',
       wide.length < 4 * 1024 * 1024 && e.submitted.json?.state === 'rejected_file' && e.submitted.json?.deletion === 'deleted' && re.rejection_reason === 'unsupported'
-        && !!re.deleted_at && !objExists(e.path) && !fileExists(e.path), { submitted: e.submitted.json, re })
+        && !!re.deleted_at && gone(e), { submitted: e.submitted.json, re })
     for (const id of [a.id, b.id, c.id]) await api('/api/internal/verification/decision', { id, decision: 'not_verified', rejection_reason: 'other' }, V.token)
+  }
+
+  // ── CDN: stale reads after overwrite (production finding 2026-10-12) ──────
+  // The cleaned copy must be written to a NEW name and checked there; the uploaded original is
+  // deleted only after that check, and every failure still ends rejected with files deleted.
+  {
+    const unref = () => sql(`select coalesce(string_agg(name, ',' order by name), '') from storage.objects where bucket_id = 'employment-verification' and name not like 'orph-%' and name not in (select object_path from employment_verifications where object_path is not null)`)
+    const base = await sharp({ create: { width: 200, height: 80, channels: 3, background: '#c8c8c8' } })
+    const exifJpg = await base.clone().jpeg({ quality: 90 }).withExif({ IFD0: { ImageDescription: 'GPSTESTMARK-CDN' } }).toBuffer()
+    const hits0 = (await gwCounts()).cdnHits
+    const s = await submittedRecord(V, exifJpg, 'image/jpeg')
+    const r = rec(s.id), hits1 = (await gwCounts()).cdnHits
+    const stored = s.clean && fileExists(s.clean) ? fs.readFileSync(path.join(STORE, 'employment-verification', s.clean)) : Buffer.alloc(0)
+    const view = await api('/api/internal/verification/file', { id: s.id }, V.token)
+    check('CDN1 with downloads cached like production (stale after overwrite): a valid JPEG is accepted; the cleaned copy is stored under a new random name and served to the reviewer; the uploaded original is deleted (record and file)',
+      s.submitted.json?.state === 'submitted' && r.status === 'submitted' && !!s.clean && s.clean !== s.path && /^[0-9a-f-]{36}\.jpg$/.test(s.clean)
+        && !objExists(s.path) && !fileExists(s.path) && objExists(s.clean) && stored.length > 0 && !stored.includes('GPSTESTMARK') && !stored.includes('Exif')
+        && view.status === 200 && Buffer.compare(view.buf, stored) === 0 && unref() === '',
+      { submitted: s.submitted.json, status: r.status, renamed: !!s.clean && s.clean !== s.path, originalGone: !objExists(s.path), hits: hits1 - hits0, unref: unref() })
+    await api('/api/internal/verification/decision', { id: s.id, decision: 'not_verified', rejection_reason: 'other' }, V.token)
+
+    // Writing the cleaned copy fails → rejected (unreadable); original deleted; nothing left behind.
+    await gwConfig({ storageWriteMode: 'error' })
+    const w = await submittedRecord(V, exifJpg, 'image/jpeg')
+    await gwConfig({ storageWriteMode: 'ok' })
+    const rw = rec(w.id)
+    check('CDN2 fail-safe: if the cleaned copy cannot be written, the file is rejected (unreadable), the original is deleted and confirmed, and no file is left',
+      w.submitted.json?.state === 'rejected_file' && w.submitted.json?.deletion === 'deleted' && rw.status === 'not_verified' && rw.rejection_reason === 'unreadable'
+        && !rw.object_path && !!rw.deleted_at && gone(w) && unref() === '', { submitted: w.submitted.json, rw, unref: unref() })
+
+    // Deleting the original cannot be confirmed → rejected; record keeps the original as
+    // "deletion pending"; the cleaned copy is an unreferenced file. The sweep removes both.
+    const before = new Set(unref().split(',').filter(Boolean))
+    await gwConfig({ storageDeleteMode: 'silent' })
+    const d = await submittedRecord(V, exifJpg, 'image/jpeg')
+    await gwConfig({ storageDeleteMode: 'ok' })
+    const rd = rec(d.id)
+    const strays = unref().split(',').filter(n => n && !before.has(n))
+    const listRow = (await api('/api/internal/verification/list', {}, V.token)).json?.rows?.find(x => x.id === d.id)
+    const sw1 = await api('/api/verification-sweep', {}, CRON)
+    const afterRetry = rec(d.id)
+    for (const n of strays) sql(`update storage.objects set created_at = now() - interval '4 hours' where name = '${n}'`)
+    const sw2 = await api('/api/verification-sweep', {}, CRON)
+    check('CDN3 fail-safe: if deleting the original cannot be confirmed, the file is rejected, the record keeps the original as deletion pending (shown to the reviewer), the cleaned copy is left only as an unreferenced file; the sweep then deletes both (confirmed)',
+      d.submitted.json?.state === 'rejected_file' && d.submitted.json?.deletion === 'pending' && rd.status === 'not_verified' && rd.rejection_reason === 'unreadable'
+        && rd.object_path === d.path && !rd.deleted_at && listRow?.deletion_pending === true && strays.length === 1
+        && sw1.json?.deleted >= 1 && !afterRetry.object_path && !!afterRetry.deleted_at && !objExists(d.path) && !fileExists(d.path)
+        && sw2.json?.orphans >= 1 && strays.every(n => !objExists(n) && !fileExists(n)) && unref() === '',
+      { submitted: d.submitted.json, rd: { status: rd.status, reason: rd.rejection_reason, keepsOriginal: rd.object_path === d.path }, strays: strays.length, sw1: sw1.json, sw2: sw2.json })
+    issued.paths.push(...strays)
   }
 
   // ── D: decisions, immediate deletion, fields kept ─────────────────────────
@@ -412,7 +472,7 @@ function makeOrphan(name, bytes) {
     if (continueSecret) issued.secrets.push(continueSecret)
     check('D1 verified: missing fields refused; then saved with role, venue, borough, evidence type, time and reviewer; image deleted at once and confirmed',
       missing.status === 400 && d.status === 200 && d.json.deletion === 'deleted' && r.status === 'verified' && r.role_category === 'server' && r.borough === 'manhattan'
-        && r.evidence_type === 'schedule' && r.reviewer_id === V.id && !!r.decided_at && !!r.deleted_at && !r.object_path && !objExists(s.path) && !fileExists(s.path), { d: d.json, r })
+        && r.evidence_type === 'schedule' && r.reviewer_id === V.id && !!r.decided_at && !!r.deleted_at && !r.object_path && !!s.clean && gone(s), { d: d.json, r })
     const cols = sql(`select string_agg(column_name, ',' order by ordinal_position) from information_schema.columns where table_name = 'employment_verifications'`)
     check('D2 the record has no place for names, contacts, documents, hashes of documents, extracted text or notes',
       !/name|email|phone|note|text|hash_doc|document|ocr|dob|birth/.test(cols.replace('rejection_reason', '')) && !JSON.stringify(r).includes('should be ignored'), cols)
@@ -421,7 +481,7 @@ function makeOrphan(name, bytes) {
     const r2 = rec(s2.id)
     check('D3 sensitive-data rejection: not_verified with only the reason code, image deleted at once, no continuation link',
       d2.json?.deletion === 'deleted' && r2.status === 'not_verified' && r2.rejection_reason === 'unredacted_sensitive' && !r2.role_category && !r2.venue
-        && !!r2.deleted_at && !objExists(s2.path) && !d2.json.continueSecret, { d2: d2.json, r2 })
+        && !!r2.deleted_at && gone(s2) && !d2.json.continueSecret, { d2: d2.json, r2 })
     const twice = await api('/api/internal/verification/decision', { id: s.id, decision: 'not_verified', rejection_reason: 'other' }, V.token)
     const t1 = sqlTry(`update employment_verifications set venue = 'Changed' where id = '${s.id}'`)
     const t2 = sqlTry(`update employment_verifications set status = 'submitted' where id = '${s.id}'`)
@@ -439,10 +499,10 @@ function makeOrphan(name, bytes) {
     const r = rec(s.id)
     const w3 = await api('/api/verification/withdraw', { secret: s.receipt })
     check('W1 withdrawal before upload and after submission; the submitted image is deleted at once; a second withdrawal is refused',
-      w1.json?.state === 'withdrawn' && rec(inv.id).status === 'withdrawn' && w2.json?.deletion === 'deleted' && r.status === 'withdrawn' && !!r.deleted_at && !objExists(s.path) && w3.status === 400, { w1: w1.json, w2: w2.json })
+      w1.json?.state === 'withdrawn' && rec(inv.id).status === 'withdrawn' && w2.json?.deletion === 'deleted' && r.status === 'withdrawn' && !!r.deleted_at && gone(s) && w3.status === 400, { w1: w1.json, w2: w2.json })
     const s2 = await submittedRecord(V, synthPng)
     const dv = await api('/api/internal/verification/decision', { id: s2.id, decision: 'withdrawn' }, V.token)
-    check('W2 a verifier can record a withdrawal the candidate asked for by email; image deleted', dv.json?.status === 'withdrawn' && !objExists(s2.path), dv.json)
+    check('W2 a verifier can record a withdrawal the candidate asked for by email; image deleted', dv.json?.status === 'withdrawn' && gone(s2), dv.json)
   }
 
   // ── A: separate 18+ attestation, downstream of verification ───────────────
@@ -485,8 +545,8 @@ function makeOrphan(name, bytes) {
     const sw2 = await api('/api/verification-sweep', {}, CRON)
     const r3 = rec(s.id)
     check('DF1 a delete that silently fails is detected (file still there): decision saved, deletion PENDING, path kept, shown as pending; sweep retries (error → still pending; recovered → deleted and confirmed)',
-      d.json?.deletion === 'pending' && r1.status === 'not_verified' && r1.object_path === s.path && !r1.deleted_at && row?.deletion_pending === true
-        && sw1.json?.pending >= 1 && r2.object_path === s.path && !r2.deleted_at && sw2.json?.deleted >= 1 && !r3.object_path && !!r3.deleted_at && !objExists(s.path) && !fileExists(s.path),
+      d.json?.deletion === 'pending' && r1.status === 'not_verified' && r1.object_path === s.clean && !!s.clean && !r1.deleted_at && row?.deletion_pending === true
+        && sw1.json?.pending >= 1 && r2.object_path === s.clean && !r2.deleted_at && sw2.json?.deleted >= 1 && !r3.object_path && !!r3.deleted_at && gone(s),
       { d: d.json, sw1: sw1.json, sw2: sw2.json })
   }
 
@@ -511,7 +571,7 @@ function makeOrphan(name, bytes) {
     const sw = await api('/api/verification-sweep', {}, CRON)
     const r1 = rec(inv.id), r2 = rec(s.id)
     check('S1 sweep: expired invite → expired; unreviewed submission past its deadline → expired and image deleted; a late upload after withdrawal is left alone while recent, then deleted as unreferenced',
-      r1.status === 'expired' && !r1.secret_hash && r2.status === 'expired' && !!r2.deleted_at && !objExists(s.path) && late.status === 200 && stillThere
+      r1.status === 'expired' && !r1.secret_hash && r2.status === 'expired' && !!r2.deleted_at && gone(s) && late.status === 200 && stillThere
         && sw.json?.orphans >= 1 && !objExists(orphan) && !fileExists(orphan), { tooNew: tooNew.json, sw: sw.json })
     const reviewLate = await api('/api/internal/verification/decision', { id: s.id, decision: 'verified', role_category: 'server', venue: 'Fake Bistro', borough: 'queens', evidence_type: 'schedule' }, V.token)
     check('S2 a reviewer can no longer act on an expired submission', reviewLate.status === 409, reviewLate.json)
@@ -568,6 +628,7 @@ function makeOrphan(name, bytes) {
     check('X2 no unreferenced verification files remain', leftover === '0', leftover)
   }
 
+  await gwConfig({ storageCdnCache: false })
   await browser.close()
   console.log(`\n${pass} passed, ${fail} failed`)
   process.exit(fail ? 1 : 0)

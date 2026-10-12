@@ -19,8 +19,13 @@ candidates, venues, production changes, deploys or merges.
    be used without the browser). It downloads the file, checks size and type by content, then
    **decodes and re-encodes it server-side with sharp** (EXIF orientation applied; no EXIF, XMP,
    ICC, IPTC, comments, PNG text chunks or trailing data; `limitInputPixels` 9 MP; max 3000 px per
-   side), overwrites the stored file with the cleaned bytes and checks the overwrite. Anything that
-   fails is rejected automatically (`unsupported` / `unreadable`) and deleted at once (confirmed).
+   side), stores the cleaned bytes under a **new random file name** and checks them there, then
+   deletes the uploaded original (confirmed) and only then points the record at the cleaned copy.
+   (Overwriting in place failed in production on 2026-10-12: Supabase's CDN served the old bytes
+   back, so every valid upload was rejected.) Anything that fails is rejected automatically
+   (`unsupported` / `unreadable`) and deleted at once (confirmed); if the original's deletion
+   cannot be confirmed, the record keeps it as "deletion pending" for the sweep, and the cleaned
+   copy is removed (or, if that also fails, left unreferenced for the sweep's orphan cleanup).
 6. The verifier views the image through `/api/internal/verification/file` (no public or signed
    download link, `no-store`, inline) and records **verified** (role category, venue, borough,
    evidence type) / **not verified** (reason code only) / **withdrawn**.
@@ -71,10 +76,18 @@ metadata or reviewer judgments. Errors log `[verification] <code> [<record id>]`
 `/verify` is excluded from page-view tracking. Tested (`verification.test.js` L1–L2).
 
 ## Known limitations (local build)
-- Storage is emulated locally (gateway); Supabase's own behaviour (deletion, overwrite/versions,
-  logs, CDN) must be confirmed separately. Supabase signed upload links last 2 hours (not
-  configurable). The sanitised file overwrites the original at the same path; whether the
-  provider keeps the overwritten bytes is part of blocker 4.
+- Storage is emulated locally (gateway, with a simulated CDN that serves cached downloads even
+  after an overwrite or deletion); Supabase's own behaviour (deletion, versions, logs, CDN) must be
+  confirmed separately. Supabase signed upload links last 2 hours (not configurable).
+- **CDN copies (part of blocker 4):** each server download of a file can leave a copy in
+  Supabase's CDN. In production on 2026-10-12 a download was served from the CDN cache after the
+  file had changed. On the Free plan the cache is not invalidated automatically and cannot be
+  purged (Smart CDN invalidation and manual purge need a paid plan), so a deleted file may stay
+  in the CDN cache for an unknown period. How long, and whether the cache checks authorization
+  for a private bucket, must be confirmed with Supabase.
+  "Deleted" in this flow means removed from storage and confirmed by storage and database checks;
+  it does not cover CDN copies. The original upload is read once, the cleaned copy once at
+  submission and once per reviewer view.
 - `sharp` is now a direct dependency (it was already installed as Next.js's optional image
   dependency, same version 0.34.5).
 - Supabase/Vercel request logs record request paths: storage paths (random UUIDs) and the
