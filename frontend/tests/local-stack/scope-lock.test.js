@@ -80,6 +80,15 @@ const refused = r => r.status >= 400
     sql(`set session_replication_role = replica; insert into follows (follower_id, follower_email, server_id, follower_type, status) values ('${O.id}', '${O.email}', '${W.serverId}', 'guest', 'approved')`)
     const del = await rest('DELETE', `follows?follower_id=eq.${O.id}&server_id=eq.${W.serverId}`, O.token, undefined, 'return=minimal')
     check('S6d unfollowing an existing follow still works', del.status < 300 && count(`follows where follower_id = '${O.id}'`) === 0, del)
+    // A follow made before the pause earns no follow bonus on a rating (route and database).
+    // Separate worker, so later checks that count W's ratings are unaffected.
+    const WF = await worker('fb'), F = await account('prefollower')
+    sql(`set session_replication_role = replica; insert into follows (follower_id, follower_email, server_id, follower_type, status) values ('${F.id}', '${F.email}', '${WF.serverId}', 'guest', 'approved')`)
+    const fr = await api('/api/submit-rating', F.token, { serverId: WF.serverId, score: 5, legalAccepted: LEGAL_VERSION })
+    const stored = sql(`select serve_reward from ratings where guest_email = '${F.email}'`)
+    const ledger = sql(`select l.amount from serve_ledger l join ratings r on r.id::text = l.source_id::text where r.guest_email = '${F.email}'`)
+    check('S6h follow bonus paused: a guest who already followed gets no +5 (shown 0, stored 35 in the rating and the ledger)',
+      fr.status === 200 && fr.json?.reward?.followBonus === 0 && fr.json?.reward?.total === 35 && stored === '35' && ledger === '35', { status: fr.status, reward: fr.json?.reward, stored, ledger })
   }
 
   // ── S7: shift emails paused ─────────────────────────────────────────────────

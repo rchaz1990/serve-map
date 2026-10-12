@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { recordLegalAcceptance, workerTermsOnFile } from '@/lib/legal-server'
 import { viewerMayUseProfile } from '@/lib/test-profiles'
 import { participantOk, workerParticipating } from '@/lib/participant-server'
+import { PAUSED } from '@/lib/early-test'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -142,7 +143,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Could not submit rating.' }, { status: 500 })
   }
 
-  const reward = rewardFor(score, hasComment, !!follow)
+  // Early test: following is paused, so a follow (even one made before the pause) earns no bonus.
+  const followed = !!follow && !PAUSED.follows
+  const reward = rewardFor(score, hasComment, followed)
 
   const { data, error } = await supabaseAdmin.rpc('submit_rating_reward', {
     p_server_id: serverId,
@@ -151,7 +154,7 @@ export async function POST(request: Request) {
     p_tags: cleanTags,
     // The account's email is the per-guest key for the database limits.
     p_guest_email: user.email ?? user.id,
-    p_followed: !!follow,
+    p_followed: followed,
     p_amount: reward.total,
   })
 
