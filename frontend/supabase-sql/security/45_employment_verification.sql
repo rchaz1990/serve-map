@@ -126,7 +126,7 @@ grant execute on function public.verification_object_exists(text) to service_rol
 -- Files in the bucket that no record points at (e.g. an upload that finished after the
 -- candidate withdrew, using a still-valid upload link). The sweep deletes them through the
 -- Storage API. Only files older than the given age, so in-progress uploads are left alone.
-create or replace function public.verification_unreferenced_objects(p_older_than interval)
+create or replace function public.verification_unreferenced_objects(p_older_than interval, p_limit integer default 100)
 returns setof text
 language sql
 stable
@@ -137,9 +137,11 @@ as $$
   where o.bucket_id = 'employment-verification'
     and o.created_at < now() - p_older_than
     and not exists (select 1 from public.employment_verifications v where v.object_path = o.name)
+  order by o.created_at
+  limit greatest(0, least(coalesce(p_limit, 100), 100))
 $$;
-revoke all on function public.verification_unreferenced_objects(interval) from public, anon, authenticated;
-grant execute on function public.verification_unreferenced_objects(interval) to service_role;
+revoke all on function public.verification_unreferenced_objects(interval, integer) from public, anon, authenticated;
+grant execute on function public.verification_unreferenced_objects(interval, integer) to service_role;
 
 commit;
 

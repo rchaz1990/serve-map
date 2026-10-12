@@ -36,6 +36,7 @@ const users = {} // email -> {id,email,password,user_metadata,app_metadata,creat
 // participant agreements on file (a fixture for suites about other features);
 // participant.test.js turns it off to exercise the real agreement flow.
 const config = { confirm: false, autoParticipant: true, storageDeleteMode: 'ok' }
+const counts = { rest: 0, storage: 0, auth: 0 } // GET /__counts: requests seen per API
 const PARTICIPANT_VERSION = (() => { try { return fs.readFileSync(require('path').join(__dirname, '../../lib/participant-documents.ts'), 'utf8').match(/PARTICIPANT_VERSION = '([^']+)'/)[1] } catch { return null } })()
 const outbox = {} // email -> { type, token_hash }
 const tokens_ = {} // token_hash -> { email, type }
@@ -121,6 +122,8 @@ http.createServer((req, res) => {
       res.end(obj === undefined ? '' : JSON.stringify(obj))
     }
     if (req.method === 'OPTIONS') return send(200)
+    if (url.pathname === '/__counts') return send(200, counts)
+    for (const k of ['rest', 'storage', 'auth']) if (url.pathname.startsWith(`/${k}/v1/`)) counts[k]++
     let json = null
     try { json = body.length ? JSON.parse(body) : null } catch {}
 
@@ -313,6 +316,25 @@ function storage(req, res, url, body, json, send, cors) {
       { b: m[1], n: m[2], meta: JSON.stringify({ size: body.length, mimetype: type }) })
     return send(200, { Key: `${m[1]}/${m[2]}` })
   }
+  // POST / PUT /object/<bucket>/<name>  → upload / overwrite by the service role
+  m = p.match(/^\/object\/(?!upload\/|info\/)([^/]+)\/(.+)$/)
+  if (m && (req.method === 'POST' || req.method === 'PUT')) {
+    if (role !== 'service_role') return send(403, { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' })
+    const b = bucketRow(m[1]); const file = objectFile(m[1], m[2])
+    if (!b || !file) return send(400, { statusCode: '400', error: 'InvalidKey', message: 'invalid key' })
+    const type = String(req.headers['content-type'] || '').split(';')[0].trim()
+    if (type.startsWith('multipart/')) return send(400, { statusCode: '400', error: 'unsupported', message: 'gateway: send the raw body' })
+    if (b.allowed_mime_types && !b.allowed_mime_types.includes(type)) return send(415, { statusCode: '415', error: 'invalid_mime_type', message: `mime type ${type} is not supported` })
+    if (b.file_size_limit && body.length > b.file_size_limit) return send(413, { statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' })
+    const exists = psql("select count(*) from storage.objects where bucket_id = :'b' and name = :'n'", { b: m[1], n: m[2] }).trim() !== '0'
+    const upsert = req.method === 'PUT' || req.headers['x-upsert'] === 'true'
+    if (exists && !upsert) return send(409, { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' })
+    fs.mkdirSync(require('path').dirname(file), { recursive: true })
+    fs.writeFileSync(file, body)
+    psql("insert into storage.objects (bucket_id, name, metadata) values (:'b', :'n', (:'meta')::jsonb) on conflict (bucket_id, name) do update set metadata = excluded.metadata",
+      { b: m[1], n: m[2], meta: JSON.stringify({ size: body.length, mimetype: type }) })
+    return send(200, { Key: `${m[1]}/${m[2]}` })
+  }
   // GET / HEAD /object/<bucket>/<name>  → download / exists (service role only: private bucket)
   m = p.match(/^\/object\/(?!upload\/|info\/)([^/]+)\/(.+)$/)
   if (m && (req.method === 'GET' || req.method === 'HEAD')) {
@@ -335,7 +357,8 @@ function storage(req, res, url, body, json, send, cors) {
       if (!file || !fs.existsSync(file)) continue
       if (config.storageDeleteMode !== 'silent') {
         fs.rmSync(file)
-        psql("delete from storage.objects where bucket_id = :'b' and name = :'n'", { b: m[1], n: name })
+        // Like Supabase's storage server: allowed past the protect_delete triggers.
+        psql("begin; set local storage.allow_delete_query = 'true'; delete from storage.objects where bucket_id = :'b' and name = :'n'; commit", { b: m[1], n: name })
       }
       removed.push({ bucket_id: m[1], name })
     }

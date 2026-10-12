@@ -9,10 +9,11 @@ const { execFileSync, spawn } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const zlib = require('zlib')
+const sharp = require(path.join(__dirname, '../../node_modules/sharp'))
 const [APP, KEYS, APP_DIR, APP_LOG, CRON] = process.argv.slice(2)
 const GW = 'http://localhost:54400'
 const DB = process.env.STACK_DB || 'slate_stack'
-const { anon: ANON, service: SERVICE } = JSON.parse(fs.readFileSync(KEYS, 'utf8'))
+const { anon: ANON } = JSON.parse(fs.readFileSync(KEYS, 'utf8'))
 const PSQL = ['-h', '/tmp', '-p', '54329', '-U', 'postgres', '-d', DB]
 const sql = q => execFileSync('psql', [...PSQL, '-qAt', '-c', q], { encoding: 'utf8' }).trim()
 const sqlTry = q => { try { return { ok: true, out: sql(q) } } catch (e) { return { ok: false, out: String(e.stderr || e.message) } } }
@@ -25,7 +26,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
 const issued = { secrets: [], urls: [], paths: [] } // everything that must never appear in logs
 
 async function post(base, p, body, token) {
-  const r = await fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body ?? {}) })
+  const once = () => fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body ?? {}) })
+  // One retry on a network-level failure (e.g. a stale keep-alive socket after a long synchronous step).
+  const r = await once().catch(async e => { console.log('note: retrying after', String(e.cause?.code || e.cause?.message || e.message).slice(0, 60)); await sleep(500); return once() })
   const buf = Buffer.from(await r.arrayBuffer())
   let json = null; try { json = JSON.parse(buf.toString()) } catch {}
   return { status: r.status, json, buf, type: r.headers.get('content-type'), cache: r.headers.get('cache-control') }
@@ -42,7 +45,7 @@ async function rest(method, p, token, body) {
 }
 const rec = id => JSON.parse(sql(`select row_to_json(v) from employment_verifications v where id = '${id}'`) || 'null')
 const objExists = name => sql(`select count(*) from storage.objects where bucket_id = 'employment-verification' and name = '${name}'`) === '1'
-const fileExists = name => fs.existsSync(path.join(process.env.STORAGE_DIR || '/var/tmp/slate-storage', 'employment-verification', name))
+const fileExists = name => !!name && fs.existsSync(path.join(process.env.STORAGE_DIR || '/var/tmp/slate-storage', 'employment-verification', name))
 const gwConfig = c => fetch(GW + '/__config', { method: 'POST', body: JSON.stringify(c) })
 const CONSENT_VERSION = fs.readFileSync(path.join(__dirname, '../../lib/verification-copy.ts'), 'utf8').match(/VERIFICATION_CONSENT_VERSION = '([^']+)'/)[1]
 
@@ -83,25 +86,46 @@ async function submittedRecord(V, buf, type = 'image/png') {
 }
 
 function startApp(port, env) {
-  const p = spawn('npx', ['next', 'start', '-p', String(port)], { cwd: APP_DIR, env: { ...process.env, ...env }, stdio: 'ignore', detached: true })
+  const merged = { ...process.env, ...env }
+  for (const [k, v] of Object.entries(env)) if (v === null) delete merged[k] // null = truly unset
+  const p = spawn('npx', ['next', 'start', '-p', String(port)], { cwd: APP_DIR, env: merged, stdio: 'ignore', detached: true })
   return p
 }
-async function waitUp(base) { for (let i = 0; i < 60; i++) { try { await fetch(base + '/'); return true } catch { await sleep(500) } } return false }
+// A static file, so waiting for the instance makes no database or storage call.
+async function waitUp(base) { for (let i = 0; i < 60; i++) { try { await fetch(base + '/favicon.ico'); return true } catch { await sleep(500) } } return false }
+const gwCounts = async () => (await fetch(GW + '/__counts')).json()
+const allowDelete = q => sql(`begin; set local storage.allow_delete_query = 'true'; ${q}; commit`)
+const STORE = process.env.STORAGE_DIR || '/var/tmp/slate-storage'
+function makeOrphan(name, bytes) {
+  fs.mkdirSync(path.join(STORE, 'employment-verification'), { recursive: true })
+  fs.writeFileSync(path.join(STORE, 'employment-verification', name), bytes)
+  sql(`insert into storage.objects (bucket_id, name, metadata, created_at) values ('employment-verification', '${name}', '{"size":${bytes.length},"mimetype":"image/png"}', now() - interval '4 hours')`)
+}
 
 ;(async () => {
   // ── Setup (local database only) ───────────────────────────────────────────
-  if (sql(`select to_regclass('storage.objects') is not null`) !== 't') sqlFile(path.join(__dirname, 'storage-schema.sql'))
+  sqlFile(path.join(__dirname, 'storage-schema.sql')) // idempotent; includes the protect_delete stand-in
   if (sql(`select to_regclass('public.employment_verifications') is not null`) !== 't') sqlFile(path.join(SEC, '45_employment_verification.sql'))
+  // Start from an empty local verification state (local test data only).
+  allowDelete(`delete from storage.objects where bucket_id = 'employment-verification'`)
+  fs.rmSync(path.join(STORE, 'employment-verification'), { recursive: true, force: true })
+  sql(`delete from employment_verifications`)
   {
-    // rollback refuses while a file is stored; succeeds and re-applies cleanly otherwise
+    // S4: the local stand-in protects storage tables like hosted Supabase
+    const blocked = sqlTry(`delete from storage.buckets where id = 'no-such-bucket'`)
+    // rollback refuses while a file is stored
     sql(`insert into storage.objects (bucket_id, name) values ('employment-verification', 'rollback-probe.png')`)
     let refused = false; try { sqlFile(path.join(SEC, '45_rollback_employment_verification.sql')) } catch (e) { refused = /still stored/.test(String(e.stderr)) }
-    sql(`delete from storage.objects where name = 'rollback-probe.png'`)
-    const hadRows = sql(`select count(*) from employment_verifications`) !== '0'
-    let cycled = 'skipped (records present)'
-    if (!hadRows) { sqlFile(path.join(SEC, '45_rollback_employment_verification.sql')); sqlFile(path.join(SEC, '45_employment_verification.sql')); cycled = sql(`select count(*) from storage.buckets where id = 'employment-verification'`) }
-    check('M1 migration 45: private bucket (4 MB, JPEG/PNG), rollback refuses while a file is stored, rollback + re-apply work',
-      refused && sql(`select public || '|' || file_size_limit || '|' || array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'employment-verification'`) === 'false|4194304|image/jpeg,image/png' && (cycled === '1' || cycled.startsWith('skipped')), { refused, cycled })
+    const stillApplied = sql(`select to_regclass('public.employment_verifications') is not null`) === 't' && sql(`select count(*) from storage.buckets where id = 'employment-verification'`) === '1'
+    allowDelete(`delete from storage.objects where name = 'rollback-probe.png'`)
+    // empty bucket: rollback succeeds under the protection, then re-apply
+    let rolledBack = false; try { sqlFile(path.join(SEC, '45_rollback_employment_verification.sql')); rolledBack = true } catch (e) { rolledBack = String(e.stderr).slice(0, 120) }
+    const gone = sql(`select to_regclass('public.employment_verifications') is null`) === 't' && sql(`select count(*) from storage.buckets where id = 'employment-verification'`) === '0'
+    sqlFile(path.join(SEC, '45_employment_verification.sql'))
+    check('M1/S4 migration 45: private bucket (4 MB, JPEG/PNG); storage tables protected like hosted Supabase; rollback refuses while any file exists; with the bucket empty it succeeds (opting past protect_delete); re-apply works',
+      !blocked.ok && /Direct deletion from storage tables is not allowed/.test(blocked.out) && refused && stillApplied && rolledBack === true && gone
+        && sql(`select public || '|' || file_size_limit || '|' || array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'employment-verification'`) === 'false|4194304|image/jpeg,image/png',
+      { blocked: blocked.out.slice(0, 80), refused, stillApplied, rolledBack, gone })
   }
   execFileSync('sleep', ['1'])
 
@@ -128,28 +152,54 @@ async function waitUp(base) { for (let i = 0; i < 60; i++) { try { await fetch(b
       '/api/internal/verification/decision', '/api/verification-sweep']
     const inv = await invite(V)
     const before = sql(`select count(*) from employment_verifications`)
+    const objsBefore = sql(`select count(*) from storage.objects where bucket_id = 'employment-verification'`)
+    const refusedCases = [
+      ['G1a preview (VERCEL=1, VERCEL_ENV=preview, local setting ON)', 3105, { VERCEL: '1', VERCEL_ENV: 'preview', SLATE_VERIFICATION_LOCAL_TEST: '1' }],
+      ['G1b development on Vercel (local setting ON)', 3106, { VERCEL: '1', VERCEL_ENV: 'development', SLATE_VERIFICATION_LOCAL_TEST: '1' }],
+      ['G1c local without the setting', 3107, { SLATE_VERIFICATION_LOCAL_TEST: '' }],
+      ['G3 not on Vercel, local setting ON, NODE_ENV=production, NON-LOCAL Supabase URL', 3108,
+        { VERCEL: null, VERCEL_ENV: null, SLATE_VERIFICATION_LOCAL_TEST: '1', NODE_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: 'https://example-project.supabase.co' }],
+      ['G4a production, SLATE_VERIFICATION_ENABLED missing', 3109, { VERCEL: '1', VERCEL_ENV: 'production', SLATE_VERIFICATION_LOCAL_TEST: '1' }],
+      ['G4b production, SLATE_VERIFICATION_ENABLED=0', 3110, { VERCEL: '1', VERCEL_ENV: 'production', SLATE_VERIFICATION_ENABLED: '0', SLATE_VERIFICATION_LOCAL_TEST: '1' }],
+    ]
     const results = {}
-    for (const [label, port, env] of [
-      ['preview (VERCEL=1, VERCEL_ENV=preview, local setting ON)', 3105, { VERCEL: '1', VERCEL_ENV: 'preview', SLATE_VERIFICATION_LOCAL_TEST: '1', CRON_SECRET_KEY: CRON }],
-      ['development on Vercel (local setting ON)', 3106, { VERCEL: '1', VERCEL_ENV: 'development', SLATE_VERIFICATION_LOCAL_TEST: '1', CRON_SECRET_KEY: CRON }],
-      ['local without the setting', 3107, { SLATE_VERIFICATION_LOCAL_TEST: '', CRON_SECRET_KEY: CRON }],
-    ]) {
-      const proc = startApp(port, env)
+    for (const [label, port, env] of refusedCases) {
+      const proc = startApp(port, { CRON_SECRET_KEY: CRON, SLATE_VERIFICATION_ENABLED: '', ...env })
       const base = `http://localhost:${port}`
       await waitUp(base)
+      const c0 = await gwCounts()
       const codes = []
       for (const r of routes) {
         const tok = r.includes('internal') ? V.token : r.includes('sweep') ? CRON : undefined
         codes.push((await post(base, r, { secret: inv.secret, id: inv.id, consent: true, consentVersion: CONSENT_VERSION, redactionAck: true, contentType: 'image/png', size: 10 }, tok)).status)
       }
-      results[label] = codes
+      const c1 = await gwCounts()
+      results[label] = { codes, dbCalls: c1.rest - c0.rest, storageCalls: c1.storage - c0.storage, authCalls: c1.auth - c0.auth }
       try { process.kill(-proc.pid) } catch {}
     }
-    const allRefused = Object.values(results).every(c => c.every(s => s === 503))
-    check('G1 every verification route (candidate, internal, sweep) refuses with 503 on Preview, on Vercel development, and locally without the setting — even with the local setting ON when on Vercel; nothing changed',
-      allRefused && sql(`select count(*) from employment_verifications`) === before && rec(inv.id).status === 'invited', results)
-    const ok = await api('/api/verification/start', { secret: inv.secret })
-    check('G2 the same request works on the local test instance (setting ON, not on Vercel)', ok.status === 200 && ok.json?.state === 'consent', ok)
+    const unchanged = sql(`select count(*) from employment_verifications`) === before && rec(inv.id).status === 'invited'
+      && sql(`select count(*) from storage.objects where bucket_id = 'employment-verification'`) === objsBefore
+    const ok = (k) => results[k].codes.every(s => s === 503) && results[k].dbCalls === 0 && results[k].storageCalls === 0 && results[k].authCalls === 0
+    check('G1 every verification route (candidate, internal, sweep) returns 503 with no database/storage/auth call on Preview, on Vercel development, and locally without the setting',
+      ['G1a preview (VERCEL=1, VERCEL_ENV=preview, local setting ON)', 'G1b development on Vercel (local setting ON)', 'G1c local without the setting'].every(ok) && unchanged, results)
+    check('G3 local setting ON but a non-local Supabase URL (VERCEL/VERCEL_ENV unset, NODE_ENV=production): every route 503, no calls, nothing changed',
+      ok('G3 not on Vercel, local setting ON, NODE_ENV=production, NON-LOCAL Supabase URL') && unchanged, results['G3 not on Vercel, local setting ON, NODE_ENV=production, NON-LOCAL Supabase URL'])
+    check('G4 production kill switch: SLATE_VERIFICATION_ENABLED missing or 0 → every route (incl. sweep) 503, no calls, nothing changed',
+      ok('G4a production, SLATE_VERIFICATION_ENABLED missing') && ok('G4b production, SLATE_VERIFICATION_ENABLED=0') && unchanged,
+      { a: results['G4a production, SLATE_VERIFICATION_ENABLED missing'], b: results['G4b production, SLATE_VERIFICATION_ENABLED=0'] })
+    {
+      const proc = startApp(3111, { CRON_SECRET_KEY: CRON, VERCEL: '1', VERCEL_ENV: 'production', SLATE_VERIFICATION_ENABLED: '1', SLATE_VERIFICATION_LOCAL_TEST: '' })
+      const base = 'http://localhost:3111'
+      await waitUp(base)
+      const st = await post(base, '/api/verification/start', { secret: inv.secret })
+      const ls = await post(base, '/api/internal/verification/list', {}, V.token)
+      const sw = await post(base, '/api/verification-sweep', { dryRun: true }, CRON)
+      try { process.kill(-proc.pid) } catch {}
+      check('G5 production with SLATE_VERIFICATION_ENABLED=1 → normal behaviour (start, verifier list, sweep dry run)',
+        st.status === 200 && st.json?.state === 'consent' && ls.status === 200 && Array.isArray(ls.json?.rows) && sw.status === 200 && sw.json?.dryRun === true, { st: st.json, ls: ls.status, sw: sw.json })
+    }
+    const okLocal = await api('/api/verification/start', { secret: inv.secret })
+    check('G2 the localhost test instance still works (setting ON, not on Vercel, local Supabase URL)', okLocal.status === 200 && okLocal.json?.state === 'consent', okLocal)
   }
 
   // ── P: permissions ────────────────────────────────────────────────────────
@@ -287,6 +337,60 @@ async function waitUp(base) { for (let i = 0; i < 60; i++) { try { await fetch(b
     await api('/api/verification/withdraw', { secret: u.json.receipt })
   }
 
+  // ── Z: server-side sanitising (browser bypassed: direct upload to the signed URL) ──
+  {
+    const base = await sharp({ create: { width: 320, height: 120, channels: 3, background: '#d0d0d0' } })
+    // JPEG with EXIF + XMP + ICC (from sharp) and a COM segment, all carrying synthetic GPS markers
+    let jpg = await base.clone().jpeg({ quality: 90 })
+      .withExif({ IFD0: { ImageDescription: 'GPSTESTMARK-EXIF 40.7128N 74.0060W' } })
+      .withIccProfile('p3')
+      .withXmp('<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description>GPSTESTMARK-XMP</rdf:Description></rdf:RDF></x:xmpmeta>')
+      .toBuffer()
+    const com = Buffer.from('GPSTESTMARK-COM', 'latin1'); const comHdr = Buffer.from([0xff, 0xfe, 0, 0]); comHdr.writeUInt16BE(com.length + 2, 2)
+    jpg = Buffer.concat([jpg.subarray(0, 2), comHdr, com, jpg.subarray(2)])
+    const inMeta = await sharp(jpg).metadata()
+    const a = await submittedRecord(V, jpg, 'image/jpeg')
+    const fa = await api('/api/internal/verification/file', { id: a.id }, V.token)
+    const outMeta = fa.status === 200 ? await sharp(fa.buf).metadata() : {}
+    check('Z1 JPEG uploaded directly with EXIF + XMP + ICC + COM (synthetic GPS): accepted; stored copy has no EXIF/XMP/ICC/COM and no marker',
+      !!inMeta.exif && !!inMeta.icc && !!inMeta.xmp && jpg.includes('GPSTESTMARK-COM') && a.submitted.json?.state === 'submitted' && fa.type === 'image/jpeg'
+        && !outMeta.exif && !outMeta.icc && !outMeta.xmp && !(outMeta.comments && outMeta.comments.length) && !fa.buf.includes('GPSTESTMARK') && !fa.buf.includes('Exif')
+        && !fa.buf.includes('ICC_PROFILE') && !fa.buf.includes('ns.adobe.com') && !fa.buf.includes(Buffer.from([0xff, 0xfe])),
+      { in: { exif: !!inMeta.exif, icc: !!inMeta.icc, xmp: !!inMeta.xmp }, out: { exif: !!outMeta.exif, icc: !!outMeta.icc, xmp: !!outMeta.xmp, comments: outMeta.comments }, submitted: a.submitted.json })
+    // PNG with tEXt + iTXt
+    const pngBase = await base.clone().png().toBuffer()
+    const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const t = Buffer.from(type); const crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(Buffer.concat([t, data])) >>> 0); return Buffer.concat([len, t, data, crc]) }
+    const png = Buffer.concat([pngBase.subarray(0, 33), chunk('tEXt', Buffer.from('Comment\0PNGTEXTMARK', 'latin1')),
+      chunk('iTXt', Buffer.from('Description\0\0\0en\0\0PNGITXTMARK', 'latin1')), pngBase.subarray(33)])
+    const b = await submittedRecord(V, png, 'image/png')
+    const fb = await api('/api/internal/verification/file', { id: b.id }, V.token)
+    check('Z2 PNG uploaded directly with tEXt + iTXt: stored copy has no text chunks and no markers',
+      png.includes('PNGTEXTMARK') && png.includes('PNGITXTMARK') && b.submitted.json?.state === 'submitted' && fb.type === 'image/png'
+        && !fb.buf.includes('tEXt') && !fb.buf.includes('iTXt') && !fb.buf.includes('zTXt') && !fb.buf.includes('PNGTEXTMARK') && !fb.buf.includes('PNGITXTMARK'), b.submitted.json)
+    // JPEG with trailing data after the end-of-image marker
+    const plain = await base.clone().jpeg({ quality: 85 }).toBuffer()
+    const trailing = Buffer.concat([plain, Buffer.from('TRAILINGMARKER-hidden-data', 'latin1')])
+    const c = await submittedRecord(V, trailing, 'image/jpeg')
+    const fc = await api('/api/internal/verification/file', { id: c.id }, V.token)
+    check('Z3 JPEG with appended trailing data: stored copy ends at the end-of-image marker; trailing bytes gone',
+      c.submitted.json?.state === 'submitted' && !fc.buf.includes('TRAILINGMARKER') && fc.buf.subarray(-2).toString('hex') === 'ffd9', c.submitted.json)
+    // undecodable: JPEG signature, garbage body
+    const junk = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('not really an image '.repeat(40))])
+    const d = await submittedRecord(V, junk, 'image/jpeg')
+    const rd = rec(d.id)
+    check('Z4 undecodable file (JPEG signature, garbage body): rejected (unreadable) and deleted, deletion confirmed',
+      d.submitted.json?.state === 'rejected_file' && d.submitted.json?.deletion === 'deleted' && rd.status === 'not_verified' && rd.rejection_reason === 'unreadable'
+        && !!rd.deleted_at && !rd.object_path && !objExists(d.path) && !fileExists(d.path), { submitted: d.submitted.json, rd })
+    // oversized dimensions (small file, 4000 × 200 px)
+    const wide = await sharp({ create: { width: 4000, height: 200, channels: 3, background: '#ffffff' } }).png().toBuffer()
+    const e = await submittedRecord(V, wide, 'image/png')
+    const re = rec(e.id)
+    check('Z5 oversized image (4000 px wide; limit 3000) is rejected (unsupported) and deleted, deletion confirmed',
+      wide.length < 4 * 1024 * 1024 && e.submitted.json?.state === 'rejected_file' && e.submitted.json?.deletion === 'deleted' && re.rejection_reason === 'unsupported'
+        && !!re.deleted_at && !objExists(e.path) && !fileExists(e.path), { submitted: e.submitted.json, re })
+    for (const id of [a.id, b.id, c.id]) await api('/api/internal/verification/decision', { id, decision: 'not_verified', rejection_reason: 'other' }, V.token)
+  }
+
   // ── D: decisions, immediate deletion, fields kept ─────────────────────────
   let continueSecret = null, verifiedId = null
   {
@@ -401,6 +505,31 @@ async function waitUp(base) { for (let i = 0; i < 60; i++) { try { await fetch(b
         && sw.json?.orphans >= 1 && !objExists(orphan) && !fileExists(orphan), { tooNew: tooNew.json, sw: sw.json })
     const reviewLate = await api('/api/internal/verification/decision', { id: s.id, decision: 'verified', role_category: 'server', venue: 'Fake Bistro', borough: 'queens', evidence_type: 'schedule' }, V.token)
     check('S2 a reviewer can no longer act on an expired submission', reviewLate.status === 409, reviewLate.json)
+  }
+
+  // ── O: orphan cleanup (confirmed deletions, batch cap, dry run); POST + Bearer only ──
+  {
+    const getRes = await fetch(APP + '/api/verification-sweep', { headers: { authorization: `Bearer ${CRON}` } })
+    const keyRes = await fetch(APP + `/api/verification-sweep?key=${encodeURIComponent(CRON)}`, { method: 'POST' })
+    check('O0 sweep is POST-only (GET → 405) and Authorization: Bearer only (?key= → 401)', getRes.status === 405 && keyRes.status === 401, { get: getRes.status, key: keyRes.status })
+    const orphanCount = () => Number(sql(`select count(*) from storage.objects where bucket_id = 'employment-verification' and name like 'orph-%'`))
+    const small = await sharp({ create: { width: 10, height: 10, channels: 3, background: '#000' } }).png().toBuffer()
+    for (let i = 0; i < 3; i++) makeOrphan(`orph-dry-${run}-${i}.png`, small)
+    const dry = await api('/api/verification-sweep', { dryRun: true }, CRON)
+    check('O1 dry run reports the orphans it would remove and deletes nothing', dry.json?.dryRun === true && dry.json?.wouldRemoveOrphans === 3 && orphanCount() === 3, dry.json)
+    await gwConfig({ storageDeleteMode: 'silent' })
+    const silent = await api('/api/verification-sweep', {}, CRON)
+    const afterSilent = orphanCount()
+    await gwConfig({ storageDeleteMode: 'ok' })
+    const recovered = await api('/api/verification-sweep', {}, CRON)
+    check('O2 a remove that silently fails is not counted (orphans 0, unconfirmed 3) and the orphans are still there for the next run, which removes them',
+      silent.json?.orphans === 0 && silent.json?.orphansPending === 3 && afterSilent === 3 && recovered.json?.orphans === 3 && orphanCount() === 0, { silent: silent.json, recovered: recovered.json })
+    for (let i = 0; i < 150; i++) makeOrphan(`orph-batch-${run}-${String(i).padStart(3, '0')}.png`, small)
+    const first = await api('/api/verification-sweep', {}, CRON)
+    const left = orphanCount()
+    const second = await api('/api/verification-sweep', {}, CRON)
+    check('O3 batch cap: 150 orphans → first run removes 100 (confirmed), second run 50; none left',
+      first.json?.orphans === 100 && left === 50 && second.json?.orphans === 50 && orphanCount() === 0, { first: first.json, left, second: second.json })
   }
 
   // ── L / downstream: privacy of logs and data; participant agreement untouched ──

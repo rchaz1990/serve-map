@@ -15,8 +15,12 @@ candidates, venues, production changes, deploys or merges.
 4. `POST /api/verification/upload-url` consumes the invite (single use), records consent and
    issues a one-time Supabase signed upload link for a random file name (`<uuid>.png|jpg`).
    The browser uploads directly to the private bucket. A receipt secret replaces the invite.
-5. `POST /api/verification/submitted`: the server checks the stored file (exists, ≤ 4 MB, real
-   JPEG/PNG by content). A bad file is rejected automatically (`unsupported`) and deleted at once.
+5. `POST /api/verification/submitted`: the server does not trust the upload (the signed URL can
+   be used without the browser). It downloads the file, checks size and type by content, then
+   **decodes and re-encodes it server-side with sharp** (EXIF orientation applied; no EXIF, XMP,
+   ICC, IPTC, comments, PNG text chunks or trailing data; `limitInputPixels` 9 MP; max 3000 px per
+   side), overwrites the stored file with the cleaned bytes and checks the overwrite. Anything that
+   fails is rejected automatically (`unsupported` / `unreadable`) and deleted at once (confirmed).
 6. The verifier views the image through `/api/internal/verification/file` (no public or signed
    download link, `no-store`, inline) and records **verified** (role category, venue, borough,
    evidence type) / **not verified** (reason code only) / **withdrawn**.
@@ -30,17 +34,25 @@ candidates, venues, production changes, deploys or merges.
 
 The candidate can withdraw until a decision; any file is deleted at once.
 
-## Sweep (`POST /api/verification-sweep`, cron secret, exact `Bearer `)
-Expires overdue invites and uploads (unreviewed submissions after 24 h; files deleted), retries
-pending deletions, clears unused continuation links, and deletes files no record points at
-(e.g. an upload completed after a withdrawal with a still-valid 2-hour upload link), once older
-than 3 h. Returns counts only. Needs a schedule (existing cron caller) before production.
+## Sweep (`POST /api/verification-sweep`; `Authorization: Bearer <CRON_SECRET_KEY>` only)
+POST only (no GET, no `?key=`). Expires overdue invites and uploads (unreviewed submissions after
+24 h; files deleted), retries pending deletions, clears unused continuation links, and deletes
+files no record points at (e.g. an upload completed after a withdrawal with a still-valid 2-hour
+upload link) once older than 3 h — **at most 100 per run, each deletion confirmed** (only
+confirmed deletions are counted; unconfirmed ones stay for the next run). Body
+`{"dryRun": true}` reports what would happen and changes nothing. Returns counts only. Needs a
+schedule (existing cron caller) before production; not part of this work.
 
-## Production guard
-Every verification route, internal route and the sweep return 503 unless
-`VERCEL_ENV === 'production'`, or `SLATE_VERIFICATION_LOCAL_TEST=1` **and** the process is not on
-Vercel (`VERCEL`/`VERCEL_ENV` unset). Vercel sets those on every Preview/Development build, so
-the local setting cannot take effect there. Tested (`verification.test.js` G1).
+## Production guard and kill switch
+Every verification route, internal route and the sweep return 503, before any database,
+storage or auth call, unless one of:
+- **Production:** `VERCEL_ENV === 'production'` **and** `SLATE_VERIFICATION_ENABLED === '1'`.
+  Missing, `0` or anything else → off. Default off; set it only when the founder approves.
+- **Local test:** `SLATE_VERIFICATION_LOCAL_TEST === '1'`, **not** on Vercel (`VERCEL` and
+  `VERCEL_ENV` unset — Vercel sets them on every Preview/Development build), **and** the Supabase
+  URL is `localhost`/`127.0.0.1`. Any other Supabase URL refuses, whatever `NODE_ENV` is.
+The guard and the verification clients read the same runtime environment (never a build-time
+copy). Tested (`verification.test.js` G1–G5, with gateway request counters showing no calls).
 
 ## Data kept (migration 45, proposed, not run in production)
 `employment_verifications`: random id, status, current secret hash + expiry (cleared when used),
@@ -49,7 +61,9 @@ venue, borough, evidence type, decision time, reviewer id, deletion time, reason
 attestation time. No name, email, contact, document, document hash, extracted text or notes.
 Row security forced; no app-user access; forward-only status changes and final decisions
 enforced by a trigger. Private bucket `employment-verification` (4 MB, JPEG/PNG, no storage
-policies → service role only).
+policies → service role only). The rollback refuses while any file exists; with the bucket empty
+it sets `storage.allow_delete_query = 'true'` (transaction-local) to pass hosted Supabase's
+`protect_delete` triggers, which the local stand-in reproduces.
 
 ## Logging
 Never log or return file contents, file names, storage paths/URLs, secrets or hashes, image
@@ -57,8 +71,12 @@ metadata or reviewer judgments. Errors log `[verification] <code> [<record id>]`
 `/verify` is excluded from page-view tracking. Tested (`verification.test.js` L1–L2).
 
 ## Known limitations (local build)
-- Storage is emulated locally (gateway); Supabase's own behaviour (deletion, logs, CDN) must be
-  confirmed separately. Supabase signed upload links last 2 hours (not configurable).
+- Storage is emulated locally (gateway); Supabase's own behaviour (deletion, overwrite/versions,
+  logs, CDN) must be confirmed separately. Supabase signed upload links last 2 hours (not
+  configurable). The sanitised file overwrites the original at the same path; whether the
+  provider keeps the overwritten bytes is part of blocker 4.
+- `sharp` is now a direct dependency (it was already installed as Next.js's optional image
+  dependency, same version 0.34.5).
 - Supabase/Vercel request logs record request paths: storage paths (random UUIDs) and the
   upload link's token appear in Supabase's own storage request logs.
 - Screenshots on the reviewer's device cannot be prevented technically (policy only).

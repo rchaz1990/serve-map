@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto'
-import type { SupabaseClient, User } from '@supabase/supabase-js'
-import { supabaseAdmin, getRequestUser } from '@/lib/server-auth'
+import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 
 // Employment verification (server only). See docs/EMPLOYMENT_VERIFICATION.md.
 //
@@ -16,15 +15,32 @@ export const UNREVIEWED_DELETE_HOURS = 24
 export const CONTINUE_TTL_DAYS = 14
 export const NO_STORE = { 'Cache-Control': 'no-store, max-age=0', 'Referrer-Policy': 'no-referrer' }
 
+// Environment is read through this alias on purpose: `process.env.NEXT_PUBLIC_*` written out
+// literally is replaced at build time, but the guard and the verification clients must agree
+// on the SAME runtime values.
+const runtimeEnv = process.env as Record<string, string | undefined>
+
+function isLocalUrl(value: string | undefined): boolean {
+  try {
+    const host = new URL(value ?? '').hostname
+    return host === 'localhost' || host === '127.0.0.1'
+  } catch {
+    return false
+  }
+}
+
 /**
- * Verification runs only in Production, or in a local test where SLATE_VERIFICATION_LOCAL_TEST=1
- * is set and the code is NOT running on Vercel. Vercel sets VERCEL=1 and VERCEL_ENV on every
- * build and runtime (production, preview, development), so the local setting can never take
- * effect in a Preview deployment.
+ * Verification is OFF unless one of these holds:
+ *  - Production kill switch: VERCEL_ENV === 'production' AND SLATE_VERIFICATION_ENABLED === '1'
+ *    (missing, '0' or anything else → off; default off).
+ *  - Local test: SLATE_VERIFICATION_LOCAL_TEST === '1', NOT on Vercel (VERCEL and VERCEL_ENV
+ *    unset; Vercel sets them on every Preview/Development build and runtime), AND the Supabase
+ *    URL is localhost/127.0.0.1. Any other Supabase URL refuses, whatever NODE_ENV is.
  */
-export function verificationAllowed(env: Record<string, string | undefined> = process.env): boolean {
-  if (env.VERCEL_ENV === 'production') return true
-  return env.SLATE_VERIFICATION_LOCAL_TEST === '1' && !env.VERCEL && !env.VERCEL_ENV
+export function verificationAllowed(env: Record<string, string | undefined> = runtimeEnv): boolean {
+  if (env.VERCEL_ENV === 'production') return env.SLATE_VERIFICATION_ENABLED === '1'
+  if (env.SLATE_VERIFICATION_LOCAL_TEST !== '1' || env.VERCEL || env.VERCEL_ENV) return false
+  return isLocalUrl(env.NEXT_PUBLIC_SUPABASE_URL)
 }
 
 export function json(body: unknown, status = 200) {
@@ -37,7 +53,16 @@ export function logCode(code: string, id?: string) {
   console.error(`[verification] ${code}${id ? ` ${id}` : ''}`)
 }
 
-export const admin = (): SupabaseClient => supabaseAdmin()
+// The verification routes use their own service-role client, built from the same runtime
+// Supabase URL the guard checked (never a build-time copy).
+let client: SupabaseClient | null = null
+export function admin(): SupabaseClient {
+  if (!client) {
+    client = createClient(runtimeEnv['NEXT_PUBLIC_SUPABASE_URL']!, runtimeEnv['SUPABASE_SERVICE_ROLE_KEY']!,
+      { auth: { persistSession: false, autoRefreshToken: false } })
+  }
+  return client
+}
 
 /** A new random secret (returned once) and the SHA-256 hash that is stored. */
 export function newSecret(): { secret: string; hash: string } {
@@ -68,9 +93,11 @@ export function imageKind(bytes: Uint8Array): 'image/jpeg' | 'image/png' | null 
 
 /** The signed-in user if their account carries the server-set verifier flag, else null. */
 export async function requireVerifier(request: Request): Promise<User | null> {
-  const user = await getRequestUser(request)
-  if (!user) return null
-  return user.app_metadata?.slate_verifier === true ? user : null
+  const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim()
+  if (!token) return null
+  const { data, error } = await admin().auth.getUser(token)
+  if (error || !data?.user) return null
+  return data.user.app_metadata?.slate_verifier === true ? data.user : null
 }
 
 /** The cron caller (same secret and exact `Bearer ` format as /api/cleanup-shifts). */
@@ -86,27 +113,34 @@ export function cronAuthorized(request: Request): boolean {
 export type DeleteResult = 'deleted' | 'pending'
 
 /**
- * Deletes the file through the Storage API (never with SQL, which would orphan it), then
- * confirms both that the file can no longer be fetched and that its storage record is gone.
- * Only a confirmed deletion clears object_path and sets deleted_at; otherwise the record keeps
- * object_path (deletion pending) and the sweep retries.
+ * Deletes one file through the Storage API (never with SQL, which would orphan it) and confirms
+ * it is gone: the file can no longer be fetched AND its storage record no longer exists.
+ * True only when both are confirmed.
  */
-export async function deleteAndConfirm(db: SupabaseClient, id: string, path: string): Promise<DeleteResult> {
+export async function removeAndConfirm(db: SupabaseClient, path: string): Promise<boolean> {
   try {
     const { error: rmErr } = await db.storage.from(VERIFICATION_BUCKET).remove([path])
-    if (rmErr) { logCode('delete_failed', id); return 'pending' }
+    if (rmErr) return false
     const { data: stillThere } = await db.storage.from(VERIFICATION_BUCKET).exists(path)
     const { data: rowThere, error: rowErr } = await db.rpc('verification_object_exists', { p_name: path })
-    if (stillThere !== false || rowErr || rowThere !== false) { logCode('delete_unconfirmed', id); return 'pending' }
-    const { error: upErr } = await db.from('employment_verifications')
-      .update({ object_path: null, deleted_at: new Date().toISOString() })
-      .eq('id', id).eq('object_path', path)
-    if (upErr) { logCode('delete_record_failed', id); return 'pending' }
-    return 'deleted'
+    return stillThere === false && !rowErr && rowThere === false
   } catch {
-    logCode('delete_exception', id)
-    return 'pending'
+    return false
   }
+}
+
+/**
+ * Deletes a record's file and confirms it (removeAndConfirm). Only a confirmed deletion clears
+ * object_path and sets deleted_at; otherwise the record keeps object_path (deletion pending)
+ * and the sweep retries.
+ */
+export async function deleteAndConfirm(db: SupabaseClient, id: string, path: string): Promise<DeleteResult> {
+  if (!(await removeAndConfirm(db, path))) { logCode('delete_unconfirmed', id); return 'pending' }
+  const { error: upErr } = await db.from('employment_verifications')
+    .update({ object_path: null, deleted_at: new Date().toISOString() })
+    .eq('id', id).eq('object_path', path)
+  if (upErr) { logCode('delete_record_failed', id); return 'pending' }
+  return 'deleted'
 }
 
 export const ROLE_CATEGORIES = ['server', 'bartender', 'other_approved'] as const
