@@ -126,6 +126,9 @@ grant execute on function public.verification_object_exists(text) to service_rol
 -- Files in the bucket that no record points at (e.g. an upload that finished after the
 -- candidate withdrew, using a still-valid upload link). The sweep deletes them through the
 -- Storage API. Only files older than the given age, so in-progress uploads are left alone.
+-- An earlier draft of this file created a one-argument version. Drop it so a database that
+-- ran that draft cannot keep both overloads (PostgREST would answer HTTP 300, ambiguous).
+drop function if exists public.verification_unreferenced_objects(interval);
 create or replace function public.verification_unreferenced_objects(p_older_than interval, p_limit integer default 100)
 returns setof text
 language sql

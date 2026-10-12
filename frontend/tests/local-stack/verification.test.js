@@ -121,7 +121,17 @@ function makeOrphan(name, bytes) {
     // empty bucket: rollback succeeds under the protection, then re-apply
     let rolledBack = false; try { sqlFile(path.join(SEC, '45_rollback_employment_verification.sql')); rolledBack = true } catch (e) { rolledBack = String(e.stderr).slice(0, 120) }
     const gone = sql(`select to_regclass('public.employment_verifications') is null`) === 't' && sql(`select count(*) from storage.buckets where id = 'employment-verification'`) === '0'
+    const fnsAfterRollback = sql(`select count(*) from pg_proc where proname = 'verification_unreferenced_objects'`)
+    // A database that ran the earlier draft still has the one-argument overload: re-apply must remove it.
+    sql(`create function public.verification_unreferenced_objects(p_older_than interval) returns setof text language sql stable as $$ select null::text where false $$`)
+    const legacyPlanted = sql(`select string_agg(oid::regprocedure::text, ',') from pg_proc where proname = 'verification_unreferenced_objects'`)
     sqlFile(path.join(SEC, '45_employment_verification.sql'))
+    const fnsAfterApply = sql(`select string_agg(oid::regprocedure::text, ',') from pg_proc where proname = 'verification_unreferenced_objects'`)
+    const fnGrants = sql(`select has_function_privilege('anon', 'public.verification_unreferenced_objects(interval,integer)', 'EXECUTE') || '|' || has_function_privilege('authenticated', 'public.verification_unreferenced_objects(interval,integer)', 'EXECUTE') || '|' || has_function_privilege('service_role', 'public.verification_unreferenced_objects(interval,integer)', 'EXECUTE')`)
+    check('M2 migration 45 removes the earlier draft\'s one-argument verification_unreferenced_objects(interval): after rollback none exists; re-apply over the legacy overload leaves only (interval, integer), service role only',
+      fnsAfterRollback === '0' && legacyPlanted === 'verification_unreferenced_objects(interval)'
+        && fnsAfterApply === 'verification_unreferenced_objects(interval,integer)' && fnGrants === 'false|false|true',
+      { fnsAfterRollback, legacyPlanted, fnsAfterApply, fnGrants })
     check('M1/S4 migration 45: private bucket (4 MB, JPEG/PNG); storage tables protected like hosted Supabase; rollback refuses while any file exists; with the bucket empty it succeeds (opting past protect_delete); re-apply works',
       !blocked.ok && /Direct deletion from storage tables is not allowed/.test(blocked.out) && refused && stillApplied && rolledBack === true && gone
         && sql(`select public || '|' || file_size_limit || '|' || array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'employment-verification'`) === 'false|4194304|image/jpeg,image/png',
